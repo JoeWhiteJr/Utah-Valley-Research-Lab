@@ -1,6 +1,20 @@
 import '@testing-library/jest-dom'
 import { vi } from 'vitest'
 
+// Mock IntersectionObserver (not available in jsdom)
+class MockIntersectionObserver {
+  constructor(callback) {
+    this.callback = callback
+  }
+  observe() {
+    // Immediately trigger as if element is visible
+    this.callback([{ isIntersecting: true }])
+  }
+  unobserve() {}
+  disconnect() {}
+}
+global.IntersectionObserver = MockIntersectionObserver
+
 // Mock localStorage
 const localStorageMock = {
   getItem: vi.fn(),

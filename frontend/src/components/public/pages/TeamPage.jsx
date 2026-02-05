@@ -1,4 +1,5 @@
 // TeamPage.jsx - Team page with leadership, lab leads, members, and partners
+import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowRight } from 'lucide-react';
 import PageHero from '../shared/PageHero';
@@ -7,6 +8,10 @@ import ScrollAnimateWrapper from '../shared/ScrollAnimateWrapper';
 import { teamData, ctaData } from '../../../data/publicSiteData';
 
 export default function TeamPage() {
+  useEffect(() => {
+    document.title = 'Our Team | Utah Valley Research Lab';
+  }, []);
+
   const { leadership, labLeads, members, partners } = teamData;
   const teamCta = ctaData.team;
 

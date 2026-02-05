@@ -1,5 +1,5 @@
 // PublicProjectsPage.jsx - Projects page with filtering and project cards
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import * as LucideIcons from 'lucide-react';
 import { FlaskConical, Heart, Anchor, ArrowRight, Building2 } from 'lucide-react';
@@ -52,6 +52,10 @@ function ProjectCard({ title, type, status, client, clientIcon, description }) {
 export default function PublicProjectsPage() {
   const [activeFilter, setActiveFilter] = useState('All');
   const { hero, filters } = projectsPageData;
+
+  useEffect(() => {
+    document.title = 'Projects | Utah Valley Research Lab';
+  }, []);
   const projectsCta = ctaData.projects;
 
   // Combine all projects for filtering

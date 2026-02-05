@@ -1,5 +1,5 @@
 // DonatePage.jsx - Donation page with impact cards, donation options, and transparency
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Heart,
@@ -32,6 +32,10 @@ const iconMap = {
 };
 
 export default function DonatePage() {
+  useEffect(() => {
+    document.title = 'Donate | Utah Valley Research Lab';
+  }, []);
+
   const [oneTimeAmount, setOneTimeAmount] = useState(100);
   const [monthlyAmount, setMonthlyAmount] = useState(25);
 

@@ -1,4 +1,5 @@
 // ContactPage.jsx - Contact page with two-column layout and FAQ
+import { useEffect } from 'react';
 import { Mail, Phone, MapPin, Clock, ExternalLink, CheckCircle } from 'lucide-react';
 import PageHero from '../shared/PageHero';
 import SectionHeader from '../shared/SectionHeader';
@@ -8,6 +9,10 @@ import { useContactForm } from '../../../hooks/useContactForm';
 import { contactPageData, faqData, siteInfo } from '../../../data/publicSiteData';
 
 export default function ContactPage() {
+  useEffect(() => {
+    document.title = 'Contact Us | Utah Valley Research Lab';
+  }, []);
+
   const { values, errors, isSubmitting, isSubmitted, handleChange, handleSubmit, reset } = useContactForm();
 
   const { hero, intro, form } = contactPageData;

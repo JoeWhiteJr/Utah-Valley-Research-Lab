@@ -1,4 +1,5 @@
 // AboutPage.jsx - About page with mission, capabilities, and partners
+import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Target,
@@ -35,6 +36,10 @@ const partnerIconMap = {
 };
 
 export default function AboutPage() {
+  useEffect(() => {
+    document.title = 'About Us | Utah Valley Research Lab';
+  }, []);
+
   const { hero, mission, cards, cta } = aboutPageData;
 
   return (

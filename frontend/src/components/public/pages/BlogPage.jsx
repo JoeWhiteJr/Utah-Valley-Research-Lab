@@ -1,5 +1,5 @@
 // BlogPage.jsx - Blog & Research page with coming soon content
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Newspaper, FlaskConical, Briefcase, GraduationCap, Megaphone, Linkedin } from 'lucide-react';
 import PageHero from '../shared/PageHero';
 import SectionHeader from '../shared/SectionHeader';
@@ -17,6 +17,10 @@ const iconMap = {
 export default function BlogPage() {
   const [email, setEmail] = useState('');
   const [isSubscribed, setIsSubscribed] = useState(false);
+
+  useEffect(() => {
+    document.title = 'Blog & Research | Utah Valley Research Lab';
+  }, []);
 
   const handleNewsletterSubmit = (e) => {
     e.preventDefault();

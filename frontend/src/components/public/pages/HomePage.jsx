@@ -1,4 +1,5 @@
 // HomePage.jsx - Full home page with all sections
+import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import {
   TrendingUp,
@@ -41,6 +42,10 @@ const partnerIconMap = {
 };
 
 export default function HomePage() {
+  useEffect(() => {
+    document.title = 'Utah Valley Research Lab | UVRL';
+  }, []);
+
   return (
     <div className="min-h-screen">
       {/* Hero Section */}
