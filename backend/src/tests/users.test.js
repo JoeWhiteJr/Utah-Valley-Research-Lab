@@ -23,7 +23,7 @@ describe('Users API', () => {
 
     adminToken = adminRes.body.token;
     adminUserId = adminRes.body.user.id;
-    await db.query("UPDATE users SET role = 'admin' WHERE id = $1", [adminUserId]);
+    await db.query("UPDATE users SET role = 'admin', is_super_admin = true WHERE id = $1", [adminUserId]);
 
     // Create regular user
     const regularRes = await request(app)

@@ -117,6 +117,16 @@ describe('Projects API', () => {
   });
 
   describe('PUT /api/projects/:id', () => {
+    beforeAll(async () => {
+      // Make user admin so they can update title, status, and progress
+      await db.query("UPDATE users SET role = 'admin' WHERE id = $1", [testUserId]);
+    });
+
+    afterAll(async () => {
+      // Revert to project_lead for subsequent tests
+      await db.query("UPDATE users SET role = 'project_lead' WHERE id = $1", [testUserId]);
+    });
+
     it('should update a project', async () => {
       const res = await request(app)
         .put(`/api/projects/${testProjectId}`)
