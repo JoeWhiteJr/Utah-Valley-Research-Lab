@@ -2,7 +2,7 @@ const express = require('express');
 const bcrypt = require('bcryptjs');
 const { body, validationResult } = require('express-validator');
 const db = require('../config/database');
-const { authenticate, requireRole } = require('../middleware/auth');
+const { authenticate, requireRole, requireSuperAdmin } = require('../middleware/auth');
 
 const router = express.Router();
 
@@ -214,7 +214,7 @@ router.put('/password', authenticate, [
   }
 });
 
-// Update user role (admin only)
+// Update user role (admin only, super admin required for admin role changes)
 router.put('/:id/role', authenticate, requireRole('admin'), [
   body('role').isIn(['admin', 'project_lead', 'researcher', 'viewer'])
 ], async (req, res, next) => {
@@ -226,14 +226,23 @@ router.put('/:id/role', authenticate, requireRole('admin'), [
 
     const { role } = req.body;
 
+    // Check if target user is currently an admin
+    const targetUser = await db.query('SELECT role FROM users WHERE id = $1', [req.params.id]);
+    if (targetUser.rows.length === 0) {
+      return res.status(404).json({ error: { message: 'User not found' } });
+    }
+
+    // Require super admin to change to/from admin role
+    if (role === 'admin' || targetUser.rows[0].role === 'admin') {
+      if (!req.user.is_super_admin) {
+        return res.status(403).json({ error: { message: 'Only super admin can change admin roles' } });
+      }
+    }
+
     const result = await db.query(
       'UPDATE users SET role = $1 WHERE id = $2 RETURNING id, email, name, role',
       [role, req.params.id]
     );
-
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: { message: 'User not found' } });
-    }
 
     res.json({ user: result.rows[0] });
   } catch (error) {
@@ -241,18 +250,23 @@ router.put('/:id/role', authenticate, requireRole('admin'), [
   }
 });
 
-// Delete user (admin only)
+// Delete user (admin only, super admin required for deleting admins)
 router.delete('/:id', authenticate, requireRole('admin'), async (req, res, next) => {
   try {
     if (req.params.id === req.user.id) {
       return res.status(400).json({ error: { message: 'Cannot delete your own account' } });
     }
 
-    const result = await db.query('DELETE FROM users WHERE id = $1 RETURNING id', [req.params.id]);
-
-    if (result.rows.length === 0) {
+    // Check if target is an admin — require super admin
+    const targetUser = await db.query('SELECT role FROM users WHERE id = $1', [req.params.id]);
+    if (targetUser.rows.length === 0) {
       return res.status(404).json({ error: { message: 'User not found' } });
     }
+    if (targetUser.rows[0].role === 'admin' && !req.user.is_super_admin) {
+      return res.status(403).json({ error: { message: 'Only super admin can delete admin users' } });
+    }
+
+    const result = await db.query('DELETE FROM users WHERE id = $1 RETURNING id', [req.params.id]);
 
     res.json({ message: 'User deleted successfully' });
   } catch (error) {

@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core'
 import { SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy, arrayMove } from '@dnd-kit/sortable'
@@ -30,7 +30,7 @@ export default function ProjectDetail() {
   const navigate = useNavigate()
   const { user } = useAuthStore()
   const {
-    currentProject, fetchProject, updateProject, deleteProject,
+    currentProject, fetchProject, updateProject, deleteProject, uploadCover,
     actions, fetchActions, createAction, updateAction, deleteAction, reorderActions,
     files, fetchFiles, uploadFile, deleteFile,
     notes, fetchNotes, createNote, updateNote, deleteNote,
@@ -58,7 +58,10 @@ export default function ProjectDetail() {
   const [meetingData, setMeetingData] = useState({ title: '', recorded_at: '' })
   const [audioFile, setAudioFile] = useState(null)
 
+  const coverInputRef = useRef(null)
+
   const canEdit = user?.role === 'admin' || user?.role === 'project_lead'
+  const canEditMeta = user?.role === 'admin'
   const canDelete = user?.role === 'admin'
 
   const sensors = useSensors(
@@ -100,7 +103,10 @@ export default function ProjectDetail() {
 
   const handleUpdateProject = async (e) => {
     e.preventDefault()
-    await updateProject(id, editData)
+    const dataToSend = canEditMeta
+      ? editData
+      : { description: editData.description }
+    await updateProject(id, dataToSend)
     setShowEditModal(false)
   }
 
@@ -124,6 +130,14 @@ export default function ProjectDetail() {
     const file = e.target.files?.[0]
     if (file) {
       await uploadFile(id, file)
+      e.target.value = ''
+    }
+  }
+
+  const handleCoverUpload = async (e) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      await uploadCover(id, file)
       e.target.value = ''
     }
   }
@@ -195,10 +209,22 @@ export default function ProjectDetail() {
           </div>
         )}
         {canEdit && (
-          <button className="absolute bottom-4 right-4 flex items-center gap-2 px-3 py-2 bg-white/90 backdrop-blur-sm rounded-lg text-sm font-medium text-text-primary hover:bg-white">
-            <Image size={16} />
-            Change cover
-          </button>
+          <>
+            <input
+              ref={coverInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={handleCoverUpload}
+            />
+            <button
+              onClick={() => coverInputRef.current?.click()}
+              className="absolute bottom-4 right-4 flex items-center gap-2 px-3 py-2 bg-white/90 backdrop-blur-sm rounded-lg text-sm font-medium text-text-primary hover:bg-white"
+            >
+              <Image size={16} />
+              Change cover
+            </button>
+          </>
         )}
       </div>
 
@@ -435,12 +461,21 @@ export default function ProjectDetail() {
       {/* Edit Project Modal */}
       <Modal isOpen={showEditModal} onClose={() => setShowEditModal(false)} title="Edit Project">
         <form onSubmit={handleUpdateProject} className="space-y-5">
-          <Input
-            label="Title"
-            value={editData.title}
-            onChange={(e) => setEditData({ ...editData, title: e.target.value })}
-            required
-          />
+          {canEditMeta ? (
+            <Input
+              label="Title"
+              value={editData.title}
+              onChange={(e) => setEditData({ ...editData, title: e.target.value })}
+              required
+            />
+          ) : (
+            <div>
+              <label className="block text-sm font-medium text-text-primary mb-1.5">Title</label>
+              <p className="px-4 py-2.5 rounded-organic border border-gray-200 bg-gray-50 text-text-secondary">
+                {editData.title}
+              </p>
+            </div>
+          )}
           <div>
             <label className="block text-sm font-medium text-text-primary mb-1.5">Description</label>
             <textarea
@@ -450,28 +485,30 @@ export default function ProjectDetail() {
               className="w-full px-4 py-2.5 rounded-organic border border-gray-300 bg-white focus:outline-none focus:ring-2 focus:ring-primary-300 focus:border-primary-400 resize-none"
             />
           </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-text-primary mb-1.5">Status</label>
-              <select
-                value={editData.status}
-                onChange={(e) => setEditData({ ...editData, status: e.target.value })}
-                className="w-full px-4 py-2.5 rounded-organic border border-gray-300 bg-white focus:outline-none focus:ring-2 focus:ring-primary-300"
-              >
-                <option value="active">Active</option>
-                <option value="completed">Completed</option>
-                <option value="archived">Archived</option>
-              </select>
+          {canEditMeta && (
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-text-primary mb-1.5">Status</label>
+                <select
+                  value={editData.status}
+                  onChange={(e) => setEditData({ ...editData, status: e.target.value })}
+                  className="w-full px-4 py-2.5 rounded-organic border border-gray-300 bg-white focus:outline-none focus:ring-2 focus:ring-primary-300"
+                >
+                  <option value="active">Active</option>
+                  <option value="completed">Completed</option>
+                  <option value="archived">Archived</option>
+                </select>
+              </div>
+              <Input
+                label="Progress %"
+                type="number"
+                min="0"
+                max="100"
+                value={editData.progress}
+                onChange={(e) => setEditData({ ...editData, progress: parseInt(e.target.value) || 0 })}
+              />
             </div>
-            <Input
-              label="Progress %"
-              type="number"
-              min="0"
-              max="100"
-              value={editData.progress}
-              onChange={(e) => setEditData({ ...editData, progress: parseInt(e.target.value) || 0 })}
-            />
-          </div>
+          )}
           <div className="flex justify-end gap-3 pt-2">
             <Button type="button" variant="secondary" onClick={() => setShowEditModal(false)}>Cancel</Button>
             <Button type="submit">Save Changes</Button>

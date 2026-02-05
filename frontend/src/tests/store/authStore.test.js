@@ -83,7 +83,7 @@ describe('authStore', () => {
 
       expect(result).toBe(true)
       const state = useAuthStore.getState()
-      expect(state.user).toEqual({ id: '1', name: 'Test User', email: 'test@example.com' })
+      expect(state.user).toEqual({ id: '1', name: 'Test User', email: 'test@example.com', is_super_admin: false })
       expect(state.token).toBe('new-token')
       expect(localStorage.setItem).toHaveBeenCalledWith('token', 'new-token')
     })
@@ -137,7 +137,7 @@ describe('authStore', () => {
 
       expect(result).toBe(true)
       const state = useAuthStore.getState()
-      expect(state.user).toEqual({ id: '1', name: 'New User', email: 'new@example.com' })
+      expect(state.user).toEqual({ id: '1', name: 'New User', email: 'new@example.com', is_super_admin: false })
       expect(state.token).toBe('new-token')
       expect(localStorage.setItem).toHaveBeenCalledWith('token', 'new-token')
     })

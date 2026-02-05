@@ -59,6 +59,22 @@ export const useProjectStore = create((set, get) => ({
     }
   },
 
+  uploadCover: async (id, file) => {
+    try {
+      const formData = new FormData()
+      formData.append('cover', file)
+      const { data } = await projectsApi.uploadCover(id, formData)
+      set((state) => ({
+        projects: state.projects.map((p) => (p.id === id ? data.project : p)),
+        currentProject: state.currentProject?.id === id ? data.project : state.currentProject
+      }))
+      return data.project
+    } catch (error) {
+      set({ error: error.response?.data?.error?.message || 'Failed to upload cover image' })
+      return null
+    }
+  },
+
   deleteProject: async (id) => {
     try {
       await projectsApi.delete(id)

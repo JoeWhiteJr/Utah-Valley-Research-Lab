@@ -14,7 +14,7 @@ const authenticate = async (req, res, next) => {
     const decoded = jwt.verify(token, JWT_SECRET);
 
     const result = await db.query(
-      'SELECT id, email, name, role FROM users WHERE id = $1',
+      'SELECT id, email, name, role, is_super_admin FROM users WHERE id = $1',
       [decoded.userId]
     );
 
@@ -44,8 +44,18 @@ const requireRole = (...roles) => {
   };
 };
 
+const requireSuperAdmin = (req, res, next) => {
+  if (!req.user) {
+    return res.status(401).json({ error: { message: 'Not authenticated' } });
+  }
+  if (!req.user.is_super_admin) {
+    return res.status(403).json({ error: { message: 'Super admin access required' } });
+  }
+  next();
+};
+
 const generateToken = (userId) => {
   return jwt.sign({ userId }, JWT_SECRET, { expiresIn: '7d' });
 };
 
-module.exports = { authenticate, requireRole, generateToken };
+module.exports = { authenticate, requireRole, requireSuperAdmin, generateToken };

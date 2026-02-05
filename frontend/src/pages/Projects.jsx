@@ -16,6 +16,7 @@ export default function Projects() {
   const [showArchived, setShowArchived] = useState(false)
   const [newProject, setNewProject] = useState({ title: '', description: '' })
   const [isCreating, setIsCreating] = useState(false)
+  const [createError, setCreateError] = useState('')
 
   const canCreate = user?.role === 'admin' || user?.role === 'project_lead'
 
@@ -36,6 +37,7 @@ export default function Projects() {
     e.preventDefault()
     if (!newProject.title.trim()) return
 
+    setCreateError('')
     setIsCreating(true)
     const project = await createProject(newProject)
     setIsCreating(false)
@@ -43,7 +45,16 @@ export default function Projects() {
     if (project) {
       setShowCreateModal(false)
       setNewProject({ title: '', description: '' })
+      setCreateError('')
+    } else {
+      setCreateError(useProjectStore.getState().error || 'Failed to create project')
     }
+  }
+
+  const handleOpenCreateModal = () => {
+    setNewProject({ title: '', description: '' })
+    setCreateError('')
+    setShowCreateModal(true)
   }
 
   return (
@@ -55,7 +66,7 @@ export default function Projects() {
           <p className="mt-1 text-text-secondary">Manage and organize your research projects.</p>
         </div>
         {canCreate && (
-          <Button onClick={() => setShowCreateModal(true)}>
+          <Button onClick={handleOpenCreateModal}>
             <Plus size={18} />
             New Project
           </Button>
@@ -125,7 +136,7 @@ export default function Projects() {
               : 'No projects have been created yet.'}
           </p>
           {canCreate && !search && (
-            <Button className="mt-4" onClick={() => setShowCreateModal(true)}>
+            <Button className="mt-4" onClick={handleOpenCreateModal}>
               <Plus size={18} />
               Create Project
             </Button>
@@ -179,6 +190,11 @@ export default function Projects() {
               className="w-full px-4 py-2.5 rounded-organic border border-gray-300 bg-white focus:outline-none focus:ring-2 focus:ring-primary-300 focus:border-primary-400 resize-none"
             />
           </div>
+          {createError && (
+            <div className="p-3 rounded-lg text-sm bg-red-50 border border-red-200 text-red-600">
+              {createError}
+            </div>
+          )}
           <div className="flex justify-end gap-3 pt-2">
             <Button
               type="button"

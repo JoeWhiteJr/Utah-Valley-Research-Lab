@@ -44,7 +44,10 @@ export const projectsApi = {
   get: (id) => api.get(`/projects/${id}`),
   create: (data) => api.post('/projects', data),
   update: (id, data) => api.put(`/projects/${id}`, data),
-  delete: (id) => api.delete(`/projects/${id}`)
+  delete: (id) => api.delete(`/projects/${id}`),
+  uploadCover: (id, formData) => api.post(`/projects/${id}/cover`, formData, {
+    headers: { 'Content-Type': 'multipart/form-data' }
+  })
 }
 
 // Actions
