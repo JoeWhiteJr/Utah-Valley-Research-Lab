@@ -10,6 +10,8 @@ jobs:
     name: Deploy to Production
     runs-on: ubuntu-latest
     environment: production
+    # Skip deployment if registry is not configured
+    if: ${{ vars.REGISTRY_URL != '' }}
     steps:
       - uses: actions/checkout@v4
 
