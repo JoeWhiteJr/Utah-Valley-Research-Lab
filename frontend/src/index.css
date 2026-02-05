@@ -151,3 +151,34 @@ select:focus-visible {
 .hide-scrollbar::-webkit-scrollbar {
   display: none;
 }
+
+/* Toast animations */
+@keyframes toastEnter {
+  from {
+    opacity: 0;
+    transform: translateX(100%) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+
+@keyframes toastExit {
+  from {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(100%) scale(0.95);
+  }
+}
+
+.animate-toast-enter {
+  animation: toastEnter 0.3s ease-out;
+}
+
+.animate-toast-exit {
+  animation: toastExit 0.2s ease-in forwards;
+}
