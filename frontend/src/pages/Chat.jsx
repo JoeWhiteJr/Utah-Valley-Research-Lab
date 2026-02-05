@@ -6,12 +6,12 @@ import { usersApi } from '../services/api'
 import Modal from '../components/Modal'
 import Button from '../components/Button'
 import Input from '../components/Input'
-import { MessageCircle, Plus } from 'lucide-react'
+import { MessageCircle, Plus, Sparkles } from 'lucide-react'
 
 export default function Chat() {
   const { roomId } = useParams()
   const navigate = useNavigate()
-  const { rooms, currentRoom, fetchRooms, fetchRoom, clearCurrentRoom, createRoom } = useChatStore()
+  const { rooms, currentRoom, fetchRooms, fetchRoom, clearCurrentRoom, createRoom, summarizeChat } = useChatStore()
   const { user } = useAuthStore()
 
   const [showCreateModal, setShowCreateModal] = useState(false)
@@ -21,6 +21,9 @@ export default function Chat() {
   const [allUsers, setAllUsers] = useState([])
   const [isCreating, setIsCreating] = useState(false)
   const [createError, setCreateError] = useState('')
+  const [isSummarizing, setIsSummarizing] = useState(false)
+  const [showSummaryModal, setShowSummaryModal] = useState(false)
+  const [summaryText, setSummaryText] = useState('')
 
   const isAdmin = user?.role === 'admin'
 
@@ -65,6 +68,16 @@ export default function Chat() {
     }
   }
 
+  const handleSummarize = async () => {
+    setIsSummarizing(true)
+    const summary = await summarizeChat(currentRoom.id)
+    setIsSummarizing(false)
+    if (summary) {
+      setSummaryText(summary)
+      setShowSummaryModal(true)
+    }
+  }
+
   const toggleMember = (userId) => {
     setSelectedMembers(prev =>
       prev.includes(userId)
@@ -99,7 +112,21 @@ export default function Chat() {
       </div>
       <div className="flex-1 flex flex-col">
         {currentRoom ? (
-          <div className="flex-1 p-4">Chat room: {currentRoom.name || currentRoom.id}</div>
+          <div className="flex-1 flex flex-col">
+            <div className="px-4 py-3 border-b border-gray-200 flex items-center justify-between">
+              <h2 className="font-semibold">{currentRoom.name || currentRoom.id}</h2>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={handleSummarize}
+                loading={isSummarizing}
+              >
+                <Sparkles size={16} className="mr-1.5" />
+                Summarize
+              </Button>
+            </div>
+            <div className="flex-1 p-4">Chat room: {currentRoom.name || currentRoom.id}</div>
+          </div>
         ) : (
           <div className="flex-1 flex items-center justify-center">
             <div className="text-center">
@@ -163,6 +190,16 @@ export default function Chat() {
             <Button type="submit" loading={isCreating}>Create Chat</Button>
           </div>
         </form>
+      </Modal>
+
+      {/* Summary Modal */}
+      <Modal isOpen={showSummaryModal} onClose={() => setShowSummaryModal(false)} title="Chat Summary">
+        <div className="prose prose-sm max-w-none">
+          <p className="text-text-secondary whitespace-pre-wrap">{summaryText}</p>
+        </div>
+        <div className="flex justify-end pt-4">
+          <Button variant="secondary" onClick={() => setShowSummaryModal(false)}>Close</Button>
+        </div>
       </Modal>
     </div>
   )

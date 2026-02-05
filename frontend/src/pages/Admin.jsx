@@ -5,18 +5,21 @@ import { useAuthStore } from '../store/authStore'
 import { usersApi } from '../services/api'
 import Button from '../components/Button'
 import Modal from '../components/Modal'
-import { LayoutDashboard, Users, ScrollText, Trash2 } from 'lucide-react'
+import { LayoutDashboard, Users, ScrollText, Trash2, Sparkles } from 'lucide-react'
 
 export default function Admin() {
   const [activeTab, setActiveTab] = useState('dashboard')
   const { stats, fetchStats } = useAdminStore()
-  const { applications, fetchApplications, approveApplication, rejectApplication } = useApplicationStore()
+  const { applications, fetchApplications, approveApplication, rejectApplication, requestAiReview, aiReview } = useApplicationStore()
   const { user } = useAuthStore()
 
   // Team state
   const [teamMembers, setTeamMembers] = useState([])
   const [isLoadingTeam, setIsLoadingTeam] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(null)
+  const [showReviewModal, setShowReviewModal] = useState(false)
+  const [reviewingAppId, setReviewingAppId] = useState(null)
+  const [isReviewing, setIsReviewing] = useState(false)
 
   const isSuperAdmin = user?.is_super_admin === true
 
@@ -64,6 +67,14 @@ export default function Admin() {
     return currentRole === 'admin' || newRole === 'admin'
   }
 
+  const handleAiReview = async (app) => {
+    setReviewingAppId(app.id)
+    setIsReviewing(true)
+    setShowReviewModal(true)
+    const review = await requestAiReview(app.id)
+    setIsReviewing(false)
+  }
+
   return (
     <div>
       <h1 className="font-display font-bold text-2xl mb-6">Admin Dashboard</h1>
@@ -93,6 +104,10 @@ export default function Admin() {
               </div>
               {app.status === 'pending' && (
                 <div className="flex gap-2">
+                  <button onClick={() => handleAiReview(app)} className="flex items-center gap-1 px-3 py-1 bg-purple-500 text-white rounded-lg text-sm hover:bg-purple-600">
+                    <Sparkles size={14} />
+                    AI Review
+                  </button>
                   <button onClick={() => approveApplication(app.id)} className="px-3 py-1 bg-green-500 text-white rounded-lg text-sm">Approve</button>
                   <button onClick={() => rejectApplication(app.id)} className="px-3 py-1 bg-red-500 text-white rounded-lg text-sm">Reject</button>
                 </div>
@@ -186,6 +201,35 @@ export default function Admin() {
           <Button variant="danger" onClick={() => handleDeleteMember(showDeleteConfirm.id)}>
             Remove
           </Button>
+        </div>
+      </Modal>
+
+      {/* AI Review Modal */}
+      <Modal
+        isOpen={showReviewModal}
+        onClose={() => setShowReviewModal(false)}
+        title="AI Application Review"
+      >
+        {isReviewing ? (
+          <div className="flex items-center justify-center py-8">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500" />
+            <span className="ml-3 text-text-secondary">Analyzing application...</span>
+          </div>
+        ) : aiReview ? (
+          <div>
+            <div className="mb-3">
+              <span className="text-sm text-text-secondary">Applicant: </span>
+              <span className="font-medium">{applications.find(a => a.id === reviewingAppId)?.name}</span>
+            </div>
+            <div className="prose prose-sm max-w-none">
+              <p className="text-text-secondary whitespace-pre-wrap">{typeof aiReview === 'string' ? aiReview : aiReview.summary || JSON.stringify(aiReview, null, 2)}</p>
+            </div>
+          </div>
+        ) : (
+          <p className="text-text-secondary">No review available.</p>
+        )}
+        <div className="flex justify-end pt-4">
+          <Button variant="secondary" onClick={() => setShowReviewModal(false)}>Close</Button>
         </div>
       </Modal>
     </div>
