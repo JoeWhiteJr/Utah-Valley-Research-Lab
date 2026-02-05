@@ -1,9 +1,43 @@
 const express = require('express');
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
+const { v4: uuidv4 } = require('uuid');
 const { body, validationResult } = require('express-validator');
 const db = require('../config/database');
 const { authenticate, requireRole } = require('../middleware/auth');
 
 const router = express.Router();
+
+// Configure multer for cover image uploads
+const coverStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const uploadDir = path.join(process.env.UPLOAD_DIR || path.join(__dirname, '../../uploads'), 'covers');
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+    }
+    cb(null, uploadDir);
+  },
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname);
+    cb(null, `${uuidv4()}${ext}`);
+  }
+});
+
+const coverUpload = multer({
+  storage: coverStorage,
+  limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    const allowed = /jpeg|jpg|png|gif|webp/;
+    const ext = allowed.test(path.extname(file.originalname).toLowerCase());
+    const mime = allowed.test(file.mimetype.split('/')[1]);
+    if (ext && mime) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only image files are allowed'));
+    }
+  }
+});
 
 // Get all projects
 router.get('/', authenticate, async (req, res, next) => {
@@ -91,6 +125,13 @@ router.put('/:id', authenticate, requireRole('admin', 'project_lead'), [
 
     const { title, description, header_image, status, progress } = req.body;
 
+    // Only admins can update title, status, and progress
+    if (req.user.role !== 'admin') {
+      if (title !== undefined || status !== undefined || progress !== undefined) {
+        return res.status(403).json({ error: { message: 'Only admins can edit title, status, and progress' } });
+      }
+    }
+
     const existing = await db.query('SELECT id FROM projects WHERE id = $1', [req.params.id]);
     if (existing.rows.length === 0) {
       return res.status(404).json({ error: { message: 'Project not found' } });
@@ -114,6 +155,30 @@ router.put('/:id', authenticate, requireRole('admin', 'project_lead'), [
     const result = await db.query(
       `UPDATE projects SET ${updates.join(', ')} WHERE id = $${paramCount} RETURNING *`,
       values
+    );
+
+    res.json({ project: result.rows[0] });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Upload cover image
+router.post('/:id/cover', authenticate, requireRole('admin', 'project_lead'), coverUpload.single('cover'), async (req, res, next) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: { message: 'No image file provided' } });
+    }
+
+    const existing = await db.query('SELECT id FROM projects WHERE id = $1', [req.params.id]);
+    if (existing.rows.length === 0) {
+      return res.status(404).json({ error: { message: 'Project not found' } });
+    }
+
+    const imageUrl = `/uploads/covers/${req.file.filename}`;
+    const result = await db.query(
+      'UPDATE projects SET header_image = $1 WHERE id = $2 RETURNING *',
+      [imageUrl, req.params.id]
     );
 
     res.json({ project: result.rows[0] });

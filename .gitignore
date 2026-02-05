@@ -35,5 +35,8 @@ uploads/
 # Docker
 .docker/
 
+# Database backups
+backups/
+
 # Misc
 *.tgz

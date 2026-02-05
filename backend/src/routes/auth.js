@@ -28,7 +28,7 @@ router.post('/register', [
     const passwordHash = await bcrypt.hash(password, 12);
 
     const result = await db.query(
-      'INSERT INTO users (email, password_hash, name, role) VALUES ($1, $2, $3, $4) RETURNING id, email, name, role, created_at',
+      'INSERT INTO users (email, password_hash, name, role) VALUES ($1, $2, $3, $4) RETURNING id, email, name, role, is_super_admin, created_at',
       [email, passwordHash, name, 'researcher']
     );
 
@@ -36,7 +36,7 @@ router.post('/register', [
     const token = generateToken(user.id);
 
     res.status(201).json({
-      user: { id: user.id, email: user.email, name: user.name, role: user.role },
+      user: { id: user.id, email: user.email, name: user.name, role: user.role, is_super_admin: user.is_super_admin },
       token
     });
   } catch (error) {
@@ -58,7 +58,7 @@ router.post('/login', [
     const { email, password } = req.body;
 
     const result = await db.query(
-      'SELECT id, email, password_hash, name, role FROM users WHERE email = $1',
+      'SELECT id, email, password_hash, name, role, is_super_admin FROM users WHERE email = $1',
       [email]
     );
 
@@ -76,7 +76,7 @@ router.post('/login', [
     const token = generateToken(user.id);
 
     res.json({
-      user: { id: user.id, email: user.email, name: user.name, role: user.role },
+      user: { id: user.id, email: user.email, name: user.name, role: user.role, is_super_admin: user.is_super_admin },
       token
     });
   } catch (error) {

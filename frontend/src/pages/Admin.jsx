@@ -1,20 +1,74 @@
 import { useState, useEffect } from 'react'
 import { useAdminStore } from '../store/adminStore'
 import { useApplicationStore } from '../store/applicationStore'
-import { LayoutDashboard, Users, ScrollText } from 'lucide-react'
+import { useAuthStore } from '../store/authStore'
+import { usersApi } from '../services/api'
+import Button from '../components/Button'
+import Modal from '../components/Modal'
+import { LayoutDashboard, Users, ScrollText, Trash2 } from 'lucide-react'
 
 export default function Admin() {
   const [activeTab, setActiveTab] = useState('dashboard')
   const { stats, fetchStats } = useAdminStore()
   const { applications, fetchApplications, approveApplication, rejectApplication } = useApplicationStore()
+  const { user } = useAuthStore()
+
+  // Team state
+  const [teamMembers, setTeamMembers] = useState([])
+  const [isLoadingTeam, setIsLoadingTeam] = useState(false)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(null)
+
+  const isSuperAdmin = user?.is_super_admin === true
 
   useEffect(() => { fetchStats(); fetchApplications() }, [fetchStats, fetchApplications])
+
+  useEffect(() => {
+    if (activeTab === 'team') {
+      loadTeam()
+    }
+  }, [activeTab])
+
+  const loadTeam = async () => {
+    setIsLoadingTeam(true)
+    try {
+      const { data } = await usersApi.list()
+      setTeamMembers(data.users)
+    } catch (error) {
+      console.error('Failed to load team:', error)
+    }
+    setIsLoadingTeam(false)
+  }
+
+  const handleRoleChange = async (userId, newRole) => {
+    try {
+      await usersApi.updateRole(userId, newRole)
+      setTeamMembers((members) =>
+        members.map((m) => (m.id === userId ? { ...m, role: newRole } : m))
+      )
+    } catch (error) {
+      console.error('Failed to update role:', error)
+    }
+  }
+
+  const handleDeleteMember = async (userId) => {
+    try {
+      await usersApi.delete(userId)
+      setTeamMembers((members) => members.filter((m) => m.id !== userId))
+      setShowDeleteConfirm(null)
+    } catch (error) {
+      console.error('Failed to delete member:', error)
+    }
+  }
+
+  const isAdminRoleChange = (currentRole, newRole) => {
+    return currentRole === 'admin' || newRole === 'admin'
+  }
 
   return (
     <div>
       <h1 className="font-display font-bold text-2xl mb-6">Admin Dashboard</h1>
       <div className="flex gap-2 border-b mb-6">
-        {[['dashboard', 'Dashboard', LayoutDashboard], ['applications', 'Applications', Users]].map(([id, label, Icon]) => (
+        {[['dashboard', 'Dashboard', LayoutDashboard], ['applications', 'Applications', Users], ['team', 'Team', Users]].map(([id, label, Icon]) => (
           <button key={id} onClick={() => setActiveTab(id)} className={`flex items-center gap-2 px-4 py-3 border-b-2 ${activeTab === id ? 'border-primary-500 text-primary-600' : 'border-transparent'}`}>
             <Icon size={18} />{label}
           </button>
@@ -48,6 +102,92 @@ export default function Admin() {
           ))}
         </div>
       )}
+      {activeTab === 'team' && (
+        <div className="bg-white rounded-xl border border-gray-200 p-6">
+          <h2 className="font-display font-semibold text-lg mb-6">Team Members</h2>
+          {isLoadingTeam ? (
+            <div className="space-y-3">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="h-16 bg-gray-100 rounded-lg animate-pulse" />
+              ))}
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {teamMembers.map((member) => (
+                <div
+                  key={member.id}
+                  className="flex items-center justify-between p-4 rounded-lg border border-gray-200 hover:border-gray-300"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-primary-100 flex items-center justify-center">
+                      <span className="text-primary-700 font-medium">
+                        {member.name.charAt(0).toUpperCase()}
+                      </span>
+                    </div>
+                    <div>
+                      <p className="font-medium text-text-primary">{member.name}</p>
+                      <p className="text-sm text-text-secondary">{member.email}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <select
+                      value={member.role}
+                      onChange={(e) => handleRoleChange(member.id, e.target.value)}
+                      disabled={member.id === user.id || (!isSuperAdmin && (member.role === 'admin' || false))}
+                      className="px-3 py-1.5 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-primary-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {isSuperAdmin ? (
+                        <>
+                          <option value="admin">Admin</option>
+                          <option value="project_lead">Project Lead</option>
+                          <option value="researcher">Researcher</option>
+                          <option value="viewer">Viewer</option>
+                        </>
+                      ) : (
+                        <>
+                          {member.role === 'admin' && <option value="admin">Admin</option>}
+                          <option value="project_lead">Project Lead</option>
+                          <option value="researcher">Researcher</option>
+                          <option value="viewer">Viewer</option>
+                        </>
+                      )}
+                    </select>
+                    {member.id !== user.id && (isSuperAdmin || member.role !== 'admin') && (
+                      <button
+                        onClick={() => setShowDeleteConfirm(member)}
+                        className="p-2 rounded-lg text-text-secondary hover:text-red-600 hover:bg-red-50"
+                      >
+                        <Trash2 size={18} />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Delete Member Confirmation */}
+      <Modal
+        isOpen={!!showDeleteConfirm}
+        onClose={() => setShowDeleteConfirm(null)}
+        title="Remove Team Member"
+        size="sm"
+      >
+        <p className="text-text-secondary">
+          Are you sure you want to remove <strong>{showDeleteConfirm?.name}</strong> from the team?
+          This action cannot be undone.
+        </p>
+        <div className="flex justify-end gap-3 mt-6">
+          <Button variant="secondary" onClick={() => setShowDeleteConfirm(null)}>
+            Cancel
+          </Button>
+          <Button variant="danger" onClick={() => handleDeleteMember(showDeleteConfirm.id)}>
+            Remove
+          </Button>
+        </div>
+      </Modal>
     </div>
   )
 }
