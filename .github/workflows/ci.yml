@@ -2,7 +2,11 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches:
+      - main
+      - 'feature/**'
+      - 'fix/**'
+      - 'hotfix/**'
   pull_request:
     branches: [main]
 
@@ -48,7 +52,10 @@ jobs:
         env:
           PGPASSWORD: postgres
         run: |
-          psql -h localhost -U postgres -d stats_lab_test -f database/migrations/001_initial_schema.sql
+          for f in database/migrations/*.sql; do
+            echo "Running migration: $f"
+            psql -h localhost -U postgres -d stats_lab_test -f "$f"
+          done
 
       - name: Run backend tests
         working-directory: backend

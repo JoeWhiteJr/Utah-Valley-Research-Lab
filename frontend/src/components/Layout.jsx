@@ -1,6 +1,6 @@
 import { Outlet, NavLink, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../store/authStore'
-import { Home, FolderKanban, Settings, LogOut, Menu, X } from 'lucide-react'
+import { LayoutDashboard, User, FolderKanban, Settings, LogOut, Menu, X } from 'lucide-react'
 import { useState } from 'react'
 
 export default function Layout() {
@@ -14,7 +14,8 @@ export default function Layout() {
   }
 
   const navItems = [
-    { to: '/', icon: Home, label: 'Dashboard' },
+    { to: '/', icon: LayoutDashboard, label: 'Lab Dashboard' },
+    { to: '/my-dashboard', icon: User, label: 'My Dashboard' },
     { to: '/projects', icon: FolderKanban, label: 'Projects' },
     { to: '/settings', icon: Settings, label: 'Settings' }
   ]
@@ -48,7 +49,7 @@ export default function Layout() {
             <NavLink
               key={to}
               to={to}
-              end={to === '/'}
+              end={to === '/' || to === '/my-dashboard'}
               onClick={() => setSidebarOpen(false)}
               className={({ isActive }) =>
                 `flex items-center gap-3 px-4 py-3 rounded-organic text-sm font-medium transition-colors ${

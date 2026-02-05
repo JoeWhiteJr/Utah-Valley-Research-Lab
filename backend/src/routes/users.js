@@ -30,6 +30,93 @@ router.get('/team', authenticate, async (req, res, next) => {
   }
 });
 
+// Get user notification preferences
+router.get('/preferences', authenticate, async (req, res, next) => {
+  try {
+    let result = await db.query(
+      'SELECT * FROM user_preferences WHERE user_id = $1',
+      [req.user.id]
+    );
+
+    // If no preferences exist, create default ones
+    if (result.rows.length === 0) {
+      result = await db.query(
+        'INSERT INTO user_preferences (user_id) VALUES ($1) RETURNING *',
+        [req.user.id]
+      );
+    }
+
+    const prefs = result.rows[0];
+    // Remove internal fields
+    delete prefs.id;
+    delete prefs.user_id;
+    delete prefs.created_at;
+    delete prefs.updated_at;
+
+    res.json({ preferences: prefs });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Update user notification preferences
+router.put('/preferences', authenticate, [
+  body('email_chat').optional().isBoolean(),
+  body('email_applications').optional().isBoolean(),
+  body('email_mentions').optional().isBoolean(),
+  body('email_system').optional().isBoolean(),
+  body('in_app_chat').optional().isBoolean(),
+  body('in_app_applications').optional().isBoolean(),
+  body('in_app_mentions').optional().isBoolean(),
+  body('in_app_system').optional().isBoolean()
+], async (req, res, next) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ error: { message: 'Validation failed', details: errors.array() } });
+    }
+
+    const allowedFields = [
+      'email_chat', 'email_applications', 'email_mentions', 'email_system',
+      'in_app_chat', 'in_app_applications', 'in_app_mentions', 'in_app_system'
+    ];
+
+    const updates = [];
+    const values = [];
+    let paramCount = 1;
+
+    for (const field of allowedFields) {
+      if (req.body[field] !== undefined) {
+        updates.push(`${field} = $${paramCount++}`);
+        values.push(req.body[field]);
+      }
+    }
+
+    if (updates.length === 0) {
+      return res.status(400).json({ error: { message: 'No fields to update' } });
+    }
+
+    // Upsert preferences
+    values.push(req.user.id);
+    const result = await db.query(`
+      INSERT INTO user_preferences (user_id, ${allowedFields.filter(f => req.body[f] !== undefined).join(', ')})
+      VALUES ($${paramCount}, ${values.slice(0, -1).map((_, i) => `$${i + 1}`).join(', ')})
+      ON CONFLICT (user_id) DO UPDATE SET ${updates.join(', ')}
+      RETURNING *
+    `, values);
+
+    const prefs = result.rows[0];
+    delete prefs.id;
+    delete prefs.user_id;
+    delete prefs.created_at;
+    delete prefs.updated_at;
+
+    res.json({ preferences: prefs, message: 'Preferences updated' });
+  } catch (error) {
+    next(error);
+  }
+});
+
 // Get user by ID
 router.get('/:id', authenticate, async (req, res, next) => {
   try {

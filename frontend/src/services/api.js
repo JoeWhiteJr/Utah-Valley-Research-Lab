@@ -105,7 +105,69 @@ export const usersApi = {
   updateProfile: (data) => api.put('/users/profile', data),
   changePassword: (data) => api.put('/users/password', data),
   updateRole: (id, role) => api.put(`/users/${id}/role`, { role }),
-  delete: (id) => api.delete(`/users/${id}`)
+  delete: (id) => api.delete(`/users/${id}`),
+  getPreferences: () => api.get('/users/preferences'),
+  updatePreferences: (data) => api.put('/users/preferences', data)
+}
+
+// Chat
+export const chatApi = {
+  listRooms: () => api.get('/chats'),
+  createRoom: (data) => api.post('/chats', data),
+  getRoom: (id) => api.get(`/chats/${id}`),
+  getMessages: (roomId, { limit, before } = {}) =>
+    api.get(`/chats/${roomId}/messages`, { params: { limit, before } }),
+  sendMessage: (roomId, data) => api.post(`/chats/${roomId}/messages`, data),
+  deleteMessage: (roomId, messageId) =>
+    api.delete(`/chats/${roomId}/messages/${messageId}`),
+  addMembers: (roomId, userIds) =>
+    api.post(`/chats/${roomId}/members`, { userIds }),
+  removeMember: (roomId, userId) =>
+    api.delete(`/chats/${roomId}/members/${userId}`),
+  markRead: (roomId) => api.put(`/chats/${roomId}/read`)
+}
+
+// Applications
+export const applicationsApi = {
+  submit: (data) => api.post('/applications', data),
+  list: (status) => api.get('/applications', { params: { status } }),
+  get: (id) => api.get(`/applications/${id}`),
+  approve: (id, role) => api.put(`/applications/${id}/approve`, { role }),
+  reject: (id, reason) => api.put(`/applications/${id}/reject`, { reason }),
+  updateNotes: (id, notes) => api.put(`/applications/${id}/notes`, { notes }),
+  delete: (id) => api.delete(`/applications/${id}`),
+  bulk: (ids, action, reason) =>
+    api.post('/applications/bulk', { ids, action, reason })
+}
+
+// Admin
+export const adminApi = {
+  getStats: () => api.get('/admin/stats'),
+  getAuditLog: ({ limit, offset, action, entity_type } = {}) =>
+    api.get('/admin/audit-log', { params: { limit, offset, action, entity_type } }),
+  searchUsers: (q, role) =>
+    api.get('/admin/users/search', { params: { q, role } }),
+  getApplicationTrends: () => api.get('/admin/applications/trends')
+}
+
+// Notifications
+export const notificationsApi = {
+  list: ({ limit, offset, unread_only } = {}) =>
+    api.get('/notifications', { params: { limit, offset, unread_only } }),
+  getUnreadCount: () => api.get('/notifications/unread-count'),
+  markRead: (id) => api.put(`/notifications/${id}/read`),
+  markAllRead: () => api.put('/notifications/read-all'),
+  delete: (id) => api.delete(`/notifications/${id}`)
+}
+
+// AI
+export const aiApi = {
+  getStatus: () => api.get('/ai/status'),
+  chat: (message, context) => api.post('/ai/chat', { message, context }),
+  reviewApplication: (applicationId) =>
+    api.post('/ai/review-application', { applicationId }),
+  summarizeChat: (roomId, messageCount) =>
+    api.post('/ai/summarize-chat', { roomId, messageCount })
 }
 
 export default api
