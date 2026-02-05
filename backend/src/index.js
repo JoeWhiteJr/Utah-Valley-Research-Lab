@@ -54,8 +54,11 @@ app.use((req, res) => {
   res.status(404).json({ error: { message: 'Not found' } });
 });
 
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`Stats Lab API running on port ${PORT}`);
-});
+// Only start server if not in test environment
+if (process.env.NODE_ENV !== 'test') {
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log(`Stats Lab API running on port ${PORT}`);
+  });
+}
 
 module.exports = app;
