@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { TrendingUp, Search, Menu, X } from 'lucide-react';
+import { TrendingUp, Search, Menu, X, LogIn } from 'lucide-react';
 import { navigation, siteInfo } from '../../../data/publicSiteData';
 import SearchModal from '../shared/SearchModal';
 import useSearchModal from '../../../hooks/useSearchModal';
@@ -110,6 +110,16 @@ export default function PublicNavbar() {
                   )}
                 </li>
               ))}
+              {/* Member Login */}
+              <li>
+                <Link
+                  to="/login"
+                  className="ml-2 px-4 py-2 flex items-center gap-2 text-gray-500 hover:text-pub-blue-700 rounded-lg font-medium transition-colors"
+                >
+                  <LogIn className="w-4 h-4" />
+                  <span>Login</span>
+                </Link>
+              </li>
             </ul>
 
             {/* Mobile Menu Button */}
@@ -168,6 +178,16 @@ export default function PublicNavbar() {
                     )}
                   </li>
                 ))}
+                {/* Member Login */}
+                <li>
+                  <Link
+                    to="/login"
+                    className="flex items-center gap-2 px-4 py-3 text-gray-500 hover:text-pub-blue-700 rounded-lg font-medium transition-colors border-t border-gray-100 mt-2 pt-4"
+                  >
+                    <LogIn className="w-4 h-4" />
+                    <span>Member Login</span>
+                  </Link>
+                </li>
               </ul>
             </div>
           )}
