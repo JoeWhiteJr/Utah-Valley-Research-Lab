@@ -55,7 +55,7 @@ describe('ProjectCard', () => {
   it('links to project detail page', () => {
     renderWithRouter(<ProjectCard project={mockProject} />)
     const link = screen.getByRole('link')
-    expect(link).toHaveAttribute('href', '/projects/123e4567-e89b-12d3-a456-426614174000')
+    expect(link).toHaveAttribute('href', '/dashboard/projects/123e4567-e89b-12d3-a456-426614174000')
   })
 
   it('renders updated date', () => {

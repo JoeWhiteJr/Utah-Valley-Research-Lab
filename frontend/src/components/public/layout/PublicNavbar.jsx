@@ -79,9 +79,6 @@ export default function PublicNavbar() {
               >
                 <Search className="w-4 h-4" />
                 <span className="flex-1">Search...</span>
-                <kbd className="hidden sm:inline-flex items-center gap-1 px-1.5 py-0.5 bg-gray-100 rounded text-xs text-gray-500">
-                  <span className="text-xs">⌘</span>K
-                </kbd>
               </button>
             </div>
 

@@ -83,6 +83,13 @@ export default function Login() {
             </Link>
           </p>
         </div>
+
+        {/* Home Link */}
+        <div className="mt-6 text-center">
+          <Link to="/" className="text-sm text-text-secondary hover:text-primary-600 transition-colors">
+            ← Back to Home
+          </Link>
+        </div>
       </div>
     </div>
   )
