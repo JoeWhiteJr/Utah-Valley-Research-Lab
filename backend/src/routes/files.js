@@ -34,15 +34,28 @@ const upload = multer({
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
       'application/vnd.ms-excel',
       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'application/vnd.ms-powerpoint',
+      'application/vnd.openxmlformats-officedocument.presentationml.presentation',
       'text/plain',
       'text/csv',
       'image/jpeg',
       'image/png',
       'image/gif',
+      'image/webp',
+      'audio/mpeg',
+      'audio/wav',
+      'audio/ogg',
+      'audio/mp4',
+      'video/mp4',
+      'video/webm',
+      'video/quicktime',
       'application/zip',
       'application/x-rar-compressed'
     ];
-    if (allowedTypes.includes(file.mimetype) || file.mimetype.startsWith('image/')) {
+    if (allowedTypes.includes(file.mimetype) ||
+        file.mimetype.startsWith('image/') ||
+        file.mimetype.startsWith('audio/') ||
+        file.mimetype.startsWith('video/')) {
       cb(null, true);
     } else {
       cb(new Error('File type not allowed'), false);

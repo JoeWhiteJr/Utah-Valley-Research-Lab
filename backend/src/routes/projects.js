@@ -114,7 +114,7 @@ router.post('/', authenticate, requireRole('admin', 'project_lead'), [
 router.put('/:id', authenticate, requireRole('admin', 'project_lead'), [
   body('title').optional().trim().notEmpty(),
   body('description').optional().trim(),
-  body('status').optional().isIn(['active', 'completed', 'archived']),
+  body('status').optional().isIn(['active', 'completed', 'archived', 'inactive']),
   body('progress').optional().isInt({ min: 0, max: 100 })
 ], async (req, res, next) => {
   try {

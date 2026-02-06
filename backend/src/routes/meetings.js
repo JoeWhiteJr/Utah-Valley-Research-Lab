@@ -77,7 +77,8 @@ router.get('/:id', authenticate, async (req, res, next) => {
 // Upload meeting audio
 router.post('/project/:projectId', authenticate, upload.single('audio'), [
   body('title').trim().notEmpty(),
-  body('recorded_at').optional().isISO8601()
+  body('recorded_at').optional().isISO8601(),
+  body('notes').optional()
 ], async (req, res, next) => {
   try {
     const errors = validationResult(req);
@@ -86,16 +87,17 @@ router.post('/project/:projectId', authenticate, upload.single('audio'), [
       return res.status(400).json({ error: { message: 'Validation failed', details: errors.array() } });
     }
 
-    const { title, recorded_at } = req.body;
+    const { title, recorded_at, notes } = req.body;
 
     const result = await db.query(
-      `INSERT INTO meetings (project_id, title, audio_path, recorded_at, created_by)
-       VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+      `INSERT INTO meetings (project_id, title, audio_path, recorded_at, notes, created_by)
+       VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
       [
         req.params.projectId,
         title,
         req.file ? req.file.path : null,
         recorded_at || null,
+        notes || null,
         req.user.id
       ]
     );
@@ -107,11 +109,12 @@ router.post('/project/:projectId', authenticate, upload.single('audio'), [
   }
 });
 
-// Update meeting (transcript, summary, etc.)
+// Update meeting (transcript, summary, notes, etc.)
 router.put('/:id', authenticate, [
   body('title').optional().trim().notEmpty(),
   body('transcript').optional(),
-  body('summary').optional()
+  body('summary').optional(),
+  body('notes').optional()
 ], async (req, res, next) => {
   try {
     const errors = validationResult(req);
@@ -119,7 +122,7 @@ router.put('/:id', authenticate, [
       return res.status(400).json({ error: { message: 'Validation failed', details: errors.array() } });
     }
 
-    const { title, transcript, summary } = req.body;
+    const { title, transcript, summary, notes } = req.body;
 
     const existing = await db.query('SELECT id FROM meetings WHERE id = $1', [req.params.id]);
     if (existing.rows.length === 0) {
@@ -133,6 +136,7 @@ router.put('/:id', authenticate, [
     if (title !== undefined) { updates.push(`title = $${paramCount++}`); values.push(title); }
     if (transcript !== undefined) { updates.push(`transcript = $${paramCount++}`); values.push(transcript); }
     if (summary !== undefined) { updates.push(`summary = $${paramCount++}`); values.push(summary); }
+    if (notes !== undefined) { updates.push(`notes = $${paramCount++}`); values.push(notes); }
 
     if (updates.length === 0) {
       return res.status(400).json({ error: { message: 'No fields to update' } });
@@ -145,6 +149,71 @@ router.put('/:id', authenticate, [
     );
 
     res.json({ meeting: result.rows[0] });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Get audio file
+router.get('/:id/audio', authenticate, async (req, res, next) => {
+  try {
+    const result = await db.query('SELECT audio_path FROM meetings WHERE id = $1', [req.params.id]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: { message: 'Meeting not found' } });
+    }
+
+    const audioPath = result.rows[0].audio_path;
+
+    if (!audioPath) {
+      return res.status(404).json({ error: { message: 'No audio file for this meeting' } });
+    }
+
+    if (!fs.existsSync(audioPath)) {
+      return res.status(404).json({ error: { message: 'Audio file not found on server' } });
+    }
+
+    const stat = fs.statSync(audioPath);
+    const fileSize = stat.size;
+    const ext = path.extname(audioPath).toLowerCase();
+
+    // Determine content type
+    const contentTypes = {
+      '.mp3': 'audio/mpeg',
+      '.wav': 'audio/wav',
+      '.m4a': 'audio/mp4',
+      '.webm': 'audio/webm',
+      '.ogg': 'audio/ogg'
+    };
+    const contentType = contentTypes[ext] || 'audio/mpeg';
+
+    // Support range requests for seeking
+    const range = req.headers.range;
+
+    if (range) {
+      const parts = range.replace(/bytes=/, '').split('-');
+      const start = parseInt(parts[0], 10);
+      const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
+      const chunkSize = (end - start) + 1;
+
+      const file = fs.createReadStream(audioPath, { start, end });
+
+      res.writeHead(206, {
+        'Content-Range': `bytes ${start}-${end}/${fileSize}`,
+        'Accept-Ranges': 'bytes',
+        'Content-Length': chunkSize,
+        'Content-Type': contentType
+      });
+
+      file.pipe(res);
+    } else {
+      res.writeHead(200, {
+        'Content-Length': fileSize,
+        'Content-Type': contentType
+      });
+
+      fs.createReadStream(audioPath).pipe(res);
+    }
   } catch (error) {
     next(error);
   }

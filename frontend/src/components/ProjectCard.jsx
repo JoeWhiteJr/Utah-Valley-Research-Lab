@@ -6,13 +6,20 @@ export default function ProjectCard({ project, showActions = true }) {
   const statusColors = {
     active: 'bg-secondary-100 text-secondary-700',
     completed: 'bg-green-100 text-green-700',
-    archived: 'bg-gray-100 text-gray-600'
+    archived: 'bg-gray-100 text-gray-600',
+    inactive: 'bg-amber-100 text-amber-700'
   }
+
+  const isInactive = project.status === 'inactive'
 
   return (
     <Link
       to={`/dashboard/projects/${project.id}`}
-      className="block bg-white rounded-xl border border-gray-200 hover:border-primary-300 hover:shadow-md transition-all overflow-hidden group"
+      className={`block rounded-xl border transition-all overflow-hidden group ${
+        isInactive
+          ? 'bg-gray-50 border-gray-200 hover:border-gray-300 opacity-75'
+          : 'bg-white border-gray-200 hover:border-primary-300 hover:shadow-md'
+      }`}
     >
       {/* Header image */}
       <div className="h-32 bg-gradient-to-br from-primary-100 to-secondary-100 relative overflow-hidden">
@@ -35,7 +42,11 @@ export default function ProjectCard({ project, showActions = true }) {
       </div>
 
       <div className="p-5">
-        <h3 className="font-display font-semibold text-lg text-text-primary group-hover:text-primary-600 transition-colors line-clamp-1">
+        <h3 className={`font-display font-semibold text-lg transition-colors line-clamp-1 ${
+          isInactive
+            ? 'text-text-secondary'
+            : 'text-text-primary group-hover:text-primary-600'
+        }`}>
           {project.title}
         </h3>
 

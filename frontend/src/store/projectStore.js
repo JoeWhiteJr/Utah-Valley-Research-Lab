@@ -1,15 +1,18 @@
 import { create } from 'zustand'
-import { projectsApi, actionsApi, filesApi, notesApi, meetingsApi } from '../services/api'
+import { projectsApi, actionsApi, categoriesApi, filesApi, notesApi, meetingsApi } from '../services/api'
 
 export const useProjectStore = create((set, get) => ({
   projects: [],
   currentProject: null,
   actions: [],
+  categories: [],
   files: [],
   notes: [],
   meetings: [],
   isLoading: false,
   error: null,
+  uploadProgress: null, // Track file upload progress (0-100 or null when not uploading)
+  isUploading: false,
 
   // Projects
   fetchProjects: async (status) => {
@@ -150,6 +153,59 @@ export const useProjectStore = create((set, get) => ({
     }
   },
 
+  // Categories
+  fetchCategories: async (projectId) => {
+    try {
+      const { data } = await categoriesApi.list(projectId)
+      set({ categories: data.categories })
+    } catch (error) {
+      set({ error: error.response?.data?.error?.message || 'Failed to fetch categories' })
+    }
+  },
+
+  createCategory: async (projectId, categoryData) => {
+    try {
+      const { data } = await categoriesApi.create(projectId, categoryData)
+      set((state) => ({ categories: [...state.categories, data.category] }))
+      return data.category
+    } catch (error) {
+      set({ error: error.response?.data?.error?.message || 'Failed to create category' })
+      return null
+    }
+  },
+
+  updateCategory: async (id, categoryData) => {
+    try {
+      const { data } = await categoriesApi.update(id, categoryData)
+      set((state) => ({
+        categories: state.categories.map((c) => (c.id === id ? data.category : c))
+      }))
+      return data.category
+    } catch (error) {
+      set({ error: error.response?.data?.error?.message || 'Failed to update category' })
+      return null
+    }
+  },
+
+  deleteCategory: async (id) => {
+    try {
+      await categoriesApi.delete(id)
+      set((state) => ({ categories: state.categories.filter((c) => c.id !== id) }))
+      return true
+    } catch (error) {
+      set({ error: error.response?.data?.error?.message || 'Failed to delete category' })
+      return false
+    }
+  },
+
+  // Calculate progress based on action items
+  calculateProgress: () => {
+    const actions = get().actions
+    if (actions.length === 0) return 0
+    const completed = actions.filter(a => a.completed).length
+    return Math.round((completed / actions.length) * 100)
+  },
+
   // Files
   fetchFiles: async (projectId) => {
     try {
@@ -161,15 +217,28 @@ export const useProjectStore = create((set, get) => ({
   },
 
   uploadFile: async (projectId, file) => {
+    set({ isUploading: true, uploadProgress: 0 })
     try {
-      const { data } = await filesApi.upload(projectId, file)
-      set((state) => ({ files: [data.file, ...state.files] }))
+      const { data } = await filesApi.upload(projectId, file, (progress) => {
+        set({ uploadProgress: progress })
+      })
+      set((state) => ({
+        files: [data.file, ...state.files],
+        isUploading: false,
+        uploadProgress: null
+      }))
       return data.file
     } catch (error) {
-      set({ error: error.response?.data?.error?.message || 'Failed to upload file' })
+      set({
+        error: error.response?.data?.error?.message || 'Failed to upload file',
+        isUploading: false,
+        uploadProgress: null
+      })
       return null
     }
   },
+
+  clearUploadProgress: () => set({ uploadProgress: null, isUploading: false }),
 
   deleteFile: async (id) => {
     try {
@@ -273,5 +342,5 @@ export const useProjectStore = create((set, get) => ({
   },
 
   clearError: () => set({ error: null }),
-  clearCurrentProject: () => set({ currentProject: null, actions: [], files: [], notes: [], meetings: [] })
+  clearCurrentProject: () => set({ currentProject: null, actions: [], categories: [], files: [], notes: [], meetings: [] })
 }))
