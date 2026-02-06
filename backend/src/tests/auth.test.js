@@ -15,7 +15,7 @@ describe('Auth API', () => {
   });
 
   describe('POST /api/auth/register', () => {
-    it('should submit registration for approval (non-super-admin)', async () => {
+    it('should return 403 because registration is disabled', async () => {
       const res = await request(app)
         .post('/api/auth/register')
         .send({
@@ -24,59 +24,8 @@ describe('Auth API', () => {
           password: 'password123'
         });
 
-      expect(res.status).toBe(201);
-      expect(res.body.requiresApproval).toBe(true);
+      expect(res.status).toBe(403);
       expect(res.body).not.toHaveProperty('token');
-    });
-
-    it('should reject duplicate pending application email', async () => {
-      const res = await request(app)
-        .post('/api/auth/register')
-        .send({
-          name: 'Another User',
-          email: 'authtest@example.com',
-          password: 'password123'
-        });
-
-      expect(res.status).toBe(409);
-    });
-
-    it('should reject invalid email', async () => {
-      const res = await request(app)
-        .post('/api/auth/register')
-        .send({
-          name: 'Test User',
-          email: 'invalid-email',
-          password: 'password123'
-        });
-
-      expect(res.status).toBe(400);
-    });
-
-    it('should reject short password', async () => {
-      const res = await request(app)
-        .post('/api/auth/register')
-        .send({
-          name: 'Test User',
-          email: 'authtest2@example.com',
-          password: 'short'
-        });
-
-      expect(res.status).toBe(400);
-    });
-
-    it('should reject duplicate email that exists as user', async () => {
-      await createTestUser({ name: 'Existing', email: 'authtest-existing@example.com' });
-
-      const res = await request(app)
-        .post('/api/auth/register')
-        .send({
-          name: 'Duplicate',
-          email: 'authtest-existing@example.com',
-          password: 'password123'
-        });
-
-      expect(res.status).toBe(409);
     });
   });
 
@@ -126,18 +75,6 @@ describe('Auth API', () => {
       expect(res.status).toBe(401);
     });
 
-    it('should detect pending application on login', async () => {
-      // authtest@example.com was registered above as a pending application
-      const res = await request(app)
-        .post('/api/auth/login')
-        .send({
-          email: 'authtest@example.com',
-          password: 'password123'
-        });
-
-      expect(res.status).toBe(403);
-      expect(res.body.error.code).toBe('PENDING_APPROVAL');
-    });
   });
 
   describe('GET /api/auth/me', () => {

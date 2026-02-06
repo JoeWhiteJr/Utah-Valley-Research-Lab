@@ -93,7 +93,7 @@ router.put('/:id', authenticate, [
     if (title !== undefined) { updates.push(`title = $${paramCount++}`); values.push(title); }
     if (content !== undefined) { updates.push(`content = $${paramCount++}`); values.push(content); }
 
-    if (updates.length === 0) {
+    if (values.length === 0) {
       return res.status(400).json({ error: { message: 'No fields to update' } });
     }
 

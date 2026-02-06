@@ -156,7 +156,7 @@ router.put('/:id', authenticate, [
     if (assigned_to !== undefined) { updates.push(`assigned_to = $${paramCount++}`); values.push(assigned_to); }
     if (category_id !== undefined) { updates.push(`category_id = $${paramCount++}`); values.push(category_id); }
 
-    if (updates.length === 0) {
+    if (values.length === 0) {
       return res.status(400).json({ error: { message: 'No fields to update' } });
     }
 
