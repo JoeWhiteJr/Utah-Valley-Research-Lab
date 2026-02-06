@@ -34,8 +34,10 @@ app.use(cors({
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// REMOVED: Static uploads were served without authentication
-// Files should only be accessed through the authenticated /api/files/:id/download endpoint
+// Serve cover images statically (these are public project images, not sensitive files)
+// Other file uploads remain behind authenticated /api/files/:id/download endpoint
+const uploadDir = process.env.UPLOAD_DIR || path.join(__dirname, '../uploads');
+app.use('/uploads/covers', express.static(path.join(uploadDir, 'covers')));
 
 // Rate limiting
 const authLimiter = rateLimit({
