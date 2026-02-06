@@ -1,17 +1,23 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useChatStore } from '../store/chatStore'
 import { useAuthStore } from '../store/authStore'
 import { usersApi } from '../services/api'
+import socket from '../services/socket'
 import Modal from '../components/Modal'
 import Button from '../components/Button'
 import Input from '../components/Input'
-import { MessageCircle, Plus, Sparkles } from 'lucide-react'
+import { MessageCircle, Plus, Sparkles, Send, Trash2 } from 'lucide-react'
+import { format, isToday, isYesterday } from 'date-fns'
 
 export default function Chat() {
   const { roomId } = useParams()
   const navigate = useNavigate()
-  const { rooms, currentRoom, fetchRooms, fetchRoom, clearCurrentRoom, createRoom, summarizeChat } = useChatStore()
+  const {
+    rooms, currentRoom, messages, hasMore, isLoading,
+    fetchRooms, fetchRoom, fetchMessages, sendMessage, deleteMessage, markRead,
+    clearCurrentRoom, createRoom, summarizeChat
+  } = useChatStore()
   const { user } = useAuthStore()
 
   const [showCreateModal, setShowCreateModal] = useState(false)
@@ -24,14 +30,32 @@ export default function Chat() {
   const [isSummarizing, setIsSummarizing] = useState(false)
   const [showSummaryModal, setShowSummaryModal] = useState(false)
   const [summaryText, setSummaryText] = useState('')
+  const [messageText, setMessageText] = useState('')
+  const [isSending, setIsSending] = useState(false)
+
+  const messagesEndRef = useRef(null)
+  const messagesContainerRef = useRef(null)
 
   const isAdmin = user?.role === 'admin'
 
   useEffect(() => { fetchRooms() }, [fetchRooms])
+
   useEffect(() => {
-    if (roomId) fetchRoom(roomId)
-    else clearCurrentRoom()
-  }, [roomId, fetchRoom, clearCurrentRoom])
+    if (roomId) {
+      fetchRoom(roomId)
+      fetchMessages(roomId)
+      markRead(roomId)
+      socket.joinRoom(roomId)
+      return () => socket.leaveRoom(roomId)
+    } else {
+      clearCurrentRoom()
+    }
+  }, [roomId, fetchRoom, fetchMessages, markRead, clearCurrentRoom])
+
+  // Auto-scroll to bottom when new messages arrive
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [messages])
 
   const handleOpenCreate = async () => {
     setCreateError('')
@@ -68,6 +92,24 @@ export default function Chat() {
     }
   }
 
+  const handleSendMessage = async (e) => {
+    e.preventDefault()
+    const text = messageText.trim()
+    if (!text || !currentRoom || isSending) return
+
+    setIsSending(true)
+    setMessageText('')
+    await sendMessage(currentRoom.id, text)
+    setIsSending(false)
+  }
+
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault()
+      handleSendMessage(e)
+    }
+  }
+
   const handleSummarize = async () => {
     setIsSummarizing(true)
     const summary = await summarizeChat(currentRoom.id)
@@ -75,6 +117,16 @@ export default function Chat() {
     if (summary) {
       setSummaryText(summary)
       setShowSummaryModal(true)
+    }
+  }
+
+  const handleDeleteMessage = async (messageId) => {
+    await deleteMessage(currentRoom.id, messageId)
+  }
+
+  const handleLoadMore = () => {
+    if (hasMore && messages.length > 0) {
+      fetchMessages(currentRoom.id, { before: messages[0].id })
     }
   }
 
@@ -86,8 +138,16 @@ export default function Chat() {
     )
   }
 
+  const formatMessageTime = (dateStr) => {
+    const date = new Date(dateStr)
+    if (isToday(date)) return format(date, 'h:mm a')
+    if (isYesterday(date)) return 'Yesterday ' + format(date, 'h:mm a')
+    return format(date, 'MMM d, h:mm a')
+  }
+
   return (
     <div className="h-[calc(100vh-7rem)] flex bg-white rounded-xl border border-gray-200 overflow-hidden">
+      {/* Sidebar - Room list */}
       <div className="w-80 border-r border-gray-200 flex flex-col">
         <div className="p-4 border-b font-semibold flex items-center justify-between">
           <span>Messages</span>
@@ -102,19 +162,45 @@ export default function Chat() {
           )}
         </div>
         <div className="flex-1 overflow-y-auto">
-          {rooms.map((room) => (
-            <a key={room.id} href={`/dashboard/chat/${room.id}`} className={`block px-4 py-3 hover:bg-gray-50 ${currentRoom?.id === room.id ? 'bg-primary-50' : ''}`}>
-              <div className="font-medium">{room.name || 'Chat'}</div>
-              <div className="text-sm text-text-secondary truncate">{room.last_message?.content || 'No messages'}</div>
-            </a>
-          ))}
+          {rooms.length === 0 ? (
+            <div className="p-4 text-center text-sm text-text-secondary">No conversations yet</div>
+          ) : (
+            rooms.map((room) => (
+              <a
+                key={room.id}
+                href={`/dashboard/chat/${room.id}`}
+                className={`block px-4 py-3 hover:bg-gray-50 border-b border-gray-100 ${currentRoom?.id === room.id ? 'bg-primary-50' : ''}`}
+              >
+                <div className="flex items-center justify-between">
+                  <div className="font-medium text-sm truncate">{room.name || 'Chat'}</div>
+                  {room.unread_count > 0 && (
+                    <span className="ml-2 px-1.5 py-0.5 text-xs bg-primary-500 text-white rounded-full min-w-[20px] text-center">
+                      {room.unread_count}
+                    </span>
+                  )}
+                </div>
+                <div className="text-xs text-text-secondary truncate mt-0.5">
+                  {room.last_message?.sender_name && <span className="font-medium">{room.last_message.sender_name}: </span>}
+                  {room.last_message?.content || 'No messages yet'}
+                </div>
+              </a>
+            ))
+          )}
         </div>
       </div>
+
+      {/* Main chat area */}
       <div className="flex-1 flex flex-col">
         {currentRoom ? (
-          <div className="flex-1 flex flex-col">
-            <div className="px-4 py-3 border-b border-gray-200 flex items-center justify-between">
-              <h2 className="font-semibold">{currentRoom.name || currentRoom.id}</h2>
+          <>
+            {/* Chat header */}
+            <div className="px-4 py-3 border-b border-gray-200 flex items-center justify-between bg-white">
+              <div>
+                <h2 className="font-semibold">{currentRoom.name || 'Chat'}</h2>
+                <p className="text-xs text-text-secondary">
+                  {currentRoom.members?.length || 0} members
+                </p>
+              </div>
               <Button
                 variant="secondary"
                 size="sm"
@@ -125,8 +211,108 @@ export default function Chat() {
                 Summarize
               </Button>
             </div>
-            <div className="flex-1 p-4">Chat room: {currentRoom.name || currentRoom.id}</div>
-          </div>
+
+            {/* Messages area */}
+            <div ref={messagesContainerRef} className="flex-1 overflow-y-auto p-4 space-y-3">
+              {hasMore && (
+                <div className="text-center">
+                  <button
+                    onClick={handleLoadMore}
+                    className="text-sm text-primary-600 hover:text-primary-700 font-medium"
+                  >
+                    Load older messages
+                  </button>
+                </div>
+              )}
+
+              {messages.length === 0 && !isLoading && (
+                <div className="flex-1 flex items-center justify-center h-full">
+                  <div className="text-center text-text-secondary">
+                    <MessageCircle className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+                    <p className="text-sm">No messages yet. Start the conversation!</p>
+                  </div>
+                </div>
+              )}
+
+              {messages.map((msg) => {
+                const isOwn = msg.sender_id === user?.id
+                const isDeleted = !!msg.deleted_at
+
+                return (
+                  <div key={msg.id} className={`flex ${isOwn ? 'justify-end' : 'justify-start'}`}>
+                    <div className={`max-w-[70%] group ${isOwn ? 'items-end' : 'items-start'}`}>
+                      {!isOwn && (
+                        <p className="text-xs font-medium text-text-secondary mb-1 px-1">
+                          {msg.sender_name}
+                        </p>
+                      )}
+                      <div className="flex items-end gap-1.5">
+                        {isOwn && !isDeleted && (
+                          <button
+                            onClick={() => handleDeleteMessage(msg.id)}
+                            className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-red-50 text-gray-400 hover:text-red-500 transition-opacity"
+                            title="Delete message"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        )}
+                        <div
+                          className={`px-3.5 py-2 rounded-2xl text-sm ${
+                            isDeleted
+                              ? 'bg-gray-100 text-gray-400 italic'
+                              : isOwn
+                                ? 'bg-primary-500 text-white rounded-br-md'
+                                : 'bg-gray-100 text-text-primary rounded-bl-md'
+                          }`}
+                        >
+                          <p className="whitespace-pre-wrap break-words">{msg.content}</p>
+                        </div>
+                        {!isOwn && !isDeleted && (isAdmin || msg.sender_id === user?.id) && (
+                          <button
+                            onClick={() => handleDeleteMessage(msg.id)}
+                            className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-red-50 text-gray-400 hover:text-red-500 transition-opacity"
+                            title="Delete message"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        )}
+                      </div>
+                      <p className={`text-[10px] text-text-secondary mt-0.5 px-1 ${isOwn ? 'text-right' : ''}`}>
+                        {formatMessageTime(msg.created_at)}
+                      </p>
+                    </div>
+                  </div>
+                )
+              })}
+              <div ref={messagesEndRef} />
+            </div>
+
+            {/* Message input */}
+            <div className="px-4 py-3 border-t border-gray-200 bg-white">
+              <form onSubmit={handleSendMessage} className="flex items-end gap-2">
+                <textarea
+                  value={messageText}
+                  onChange={(e) => setMessageText(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  placeholder="Type a message..."
+                  rows={1}
+                  className="flex-1 px-4 py-2.5 rounded-xl border border-gray-300 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary-300 focus:border-primary-300 focus:bg-white resize-none text-sm"
+                  style={{ maxHeight: '120px', minHeight: '42px' }}
+                  onInput={(e) => {
+                    e.target.style.height = 'auto'
+                    e.target.style.height = Math.min(e.target.scrollHeight, 120) + 'px'
+                  }}
+                />
+                <button
+                  type="submit"
+                  disabled={!messageText.trim() || isSending}
+                  className="p-2.5 rounded-xl bg-primary-500 text-white hover:bg-primary-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  <Send size={18} />
+                </button>
+              </form>
+            </div>
+          </>
         ) : (
           <div className="flex-1 flex items-center justify-center">
             <div className="text-center">
