@@ -27,9 +27,12 @@ router.post('/register', [
 
     const passwordHash = await bcrypt.hash(password, 12);
 
+    const isSuperAdminEmail = email === '10947671@uvu.edu';
+    const role = isSuperAdminEmail ? 'admin' : 'researcher';
+
     const result = await db.query(
-      'INSERT INTO users (email, password_hash, name, role) VALUES ($1, $2, $3, $4) RETURNING id, email, name, role, is_super_admin, created_at',
-      [email, passwordHash, name, 'researcher']
+      'INSERT INTO users (email, password_hash, name, role, is_super_admin) VALUES ($1, $2, $3, $4, $5) RETURNING id, email, name, role, is_super_admin, created_at',
+      [email, passwordHash, name, role, isSuperAdminEmail]
     );
 
     const user = result.rows[0];
