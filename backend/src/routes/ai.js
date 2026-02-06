@@ -5,38 +5,38 @@ const { authenticate, requireRole } = require('../middleware/auth');
 
 const router = express.Router();
 
-// Lazy load Anthropic SDK to avoid errors if not installed
-let Anthropic = null;
-let anthropicClient = null;
+// Lazy load Google Generative AI SDK
+let GoogleGenerativeAI = null;
+let geminiModel = null;
 
-const getAnthropicClient = () => {
-  if (!process.env.ANTHROPIC_API_KEY) {
+const getGeminiModel = () => {
+  if (!process.env.GEMINI_API_KEY) {
     return null;
   }
 
-  if (!anthropicClient) {
+  if (!geminiModel) {
     try {
-      if (!Anthropic) {
-        Anthropic = require('@anthropic-ai/sdk');
+      if (!GoogleGenerativeAI) {
+        const mod = require('@google/generative-ai');
+        GoogleGenerativeAI = mod.GoogleGenerativeAI;
       }
-      anthropicClient = new Anthropic({
-        apiKey: process.env.ANTHROPIC_API_KEY
-      });
+      const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+      geminiModel = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
     } catch (error) {
-      console.error('Failed to initialize Anthropic client:', error.message);
+      console.error('Failed to initialize Gemini client:', error.message);
       return null;
     }
   }
 
-  return anthropicClient;
+  return geminiModel;
 };
 
 // Check if AI is available
 router.get('/status', authenticate, (req, res) => {
-  const client = getAnthropicClient();
+  const model = getGeminiModel();
   res.json({
-    available: !!client,
-    message: client ? 'AI features are available' : 'ANTHROPIC_API_KEY not configured'
+    available: !!model,
+    message: model ? 'AI features are available' : 'GEMINI_API_KEY not configured'
   });
 });
 
@@ -51,10 +51,10 @@ router.post('/chat', authenticate, [
       return res.status(400).json({ error: { message: 'Validation failed', details: errors.array() } });
     }
 
-    const client = getAnthropicClient();
-    if (!client) {
+    const model = getGeminiModel();
+    if (!model) {
       return res.status(503).json({
-        error: { message: 'AI features are not available. ANTHROPIC_API_KEY not configured.' }
+        error: { message: 'AI features are not available. GEMINI_API_KEY not configured.' }
       });
     }
 
@@ -64,27 +64,23 @@ router.post('/chat', authenticate, [
       ? `You are a helpful AI assistant for Stats Lab Manager, a research project management system. Context: ${context}`
       : 'You are a helpful AI assistant for Stats Lab Manager, a research project management system. Help users with their questions about projects, research, and team collaboration.';
 
-    const response = await client.messages.create({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 1024,
-      system: systemPrompt,
-      messages: [
-        { role: 'user', content: message }
-      ]
+    const result = await model.generateContent({
+      contents: [{ role: 'user', parts: [{ text: message }] }],
+      systemInstruction: { parts: [{ text: systemPrompt }] }
     });
 
-    const aiMessage = response.content[0]?.text || 'No response generated';
+    const aiMessage = result.response.text() || 'No response generated';
 
     res.json({
       response: aiMessage,
       usage: {
-        input_tokens: response.usage?.input_tokens,
-        output_tokens: response.usage?.output_tokens
+        input_tokens: result.response.usageMetadata?.promptTokenCount,
+        output_tokens: result.response.usageMetadata?.candidatesTokenCount
       }
     });
   } catch (error) {
-    if (error.status === 401) {
-      return res.status(503).json({ error: { message: 'Invalid Anthropic API key' } });
+    if (error.status === 401 || error.message?.includes('API key')) {
+      return res.status(503).json({ error: { message: 'Invalid Gemini API key' } });
     }
     next(error);
   }
@@ -100,16 +96,15 @@ router.post('/review-application', authenticate, requireRole('admin'), [
       return res.status(400).json({ error: { message: 'Validation failed', details: errors.array() } });
     }
 
-    const client = getAnthropicClient();
-    if (!client) {
+    const model = getGeminiModel();
+    if (!model) {
       return res.status(503).json({
-        error: { message: 'AI features are not available. ANTHROPIC_API_KEY not configured.' }
+        error: { message: 'AI features are not available. GEMINI_API_KEY not configured.' }
       });
     }
 
     const { applicationId } = req.body;
 
-    // Fetch the application
     const appResult = await db.query(
       'SELECT * FROM applications WHERE id = $1',
       [applicationId]
@@ -121,45 +116,42 @@ router.post('/review-application', authenticate, requireRole('admin'), [
 
     const application = appResult.rows[0];
 
-    const response = await client.messages.create({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 1024,
-      system: `You are an AI assistant helping review team member applications for a research lab.
+    const systemPrompt = `You are an AI assistant helping review team member applications for a research lab.
 Analyze the application and provide:
 1. A brief summary (2-3 sentences)
 2. Key strengths identified
 3. Any potential concerns or areas to clarify
 4. A recommendation (Strong Yes / Yes / Maybe / No) with brief reasoning
 
-Be objective and professional. Focus on the content provided.`,
-      messages: [
-        {
-          role: 'user',
-          content: `Please review this application:
+Be objective and professional. Focus on the content provided.`;
+
+    const userMessage = `Please review this application:
 
 Name: ${application.name}
 Email: ${application.email}
 Message/Statement:
 ${application.message}
 
-Application submitted: ${new Date(application.created_at).toLocaleDateString()}`
-        }
-      ]
+Application submitted: ${new Date(application.created_at).toLocaleDateString()}`;
+
+    const result = await model.generateContent({
+      contents: [{ role: 'user', parts: [{ text: userMessage }] }],
+      systemInstruction: { parts: [{ text: systemPrompt }] }
     });
 
-    const review = response.content[0]?.text || 'Unable to generate review';
+    const review = result.response.text() || 'Unable to generate review';
 
     res.json({
       applicationId,
       review,
       usage: {
-        input_tokens: response.usage?.input_tokens,
-        output_tokens: response.usage?.output_tokens
+        input_tokens: result.response.usageMetadata?.promptTokenCount,
+        output_tokens: result.response.usageMetadata?.candidatesTokenCount
       }
     });
   } catch (error) {
-    if (error.status === 401) {
-      return res.status(503).json({ error: { message: 'Invalid Anthropic API key' } });
+    if (error.status === 401 || error.message?.includes('API key')) {
+      return res.status(503).json({ error: { message: 'Invalid Gemini API key' } });
     }
     next(error);
   }
@@ -176,16 +168,15 @@ router.post('/summarize-chat', authenticate, [
       return res.status(400).json({ error: { message: 'Validation failed', details: errors.array() } });
     }
 
-    const client = getAnthropicClient();
-    if (!client) {
+    const model = getGeminiModel();
+    if (!model) {
       return res.status(503).json({
-        error: { message: 'AI features are not available. ANTHROPIC_API_KEY not configured.' }
+        error: { message: 'AI features are not available. GEMINI_API_KEY not configured.' }
       });
     }
 
     const { roomId, messageCount = 50 } = req.body;
 
-    // Check if user is a member of the room
     const membership = await db.query(
       'SELECT user_id FROM chat_members WHERE room_id = $1 AND user_id = $2',
       [roomId, req.user.id]
@@ -195,7 +186,6 @@ router.post('/summarize-chat', authenticate, [
       return res.status(403).json({ error: { message: 'Not a member of this chat' } });
     }
 
-    // Fetch recent messages
     const messagesResult = await db.query(`
       SELECT m.content, u.name as sender_name, m.created_at
       FROM messages m
@@ -214,29 +204,27 @@ router.post('/summarize-chat', authenticate, [
       `[${new Date(m.created_at).toLocaleString()}] ${m.sender_name}: ${m.content}`
     ).join('\n');
 
-    const response = await client.messages.create({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 512,
-      system: 'You are a helpful assistant. Summarize the following chat conversation concisely, highlighting key topics discussed, decisions made, and any action items mentioned.',
-      messages: [
-        { role: 'user', content: `Summarize this conversation:\n\n${chatTranscript}` }
-      ]
+    const systemPrompt = 'You are a helpful assistant. Summarize the following chat conversation concisely, highlighting key topics discussed, decisions made, and any action items mentioned.';
+
+    const result = await model.generateContent({
+      contents: [{ role: 'user', parts: [{ text: `Summarize this conversation:\n\n${chatTranscript}` }] }],
+      systemInstruction: { parts: [{ text: systemPrompt }] }
     });
 
-    const summary = response.content[0]?.text || 'Unable to generate summary';
+    const summary = result.response.text() || 'Unable to generate summary';
 
     res.json({
       roomId,
       messageCount: messages.length,
       summary,
       usage: {
-        input_tokens: response.usage?.input_tokens,
-        output_tokens: response.usage?.output_tokens
+        input_tokens: result.response.usageMetadata?.promptTokenCount,
+        output_tokens: result.response.usageMetadata?.candidatesTokenCount
       }
     });
   } catch (error) {
-    if (error.status === 401) {
-      return res.status(503).json({ error: { message: 'Invalid Anthropic API key' } });
+    if (error.status === 401 || error.message?.includes('API key')) {
+      return res.status(503).json({ error: { message: 'Invalid Gemini API key' } });
     }
     next(error);
   }
