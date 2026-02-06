@@ -103,8 +103,8 @@ export default function LabDashboard() {
             <div className="flex flex-wrap gap-3">
               {canCreate && (
                 <Button
+                  variant="white"
                   onClick={() => setShowCreateModal(true)}
-                  className="bg-white text-primary-600 hover:bg-white/90 shadow-lg shadow-primary-900/20"
                 >
                   <Plus size={18} />
                   New Project

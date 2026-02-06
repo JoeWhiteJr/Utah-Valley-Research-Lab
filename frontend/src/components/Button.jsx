@@ -5,7 +5,8 @@ const variants = {
   secondary: 'bg-gray-100 text-text-primary hover:bg-gray-200 focus:ring-gray-300',
   outline: 'border border-gray-300 text-text-primary hover:bg-gray-50 focus:ring-gray-300',
   danger: 'bg-red-500 text-white hover:bg-red-600 focus:ring-red-300',
-  ghost: 'text-text-secondary hover:bg-gray-100 hover:text-text-primary'
+  ghost: 'text-text-secondary hover:bg-gray-100 hover:text-text-primary',
+  white: 'bg-white text-primary-600 hover:bg-white/90 shadow-lg shadow-primary-900/20 focus:ring-primary-300'
 }
 
 const sizes = {
