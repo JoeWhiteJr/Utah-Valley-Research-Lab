@@ -24,6 +24,12 @@ export { default as MeetingCard } from './MeetingCard'
 // Input
 export { default as SearchInput } from './SearchInput'
 export { default as DropZone } from './DropZone'
+export { default as DatePicker } from './DatePicker'
+export { default as RichTextEditor, RichTextContent } from './RichTextEditor'
+
+// Media
+export { default as AudioPlayer } from './AudioPlayer'
+export { default as AudioRecorder } from './AudioRecorder'
 
 // Layout
 export { default as Layout } from './Layout'

@@ -1,11 +1,13 @@
 import { useState } from 'react'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { GripVertical, Trash2, Calendar, User } from 'lucide-react'
+import { GripVertical, Trash2, Calendar, User, Tag } from 'lucide-react'
 import { format } from 'date-fns'
+import CategoryBadge from './CategoryBadge'
 
-export default function ActionItem({ action, onToggle, onDelete, users = [] }) {
+export default function ActionItem({ action, onToggle, onDelete, onUpdateCategory, users = [], categories = [] }) {
   const [isHovered, setIsHovered] = useState(false)
+  const [showCategoryPicker, setShowCategoryPicker] = useState(false)
 
   const {
     attributes,
@@ -23,6 +25,13 @@ export default function ActionItem({ action, onToggle, onDelete, users = [] }) {
   }
 
   const assignedUser = users.find(u => u.id === action.assigned_to)
+
+  const handleCategorySelect = (categoryId) => {
+    if (onUpdateCategory) {
+      onUpdateCategory(action.id, { category_id: categoryId })
+    }
+    setShowCategoryPicker(false)
+  }
 
   return (
     <div
@@ -60,10 +69,19 @@ export default function ActionItem({ action, onToggle, onDelete, users = [] }) {
       </button>
 
       <div className="flex-1 min-w-0">
-        <p className={`text-sm ${action.completed ? 'text-text-secondary line-through' : 'text-text-primary'}`}>
-          {action.title}
-        </p>
-        <div className="flex items-center gap-3 mt-1.5">
+        <div className="flex items-center gap-2 flex-wrap">
+          <p className={`text-sm ${action.completed ? 'text-text-secondary line-through' : 'text-text-primary'}`}>
+            {action.title}
+          </p>
+          {action.category_name && (
+            <CategoryBadge
+              name={action.category_name}
+              color={action.category_color}
+              size="xs"
+            />
+          )}
+        </div>
+        <div className="flex items-center gap-3 mt-1.5 flex-wrap">
           {action.due_date && (
             <span className={`flex items-center gap-1 text-xs ${
               new Date(action.due_date) < new Date() && !action.completed
@@ -79,6 +97,47 @@ export default function ActionItem({ action, onToggle, onDelete, users = [] }) {
               <User size={12} />
               {assignedUser.name}
             </span>
+          )}
+          {/* Category picker button - only show if categories exist and handler provided */}
+          {categories.length > 0 && onUpdateCategory && (
+            <div className="relative">
+              <button
+                onClick={() => setShowCategoryPicker(!showCategoryPicker)}
+                className={`flex items-center gap-1 text-xs text-text-secondary hover:text-primary-600 transition-opacity ${
+                  isHovered || showCategoryPicker ? 'opacity-100' : 'opacity-0'
+                }`}
+              >
+                <Tag size={12} />
+                {action.category_name ? 'Change' : 'Add category'}
+              </button>
+              {showCategoryPicker && (
+                <div className="absolute top-full left-0 mt-1 z-10 bg-white rounded-lg shadow-lg border border-gray-200 py-1 min-w-[140px]">
+                  {action.category_id && (
+                    <button
+                      onClick={() => handleCategorySelect(null)}
+                      className="w-full px-3 py-1.5 text-left text-xs text-text-secondary hover:bg-gray-50"
+                    >
+                      Remove category
+                    </button>
+                  )}
+                  {categories.map((cat) => (
+                    <button
+                      key={cat.id}
+                      onClick={() => handleCategorySelect(cat.id)}
+                      className={`w-full px-3 py-1.5 text-left text-xs hover:bg-gray-50 flex items-center gap-2 ${
+                        cat.id === action.category_id ? 'bg-gray-50' : ''
+                      }`}
+                    >
+                      <span
+                        className="w-3 h-3 rounded-full flex-shrink-0"
+                        style={{ backgroundColor: cat.color }}
+                      />
+                      {cat.name}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           )}
         </div>
       </div>

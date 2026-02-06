@@ -4,17 +4,22 @@ import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, us
 import { SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy, arrayMove } from '@dnd-kit/sortable'
 import { useAuthStore } from '../store/authStore'
 import { useProjectStore } from '../store/projectStore'
-import { usersApi, filesApi } from '../services/api'
+import { usersApi, filesApi, getUploadUrl } from '../services/api'
 import Button from '../components/Button'
 import Modal from '../components/Modal'
 import Input from '../components/Input'
 import ActionItem from '../components/ActionItem'
 import FileCard from '../components/FileCard'
+import FilePreviewModal from '../components/FilePreviewModal'
 import NoteCard from '../components/NoteCard'
 import MeetingCard from '../components/MeetingCard'
+import DatePicker from '../components/DatePicker'
+import RichTextEditor from '../components/RichTextEditor'
+import AudioRecorder from '../components/AudioRecorder'
+import CategoryManager from '../components/CategoryManager'
 import {
   ArrowLeft, Edit3, Trash2, Plus, Upload, ListTodo, FileText,
-  StickyNote, Mic, Image
+  StickyNote, Mic, Image, Settings, MoreVertical, Check
 } from 'lucide-react'
 
 const tabs = [
@@ -32,10 +37,12 @@ export default function ProjectDetail() {
   const {
     currentProject, fetchProject, updateProject, deleteProject, uploadCover,
     actions, fetchActions, createAction, updateAction, deleteAction, reorderActions,
+    categories, fetchCategories, createCategory, updateCategory, deleteCategory,
     files, fetchFiles, uploadFile, deleteFile,
     notes, fetchNotes, createNote, updateNote, deleteNote,
-    meetings, fetchMeetings, createMeeting, deleteMeeting,
-    clearCurrentProject, isLoading
+    meetings, fetchMeetings, createMeeting, updateMeeting, deleteMeeting,
+    clearCurrentProject, isLoading,
+    uploadProgress, isUploading
   } = useProjectStore()
 
   const [activeTab, setActiveTab] = useState('overview')
@@ -46,7 +53,7 @@ export default function ProjectDetail() {
 
   // Action modals
   const [showActionModal, setShowActionModal] = useState(false)
-  const [newAction, setNewAction] = useState({ title: '', due_date: '', assigned_to: '' })
+  const [newAction, setNewAction] = useState({ title: '', due_date: '', assigned_to: '', category_id: '' })
 
   // Note modals
   const [showNoteModal, setShowNoteModal] = useState(false)
@@ -55,10 +62,24 @@ export default function ProjectDetail() {
 
   // Meeting modals
   const [showMeetingModal, setShowMeetingModal] = useState(false)
-  const [meetingData, setMeetingData] = useState({ title: '', recorded_at: '' })
+  const [meetingData, setMeetingData] = useState({ title: '', recorded_at: '', notes: '' })
   const [audioFile, setAudioFile] = useState(null)
+  const [showRecorder, setShowRecorder] = useState(false)
+  const [editingMeeting, setEditingMeeting] = useState(null)
+  const [showEditMeetingModal, setShowEditMeetingModal] = useState(false)
+
+  // File upload state
+  const [isDragging, setIsDragging] = useState(false)
+  const [previewFile, setPreviewFile] = useState(null)
+
+  // Settings menu state
+  const [showSettingsMenu, setShowSettingsMenu] = useState(false)
+
+  // Category filter state
+  const [categoryFilter, setCategoryFilter] = useState(null)
 
   const coverInputRef = useRef(null)
+  const fileInputRef = useRef(null)
 
   const canEdit = user?.role === 'admin' || user?.role === 'project_lead'
   const canEditMeta = user?.role === 'admin'
@@ -72,13 +93,14 @@ export default function ProjectDetail() {
   useEffect(() => {
     fetchProject(id)
     fetchActions(id)
+    fetchCategories(id)
     fetchFiles(id)
     fetchNotes(id)
     fetchMeetings(id)
     usersApi.team().then(({ data }) => setTeamMembers(data.users))
 
     return () => clearCurrentProject()
-  }, [id, fetchProject, fetchActions, fetchFiles, fetchNotes, fetchMeetings, clearCurrentProject])
+  }, [id, fetchProject, fetchActions, fetchCategories, fetchFiles, fetchNotes, fetchMeetings, clearCurrentProject])
 
   useEffect(() => {
     if (currentProject) {
@@ -120,11 +142,28 @@ export default function ProjectDetail() {
     await createAction(id, {
       title: newAction.title,
       due_date: newAction.due_date || null,
-      assigned_to: newAction.assigned_to || null
+      assigned_to: newAction.assigned_to || null,
+      category_id: newAction.category_id || null
     })
     setShowActionModal(false)
-    setNewAction({ title: '', due_date: '', assigned_to: '' })
+    setNewAction({ title: '', due_date: '', assigned_to: '', category_id: '' })
   }
+
+  // Handle project status change (admin only)
+  const handleStatusChange = async (newStatus) => {
+    await updateProject(id, { status: newStatus })
+    setShowSettingsMenu(false)
+  }
+
+  // Handle category creation for the project
+  const handleCreateCategory = async (categoryData) => {
+    return await createCategory(id, categoryData)
+  }
+
+  // Filter actions by category
+  const filteredActions = categoryFilter
+    ? actions.filter(a => a.category_id === categoryFilter)
+    : actions
 
   const handleFileUpload = async (e) => {
     const file = e.target.files?.[0]
@@ -133,6 +172,30 @@ export default function ProjectDetail() {
       e.target.value = ''
     }
   }
+
+  // Drag and drop handlers for file upload
+  const handleDragOver = useCallback((e) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragging(true)
+  }, [])
+
+  const handleDragLeave = useCallback((e) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragging(false)
+  }, [])
+
+  const handleDrop = useCallback(async (e) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragging(false)
+
+    const file = e.dataTransfer.files?.[0]
+    if (file) {
+      await uploadFile(id, file)
+    }
+  }, [id, uploadFile])
 
   const handleCoverUpload = async (e) => {
     const file = e.target.files?.[0]
@@ -174,8 +237,37 @@ export default function ProjectDetail() {
     e.preventDefault()
     await createMeeting(id, meetingData, audioFile)
     setShowMeetingModal(false)
-    setMeetingData({ title: '', recorded_at: '' })
+    setMeetingData({ title: '', recorded_at: '', notes: '' })
     setAudioFile(null)
+    setShowRecorder(false)
+  }
+
+  const handleEditMeeting = (meeting) => {
+    setEditingMeeting(meeting)
+    setMeetingData({
+      title: meeting.title,
+      recorded_at: meeting.recorded_at ? meeting.recorded_at.split('T')[0] : '',
+      notes: meeting.notes || ''
+    })
+    setShowEditMeetingModal(true)
+  }
+
+  const handleSaveMeeting = async (e) => {
+    e.preventDefault()
+    if (editingMeeting) {
+      await updateMeeting(editingMeeting.id, {
+        title: meetingData.title,
+        notes: meetingData.notes
+      })
+    }
+    setShowEditMeetingModal(false)
+    setEditingMeeting(null)
+    setMeetingData({ title: '', recorded_at: '', notes: '' })
+  }
+
+  const handleRecordedAudio = (file) => {
+    setAudioFile(file)
+    setShowRecorder(false)
   }
 
   if (isLoading || !currentProject) {
@@ -202,7 +294,7 @@ export default function ProjectDetail() {
       {/* Header image */}
       <div className="relative h-48 md:h-64 rounded-xl overflow-hidden bg-gradient-to-br from-primary-200 to-secondary-200">
         {currentProject.header_image ? (
-          <img src={currentProject.header_image} alt="" className="w-full h-full object-cover" />
+          <img src={getUploadUrl(currentProject.header_image)} alt="" className="w-full h-full object-cover" />
         ) : (
           <div className="absolute inset-0 flex items-center justify-center">
             <div className="w-24 h-24 rounded-full bg-white/20 backdrop-blur-sm" />
@@ -238,6 +330,7 @@ export default function ProjectDetail() {
             <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${
               currentProject.status === 'active' ? 'bg-secondary-100 text-secondary-700' :
               currentProject.status === 'completed' ? 'bg-green-100 text-green-700' :
+              currentProject.status === 'inactive' ? 'bg-amber-100 text-amber-700' :
               'bg-gray-100 text-gray-600'
             }`}>
               {currentProject.status}
@@ -263,7 +356,7 @@ export default function ProjectDetail() {
         </div>
 
         {canEdit && (
-          <div className="flex gap-2">
+          <div className="flex gap-2 items-center">
             <Button variant="outline" onClick={() => setShowEditModal(true)}>
               <Edit3 size={16} />
               Edit
@@ -272,6 +365,43 @@ export default function ProjectDetail() {
               <Button variant="danger" onClick={() => setShowDeleteConfirm(true)}>
                 <Trash2 size={16} />
               </Button>
+            )}
+            {/* Settings menu for status changes - admin only */}
+            {canEditMeta && (
+              <div className="relative">
+                <Button
+                  variant="outline"
+                  onClick={() => setShowSettingsMenu(!showSettingsMenu)}
+                  className="!p-2"
+                >
+                  <MoreVertical size={16} />
+                </Button>
+                {showSettingsMenu && (
+                  <>
+                    <div
+                      className="fixed inset-0 z-10"
+                      onClick={() => setShowSettingsMenu(false)}
+                    />
+                    <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-20">
+                      <div className="px-3 py-2 text-xs font-semibold text-text-secondary uppercase tracking-wider">
+                        Set Status
+                      </div>
+                      {['active', 'completed', 'inactive', 'archived'].map((status) => (
+                        <button
+                          key={status}
+                          onClick={() => handleStatusChange(status)}
+                          className={`w-full px-3 py-2 text-left text-sm flex items-center justify-between hover:bg-gray-50 ${
+                            currentProject.status === status ? 'bg-gray-50 text-primary-600' : 'text-text-primary'
+                          }`}
+                        >
+                          <span className="capitalize">{status}</span>
+                          {currentProject.status === status && <Check size={16} />}
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
             )}
           </div>
         )}
@@ -339,28 +469,106 @@ export default function ProjectDetail() {
                 Add Task
               </Button>
             </div>
-            {actions.length > 0 ? (
-              <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-                <SortableContext items={actions.map(a => a.id)} strategy={verticalListSortingStrategy}>
-                  <div className="space-y-2">
-                    {actions.map((action) => (
-                      <ActionItem
-                        key={action.id}
-                        action={action}
-                        users={teamMembers}
-                        onToggle={(id, completed) => updateAction(id, { completed })}
-                        onDelete={deleteAction}
-                      />
+
+            {/* Category Manager and Filter Section */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+              {/* Category filter buttons */}
+              <div className="lg:col-span-2">
+                {categories.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mb-4">
+                    <button
+                      onClick={() => setCategoryFilter(null)}
+                      className={`px-3 py-1.5 text-xs rounded-full font-medium transition-colors ${
+                        categoryFilter === null
+                          ? 'bg-primary-100 text-primary-700'
+                          : 'bg-gray-100 text-text-secondary hover:bg-gray-200'
+                      }`}
+                    >
+                      All ({actions.length})
+                    </button>
+                    {categories.map((cat) => (
+                      <button
+                        key={cat.id}
+                        onClick={() => setCategoryFilter(cat.id)}
+                        className={`px-3 py-1.5 text-xs rounded-full font-medium transition-colors ${
+                          categoryFilter === cat.id
+                            ? 'ring-2 ring-offset-1 ring-gray-400'
+                            : 'hover:opacity-80'
+                        }`}
+                        style={{
+                          backgroundColor: cat.color + '20',
+                          color: cat.color
+                        }}
+                      >
+                        {cat.name} ({actions.filter(a => a.category_id === cat.id).length})
+                      </button>
                     ))}
+                    <button
+                      onClick={() => setCategoryFilter('uncategorized')}
+                      className={`px-3 py-1.5 text-xs rounded-full font-medium transition-colors ${
+                        categoryFilter === 'uncategorized'
+                          ? 'bg-gray-200 text-text-primary'
+                          : 'bg-gray-100 text-text-secondary hover:bg-gray-200'
+                      }`}
+                    >
+                      Uncategorized ({actions.filter(a => !a.category_id).length})
+                    </button>
                   </div>
-                </SortableContext>
-              </DndContext>
-            ) : (
-              <div className="bg-white rounded-xl border border-gray-200 p-8 text-center">
-                <ListTodo size={40} className="mx-auto text-gray-300 mb-3" />
-                <p className="text-text-secondary">No tasks yet. Add your first action item.</p>
+                )}
+
+                {/* Action items list */}
+                {filteredActions.length > 0 || (categoryFilter === 'uncategorized' && actions.filter(a => !a.category_id).length > 0) ? (
+                  <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+                    <SortableContext
+                      items={(categoryFilter === 'uncategorized'
+                        ? actions.filter(a => !a.category_id)
+                        : filteredActions
+                      ).map(a => a.id)}
+                      strategy={verticalListSortingStrategy}
+                    >
+                      <div className="space-y-2">
+                        {(categoryFilter === 'uncategorized'
+                          ? actions.filter(a => !a.category_id)
+                          : filteredActions
+                        ).map((action) => (
+                          <ActionItem
+                            key={action.id}
+                            action={action}
+                            users={teamMembers}
+                            categories={categories}
+                            onToggle={(actionId, completed) => updateAction(actionId, { completed })}
+                            onDelete={deleteAction}
+                            onUpdateCategory={updateAction}
+                          />
+                        ))}
+                      </div>
+                    </SortableContext>
+                  </DndContext>
+                ) : actions.length > 0 ? (
+                  <div className="bg-white rounded-xl border border-gray-200 p-8 text-center">
+                    <ListTodo size={40} className="mx-auto text-gray-300 mb-3" />
+                    <p className="text-text-secondary">No tasks in this category.</p>
+                  </div>
+                ) : (
+                  <div className="bg-white rounded-xl border border-gray-200 p-8 text-center">
+                    <ListTodo size={40} className="mx-auto text-gray-300 mb-3" />
+                    <p className="text-text-secondary">No tasks yet. Add your first action item.</p>
+                  </div>
+                )}
               </div>
-            )}
+
+              {/* Category Manager Panel */}
+              <div className="lg:col-span-1">
+                <div className="bg-white rounded-xl border border-gray-200 p-4">
+                  <CategoryManager
+                    categories={categories}
+                    onCreateCategory={handleCreateCategory}
+                    onUpdateCategory={updateCategory}
+                    onDeleteCategory={deleteCategory}
+                  />
+                </div>
+              </div>
+            </div>
           </div>
         )}
 
@@ -369,14 +577,57 @@ export default function ProjectDetail() {
           <div className="space-y-4">
             <div className="flex justify-between items-center">
               <h3 className="font-display font-semibold text-lg">Files</h3>
-              <label className="cursor-pointer">
-                <input type="file" className="hidden" onChange={handleFileUpload} />
-                <Button size="sm" as="span">
+              <div>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  className="hidden"
+                  onChange={handleFileUpload}
+                />
+                <Button
+                  size="sm"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isUploading}
+                >
                   <Upload size={16} />
-                  Upload
+                  {isUploading ? 'Uploading...' : 'Upload'}
                 </Button>
-              </label>
+              </div>
             </div>
+
+            {/* Upload Progress Bar */}
+            {isUploading && uploadProgress !== null && (
+              <div className="bg-white rounded-lg border border-gray-200 p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm text-text-secondary">Uploading file...</span>
+                  <span className="text-sm font-medium text-primary-600">{uploadProgress}%</span>
+                </div>
+                <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-gradient-to-r from-primary-400 to-primary-500 rounded-full transition-all duration-300"
+                    style={{ width: `${uploadProgress}%` }}
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Drag and Drop Zone */}
+            <div
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
+              className={`border-2 border-dashed rounded-xl p-6 text-center transition-all ${
+                isDragging
+                  ? 'border-primary-400 bg-primary-50'
+                  : 'border-gray-300 hover:border-gray-400'
+              }`}
+            >
+              <Upload size={32} className={`mx-auto mb-2 ${isDragging ? 'text-primary-500' : 'text-gray-400'}`} />
+              <p className="text-sm text-text-secondary">
+                {isDragging ? 'Drop file here' : 'Drag and drop files here, or click Upload'}
+              </p>
+            </div>
+
             {files.length > 0 ? (
               <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
                 {files.map((file) => (
@@ -385,6 +636,7 @@ export default function ProjectDetail() {
                     file={file}
                     onDownload={handleDownloadFile}
                     onDelete={deleteFile}
+                    onPreview={setPreviewFile}
                   />
                 ))}
               </div>
@@ -444,6 +696,7 @@ export default function ProjectDetail() {
                     key={meeting.id}
                     meeting={meeting}
                     onView={() => {}}
+                    onEdit={handleEditMeeting}
                     onDelete={deleteMeeting}
                   />
                 ))}
@@ -496,6 +749,7 @@ export default function ProjectDetail() {
                 >
                   <option value="active">Active</option>
                   <option value="completed">Completed</option>
+                  <option value="inactive">Inactive</option>
                   <option value="archived">Archived</option>
                 </select>
               </div>
@@ -556,6 +810,21 @@ export default function ProjectDetail() {
               </select>
             </div>
           </div>
+          {categories.length > 0 && (
+            <div>
+              <label className="block text-sm font-medium text-text-primary mb-1.5">Category</label>
+              <select
+                value={newAction.category_id}
+                onChange={(e) => setNewAction({ ...newAction, category_id: e.target.value })}
+                className="w-full px-4 py-2.5 rounded-organic border border-gray-300 bg-white focus:outline-none focus:ring-2 focus:ring-primary-300"
+              >
+                <option value="">No category</option>
+                {categories.map((cat) => (
+                  <option key={cat.id} value={cat.id}>{cat.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
           <div className="flex justify-end gap-3 pt-2">
             <Button type="button" variant="secondary" onClick={() => setShowActionModal(false)}>Cancel</Button>
             <Button type="submit">Add Task</Button>
@@ -591,7 +860,7 @@ export default function ProjectDetail() {
       </Modal>
 
       {/* Meeting Modal */}
-      <Modal isOpen={showMeetingModal} onClose={() => setShowMeetingModal(false)} title="Add Meeting">
+      <Modal isOpen={showMeetingModal} onClose={() => { setShowMeetingModal(false); setShowRecorder(false); setAudioFile(null); }} title="Add Meeting" size="lg">
         <form onSubmit={handleAddMeeting} className="space-y-5">
           <Input
             label="Title"
@@ -600,27 +869,123 @@ export default function ProjectDetail() {
             placeholder="Meeting name"
             required
           />
-          <Input
+          <DatePicker
             label="Date"
-            type="datetime-local"
             value={meetingData.recorded_at}
-            onChange={(e) => setMeetingData({ ...meetingData, recorded_at: e.target.value })}
+            onChange={(date) => setMeetingData({ ...meetingData, recorded_at: date })}
+            placeholder="Select meeting date"
           />
+
+          <RichTextEditor
+            label="Meeting Notes (optional)"
+            value={meetingData.notes}
+            onChange={(content) => setMeetingData({ ...meetingData, notes: content })}
+            placeholder="Add meeting notes, agenda, or key points..."
+            minHeight="150px"
+          />
+
           <div>
-            <label className="block text-sm font-medium text-text-primary mb-1.5">Audio file (optional)</label>
-            <input
-              type="file"
-              accept="audio/*"
-              onChange={(e) => setAudioFile(e.target.files?.[0] || null)}
-              className="w-full px-4 py-2.5 rounded-organic border border-gray-300 bg-white"
-            />
+            <label className="block text-sm font-medium text-text-primary mb-1.5">Audio (optional)</label>
+
+            {!showRecorder && !audioFile && (
+              <div className="flex gap-3">
+                <label className="flex-1 cursor-pointer">
+                  <input
+                    type="file"
+                    accept="audio/*"
+                    className="hidden"
+                    onChange={(e) => setAudioFile(e.target.files?.[0] || null)}
+                  />
+                  <div className="flex items-center justify-center gap-2 px-4 py-3 border-2 border-dashed border-gray-300 rounded-lg hover:border-primary-400 hover:bg-primary-50 transition-colors">
+                    <Upload size={18} className="text-text-secondary" />
+                    <span className="text-sm text-text-secondary">Upload audio file</span>
+                  </div>
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setShowRecorder(true)}
+                  className="flex items-center justify-center gap-2 px-4 py-3 border-2 border-dashed border-gray-300 rounded-lg hover:border-red-400 hover:bg-red-50 transition-colors"
+                >
+                  <Mic size={18} className="text-text-secondary" />
+                  <span className="text-sm text-text-secondary">Record audio</span>
+                </button>
+              </div>
+            )}
+
+            {showRecorder && (
+              <div className="border border-gray-200 rounded-lg p-4">
+                <AudioRecorder
+                  onSave={handleRecordedAudio}
+                  onCancel={() => setShowRecorder(false)}
+                />
+              </div>
+            )}
+
+            {audioFile && !showRecorder && (
+              <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200">
+                <div className="flex items-center gap-2">
+                  <Mic size={18} className="text-secondary-600" />
+                  <span className="text-sm text-text-primary truncate max-w-[200px]">
+                    {audioFile.name}
+                  </span>
+                  <span className="text-xs text-text-secondary">
+                    ({(audioFile.size / 1024 / 1024).toFixed(2)} MB)
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setAudioFile(null)}
+                  className="text-sm text-red-600 hover:text-red-700"
+                >
+                  Remove
+                </button>
+              </div>
+            )}
           </div>
+
           <div className="flex justify-end gap-3 pt-2">
-            <Button type="button" variant="secondary" onClick={() => setShowMeetingModal(false)}>Cancel</Button>
+            <Button type="button" variant="secondary" onClick={() => { setShowMeetingModal(false); setShowRecorder(false); setAudioFile(null); }}>Cancel</Button>
             <Button type="submit">Add Meeting</Button>
           </div>
         </form>
       </Modal>
+
+      {/* Edit Meeting Modal */}
+      <Modal isOpen={showEditMeetingModal} onClose={() => { setShowEditMeetingModal(false); setEditingMeeting(null); }} title="Edit Meeting Notes" size="lg">
+        <form onSubmit={handleSaveMeeting} className="space-y-5">
+          <Input
+            label="Title"
+            value={meetingData.title}
+            onChange={(e) => setMeetingData({ ...meetingData, title: e.target.value })}
+            placeholder="Meeting name"
+            required
+          />
+
+          <RichTextEditor
+            label="Meeting Notes"
+            value={meetingData.notes}
+            onChange={(content) => setMeetingData({ ...meetingData, notes: content })}
+            placeholder="Add meeting notes, key decisions, action items..."
+            minHeight="250px"
+          />
+
+          <div className="flex justify-end gap-3 pt-2">
+            <Button type="button" variant="secondary" onClick={() => { setShowEditMeetingModal(false); setEditingMeeting(null); }}>Cancel</Button>
+            <Button type="submit">Save Notes</Button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* File Preview Modal */}
+      <FilePreviewModal
+        file={previewFile}
+        onClose={() => setPreviewFile(null)}
+        onDownload={handleDownloadFile}
+        onDelete={(fileId) => {
+          deleteFile(fileId)
+          setPreviewFile(null)
+        }}
+      />
     </div>
   )
 }

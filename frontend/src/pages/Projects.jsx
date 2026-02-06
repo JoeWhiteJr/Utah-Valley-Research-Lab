@@ -14,6 +14,7 @@ export default function Projects() {
   const [search, setSearch] = useState('')
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [showArchived, setShowArchived] = useState(false)
+  const [showInactive, setShowInactive] = useState(false)
   const [newProject, setNewProject] = useState({ title: '', description: '' })
   const [isCreating, setIsCreating] = useState(false)
   const [createError, setCreateError] = useState('')
@@ -31,6 +32,8 @@ export default function Projects() {
   })
 
   const activeProjects = filteredProjects.filter((p) => p.status === 'active')
+  const completedProjects = filteredProjects.filter((p) => p.status === 'completed')
+  const inactiveProjects = filteredProjects.filter((p) => p.status === 'inactive')
   const archivedProjects = filteredProjects.filter((p) => p.status === 'archived')
 
   const handleCreate = async (e) => {
@@ -85,8 +88,8 @@ export default function Projects() {
             className="w-full pl-10 pr-4 py-2.5 rounded-organic border border-gray-300 bg-white focus:outline-none focus:ring-2 focus:ring-primary-300 focus:border-primary-400"
           />
         </div>
-        <div className="flex gap-2">
-          {['all', 'active', 'completed'].map((status) => (
+        <div className="flex gap-2 flex-wrap">
+          {['all', 'active', 'completed', 'inactive'].map((status) => (
             <button
               key={status}
               onClick={() => setFilter(status)}
@@ -102,7 +105,7 @@ export default function Projects() {
         </div>
       </div>
 
-      {/* Active projects */}
+      {/* Projects display based on filter */}
       {isLoading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
           {[1, 2, 3, 4, 5, 6].map((i) => (
@@ -116,32 +119,68 @@ export default function Projects() {
             </div>
           ))}
         </div>
-      ) : activeProjects.length > 0 || (filter === 'all' && filteredProjects.length > 0) ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-          {(filter === 'all' ? filteredProjects.filter(p => p.status !== 'archived') : activeProjects).map((project) => (
-            <ProjectCard key={project.id} project={project} />
-          ))}
-        </div>
-      ) : (
-        <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
-          <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-gray-100 flex items-center justify-center">
-            <FolderKanban size={36} className="text-gray-400" />
+      ) : (() => {
+        // Determine which projects to display based on filter
+        let displayProjects = []
+        if (filter === 'all') {
+          displayProjects = filteredProjects.filter(p => p.status !== 'archived' && p.status !== 'inactive')
+        } else if (filter === 'active') {
+          displayProjects = activeProjects
+        } else if (filter === 'completed') {
+          displayProjects = completedProjects
+        } else if (filter === 'inactive') {
+          displayProjects = inactiveProjects
+        }
+
+        return displayProjects.length > 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+            {displayProjects.map((project) => (
+              <ProjectCard key={project.id} project={project} />
+            ))}
           </div>
-          <h3 className="font-display font-semibold text-lg text-text-primary">No projects found</h3>
-          <p className="mt-2 text-text-secondary max-w-sm mx-auto">
-            {search
-              ? 'Try adjusting your search or filters.'
-              : canCreate
-              ? 'Create your first research project to get started.'
-              : 'No projects have been created yet.'}
-          </p>
-          {canCreate && !search && (
-            <Button className="mt-4" onClick={handleOpenCreateModal}>
-              <Plus size={18} />
-              Create Project
-            </Button>
+        ) : (
+          <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
+            <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-gray-100 flex items-center justify-center">
+              <FolderKanban size={36} className="text-gray-400" />
+            </div>
+            <h3 className="font-display font-semibold text-lg text-text-primary">No projects found</h3>
+            <p className="mt-2 text-text-secondary max-w-sm mx-auto">
+              {search
+                ? 'Try adjusting your search or filters.'
+                : filter !== 'all' && filter !== 'active'
+                ? `No ${filter} projects found.`
+                : canCreate
+                ? 'Create your first research project to get started.'
+                : 'No projects have been created yet.'}
+            </p>
+            {canCreate && !search && filter === 'active' && (
+              <Button className="mt-4" onClick={handleOpenCreateModal}>
+                <Plus size={18} />
+                Create Project
+              </Button>
+            )}
+          </div>
+        )
+      })()}
+
+      {/* Inactive projects section - collapsible at bottom */}
+      {inactiveProjects.length > 0 && filter === 'all' && (
+        <section>
+          <button
+            onClick={() => setShowInactive(!showInactive)}
+            className="flex items-center gap-2 text-text-secondary hover:text-text-primary mb-4"
+          >
+            {showInactive ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
+            <span className="font-medium">Inactive ({inactiveProjects.length})</span>
+          </button>
+          {showInactive && (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+              {inactiveProjects.map((project) => (
+                <ProjectCard key={project.id} project={project} />
+              ))}
+            </div>
           )}
-        </div>
+        </section>
       )}
 
       {/* Archived projects */}
