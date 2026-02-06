@@ -72,6 +72,11 @@ export default function ProjectDetail() {
   const [isDragging, setIsDragging] = useState(false)
   const [previewFile, setPreviewFile] = useState(null)
 
+  // Cover upload preview state
+  const [coverPreview, setCoverPreview] = useState(null)
+  const [coverFile, setCoverFile] = useState(null)
+  const [isUploadingCover, setIsUploadingCover] = useState(false)
+
   // Settings menu state
   const [showSettingsMenu, setShowSettingsMenu] = useState(false)
 
@@ -197,12 +202,28 @@ export default function ProjectDetail() {
     }
   }, [id, uploadFile])
 
-  const handleCoverUpload = async (e) => {
+  const handleCoverSelect = (e) => {
     const file = e.target.files?.[0]
     if (file) {
-      await uploadCover(id, file)
+      setCoverFile(file)
+      setCoverPreview(URL.createObjectURL(file))
       e.target.value = ''
     }
+  }
+
+  const handleCoverConfirm = async () => {
+    if (!coverFile) return
+    setIsUploadingCover(true)
+    await uploadCover(id, coverFile)
+    setIsUploadingCover(false)
+    setCoverFile(null)
+    setCoverPreview(null)
+  }
+
+  const handleCoverCancel = () => {
+    if (coverPreview) URL.revokeObjectURL(coverPreview)
+    setCoverFile(null)
+    setCoverPreview(null)
   }
 
   const handleDownloadFile = async (file) => {
@@ -307,7 +328,7 @@ export default function ProjectDetail() {
               type="file"
               accept="image/*"
               className="hidden"
-              onChange={handleCoverUpload}
+              onChange={handleCoverSelect}
             />
             <button
               onClick={() => coverInputRef.current?.click()}
@@ -319,6 +340,26 @@ export default function ProjectDetail() {
           </>
         )}
       </div>
+
+      {/* Cover upload confirmation modal */}
+      <Modal
+        isOpen={!!coverPreview}
+        onClose={handleCoverCancel}
+        title="Upload Cover Image"
+      >
+        <div className="space-y-4">
+          <div className="rounded-lg overflow-hidden border border-gray-200">
+            <img src={coverPreview} alt="Preview" className="w-full h-48 object-cover" />
+          </div>
+          <p className="text-sm text-text-secondary">{coverFile?.name}</p>
+          <div className="flex justify-end gap-3">
+            <Button variant="secondary" onClick={handleCoverCancel}>Cancel</Button>
+            <Button variant="primary" onClick={handleCoverConfirm} loading={isUploadingCover}>
+              Upload
+            </Button>
+          </div>
+        </div>
+      </Modal>
 
       {/* Title and actions */}
       <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
