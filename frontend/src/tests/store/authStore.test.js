@@ -81,7 +81,7 @@ describe('authStore', () => {
 
       const result = await useAuthStore.getState().login('test@example.com', 'password')
 
-      expect(result).toBe(true)
+      expect(result).toEqual({ success: true })
       const state = useAuthStore.getState()
       expect(state.user).toEqual({ id: '1', name: 'Test User', email: 'test@example.com', is_super_admin: false })
       expect(state.token).toBe('new-token')
@@ -95,7 +95,7 @@ describe('authStore', () => {
 
       const result = await useAuthStore.getState().login('test@example.com', 'wrongpassword')
 
-      expect(result).toBe(false)
+      expect(result).toEqual({ success: false })
       const state = useAuthStore.getState()
       expect(state.error).toBe('Invalid credentials')
       expect(state.user).toBeNull()
@@ -106,7 +106,7 @@ describe('authStore', () => {
 
       const result = await useAuthStore.getState().login('test@example.com', 'password')
 
-      expect(result).toBe(false)
+      expect(result).toEqual({ success: false })
       const state = useAuthStore.getState()
       expect(state.error).toBe('Login failed')
     })

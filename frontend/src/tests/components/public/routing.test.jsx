@@ -61,7 +61,8 @@ describe('Public Site Routing', () => {
     it('renders projects page', () => {
       renderWithRoute('/projects')
       expect(screen.getByText('Our Projects')).toBeInTheDocument()
-      expect(screen.getByText('Featured Projects')).toBeInTheDocument()
+      // Page now uses dynamic API-driven content instead of static "Featured Projects"
+      expect(screen.getByText('All')).toBeInTheDocument()
     })
 
     it('renders project filter buttons', () => {
