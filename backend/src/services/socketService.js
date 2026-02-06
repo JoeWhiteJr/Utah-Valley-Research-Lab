@@ -83,6 +83,11 @@ const handleConnection = async (socket) => {
  * Handle joining a chat room
  */
 const handleJoinRoom = async (socket, { roomId }) => {
+  if (!roomId) {
+    socket.emit('error', { message: 'Room ID is required' });
+    return;
+  }
+
   try {
     // Verify user is a member
     const membership = await db.query(
@@ -107,6 +112,11 @@ const handleJoinRoom = async (socket, { roomId }) => {
  * Handle leaving a chat room
  */
 const handleLeaveRoom = (socket, { roomId }) => {
+  if (!roomId) {
+    socket.emit('error', { message: 'Room ID is required' });
+    return;
+  }
+
   socket.leave(`room:${roomId}`);
   socket.emit('left_room', { roomId });
 };
@@ -115,6 +125,15 @@ const handleLeaveRoom = (socket, { roomId }) => {
  * Handle sending a message via socket (real-time broadcast)
  */
 const handleSendMessage = async (socket, { roomId, content, type = 'text' }) => {
+  if (!roomId || !content || typeof content !== 'string' || content.trim().length === 0) {
+    socket.emit('error', { message: 'Invalid message' });
+    return;
+  }
+  if (content.length > 10000) {
+    socket.emit('error', { message: 'Message too long' });
+    return;
+  }
+
   try {
     // Verify membership
     const membership = await db.query(

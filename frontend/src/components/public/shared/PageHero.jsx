@@ -1,8 +1,7 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 
 export default function PageHero({ title, subtitle, variant = 'default' }) {
   const [isVisible, setIsVisible] = useState(false);
-  const heroRef = useRef(null);
 
   useEffect(() => {
     setIsVisible(true);
@@ -15,7 +14,6 @@ export default function PageHero({ title, subtitle, variant = 'default' }) {
 
   return (
     <section
-      ref={heroRef}
       className={`relative pt-32 pb-20 ${variantStyles[variant] || variantStyles.default}`}
     >
       {/* Decorative elements */}

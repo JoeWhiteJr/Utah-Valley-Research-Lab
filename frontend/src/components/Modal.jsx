@@ -9,7 +9,11 @@ export default function Modal({ isOpen, onClose, title, children, size = 'md' })
       document.body.style.overflow = 'unset'
     }
     return () => {
-      document.body.style.overflow = 'unset'
+      // Only restore scroll if no other modals are open
+      const otherModals = document.querySelectorAll('[data-modal]');
+      if (otherModals.length <= 1) {
+        document.body.style.overflow = 'unset'
+      }
     }
   }, [isOpen])
 
@@ -23,7 +27,7 @@ export default function Modal({ isOpen, onClose, title, children, size = 'md' })
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div data-modal className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div
         className="fixed inset-0 bg-black/40 backdrop-blur-sm"
         onClick={onClose}

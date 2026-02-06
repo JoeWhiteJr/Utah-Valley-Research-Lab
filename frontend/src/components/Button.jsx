@@ -21,6 +21,7 @@ const Button = forwardRef(({
   disabled = false,
   loading = false,
   children,
+  as,
   ...props
 }, ref) => {
   return (

@@ -1,7 +1,7 @@
 const express = require('express');
 const { body, validationResult } = require('express-validator');
 const db = require('../config/database');
-const { authenticate } = require('../middleware/auth');
+const { authenticate, requireProjectAccess } = require('../middleware/auth');
 
 const router = express.Router();
 
@@ -26,7 +26,7 @@ router.get('/my', authenticate, async (req, res, next) => {
 });
 
 // Get action items for a project
-router.get('/project/:projectId', authenticate, async (req, res, next) => {
+router.get('/project/:projectId', authenticate, requireProjectAccess(), async (req, res, next) => {
   try {
     const result = await db.query(`
       SELECT a.*, u.name as assigned_name,
@@ -45,7 +45,7 @@ router.get('/project/:projectId', authenticate, async (req, res, next) => {
 });
 
 // Create action item
-router.post('/project/:projectId', authenticate, [
+router.post('/project/:projectId', authenticate, requireProjectAccess(), [
   body('title').trim().notEmpty(),
   body('due_date').optional().isISO8601(),
   body('assigned_to').optional().isUUID(),
@@ -147,6 +147,8 @@ router.put('/:id', authenticate, [
     const updates = [];
     const values = [];
     let paramCount = 1;
+
+    updates.push('updated_at = CURRENT_TIMESTAMP');
 
     if (title !== undefined) { updates.push(`title = $${paramCount++}`); values.push(title); }
     if (completed !== undefined) { updates.push(`completed = $${paramCount++}`); values.push(completed); }

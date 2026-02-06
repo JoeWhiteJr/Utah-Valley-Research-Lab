@@ -1,4 +1,5 @@
 const express = require('express');
+const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
 const { body, validationResult } = require('express-validator');
 const db = require('../config/database');
@@ -54,6 +55,11 @@ router.post('/', [
 router.get('/', authenticate, requireRole('admin'), async (req, res, next) => {
   try {
     const { status } = req.query;
+    const validStatuses = ['pending', 'approved', 'rejected'];
+    if (status && !validStatuses.includes(status)) {
+      return res.status(400).json({ error: { message: 'Invalid status filter' } });
+    }
+
     let query = `
       SELECT a.*, u.name as reviewer_name
       FROM applications a
@@ -126,13 +132,13 @@ router.put('/:id/approve', authenticate, requireRole('admin'), [
       return res.status(400).json({ error: { message: 'Application has already been reviewed' } });
     }
 
-    // Use stored password if available (registration), otherwise generate temp password
+    // Use stored password if available (from registration), otherwise generate temp password
     let tempPassword = null;
     let passwordHash;
     if (application.password_hash) {
       passwordHash = application.password_hash;
     } else {
-      tempPassword = Math.random().toString(36).slice(-8) + Math.random().toString(36).slice(-8);
+      tempPassword = crypto.randomBytes(16).toString('base64url');
       passwordHash = await bcrypt.hash(tempPassword, 12);
     }
     const role = req.body.role || 'viewer';
@@ -264,6 +270,7 @@ router.delete('/:id', authenticate, requireRole('admin'), async (req, res, next)
 // Bulk approve/reject (admin only)
 router.post('/bulk', authenticate, requireRole('admin'), [
   body('ids').isArray({ min: 1 }),
+  body('ids.*').isUUID(),
   body('action').isIn(['approve', 'reject']),
   body('reason').optional().trim()
 ], async (req, res, next) => {
@@ -299,7 +306,7 @@ router.post('/bulk', authenticate, requireRole('admin'), [
           if (application.password_hash) {
             passwordHash = application.password_hash;
           } else {
-            tempPassword = Math.random().toString(36).slice(-8) + Math.random().toString(36).slice(-8);
+            tempPassword = crypto.randomBytes(16).toString('base64url');
             passwordHash = await bcrypt.hash(tempPassword, 12);
           }
 

@@ -146,15 +146,20 @@ const createNotification = async (userId, type, title, body = null, referenceId 
 };
 
 // Create notification for multiple users
-const createNotificationForUsers = async (userIds, type, title, body = null, referenceId = null, referenceType = null) => {
-  const notifications = [];
+const createNotificationForUsers = async (userIds, type, title, body, referenceId, referenceType) => {
+  if (!userIds || userIds.length === 0) return [];
+  const values = [];
+  const placeholders = [];
+  let paramCount = 1;
   for (const userId of userIds) {
-    const notification = await createNotification(userId, type, title, body, referenceId, referenceType);
-    if (notification) {
-      notifications.push(notification);
-    }
+    placeholders.push(`($${paramCount++}, $${paramCount++}, $${paramCount++}, $${paramCount++}, $${paramCount++}, $${paramCount++})`);
+    values.push(userId, type, title, body, referenceId || null, referenceType || null);
   }
-  return notifications;
+  const result = await db.query(
+    `INSERT INTO notifications (user_id, type, title, body, reference_id, reference_type) VALUES ${placeholders.join(', ')} RETURNING *`,
+    values
+  );
+  return result.rows;
 };
 
 module.exports = router;

@@ -1,12 +1,12 @@
 const express = require('express');
 const { body, validationResult } = require('express-validator');
 const db = require('../config/database');
-const { authenticate } = require('../middleware/auth');
+const { authenticate, requireProjectAccess } = require('../middleware/auth');
 
 const router = express.Router();
 
 // Get notes for a project
-router.get('/project/:projectId', authenticate, async (req, res, next) => {
+router.get('/project/:projectId', authenticate, requireProjectAccess(), async (req, res, next) => {
   try {
     const result = await db.query(`
       SELECT n.*, u.name as creator_name
@@ -43,7 +43,7 @@ router.get('/:id', authenticate, async (req, res, next) => {
 });
 
 // Create note
-router.post('/project/:projectId', authenticate, [
+router.post('/project/:projectId', authenticate, requireProjectAccess(), [
   body('title').trim().notEmpty(),
   body('content').optional()
 ], async (req, res, next) => {
@@ -87,6 +87,8 @@ router.put('/:id', authenticate, [
     const updates = [];
     const values = [];
     let paramCount = 1;
+
+    updates.push('updated_at = CURRENT_TIMESTAMP');
 
     if (title !== undefined) { updates.push(`title = $${paramCount++}`); values.push(title); }
     if (content !== undefined) { updates.push(`content = $${paramCount++}`); values.push(content); }

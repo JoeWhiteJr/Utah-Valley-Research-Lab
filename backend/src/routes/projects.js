@@ -28,8 +28,8 @@ const coverUpload = multer({
   storage: coverStorage,
   limits: { fileSize: 10 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
-    const allowed = /jpeg|jpg|png|gif|webp/;
-    const ext = allowed.test(path.extname(file.originalname).toLowerCase());
+    const allowed = /^(jpeg|jpg|png|gif|webp)$/;
+    const ext = allowed.test(path.extname(file.originalname).toLowerCase().replace('.', ''));
     const mime = allowed.test(file.mimetype.split('/')[1]);
     if (ext && mime) {
       cb(null, true);
@@ -43,6 +43,11 @@ const coverUpload = multer({
 router.get('/', authenticate, async (req, res, next) => {
   try {
     const { status } = req.query;
+    const validStatuses = ['active', 'completed', 'archived'];
+    if (status && !validStatuses.includes(status)) {
+      return res.status(400).json({ error: { message: 'Invalid status filter' } });
+    }
+
     let query = `
       SELECT p.*, u.name as creator_name,
         (SELECT COUNT(*) FROM action_items WHERE project_id = p.id) as total_actions,

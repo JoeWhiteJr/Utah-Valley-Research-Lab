@@ -19,7 +19,7 @@ const logAdminAction = async (req, action, entityType, entityId, oldValues = nul
 
     const ipAddress = req.ip ||
       req.headers['x-forwarded-for']?.split(',')[0]?.trim() ||
-      req.connection?.remoteAddress ||
+      req.socket?.remoteAddress ||
       'unknown';
 
     const userAgent = req.headers['user-agent'] || null;

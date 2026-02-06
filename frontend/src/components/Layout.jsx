@@ -85,7 +85,7 @@ export default function Layout() {
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-text-primary truncate">{user?.name}</p>
-              <p className="text-xs text-text-secondary capitalize">{user?.role?.replace('_', ' ')}</p>
+              <p className="text-xs text-text-secondary capitalize">{user?.role?.replace(/_/g, ' ')}</p>
             </div>
             <button
               onClick={handleLogout}

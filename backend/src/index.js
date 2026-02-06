@@ -2,6 +2,7 @@ const express = require('express');
 const http = require('http');
 const cors = require('cors');
 const path = require('path');
+const rateLimit = require('express-rate-limit');
 const socketService = require('./services/socketService');
 
 const authRoutes = require('./routes/auth');
@@ -30,11 +31,18 @@ app.use(cors({
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Serve uploaded files
-app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
+// REMOVED: Static uploads were served without authentication
+// Files should only be accessed through the authenticated /api/files/:id/download endpoint
+
+// Rate limiting
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 20,
+  message: { error: { message: 'Too many requests, please try again later' } }
+});
 
 // API Routes
-app.use('/api/auth', authRoutes);
+app.use('/api/auth', authLimiter, authRoutes);
 app.use('/api/projects', projectRoutes);
 app.use('/api/actions', actionRoutes);
 app.use('/api/categories', categoryRoutes);
@@ -59,7 +67,7 @@ app.use((err, req, res, next) => {
   console.error(err.stack);
   res.status(err.status || 500).json({
     error: {
-      message: err.message || 'Internal server error',
+      message: process.env.NODE_ENV === 'development' ? err.message : 'Internal server error',
       ...(process.env.NODE_ENV === 'development' && { stack: err.stack })
     }
   });

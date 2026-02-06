@@ -57,21 +57,25 @@ export default function LabDashboard() {
     }
   }
 
+  const [droppedFile, setDroppedFile] = useState(null)
+
   const handleDrop = (e) => {
     e.preventDefault()
     e.stopPropagation()
     setDragActive(false)
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      setDroppedFile(e.dataTransfer.files[0])
       setShowUploadModal(true)
     }
   }
 
   const handleFileUpload = async (e) => {
-    const file = e.target.files?.[0]
+    const file = e?.target?.files?.[0] || droppedFile
     if (file && selectedProjectForUpload) {
       await uploadFile(selectedProjectForUpload, file)
       setShowUploadModal(false)
       setSelectedProjectForUpload('')
+      setDroppedFile(null)
     }
   }
 
@@ -335,22 +339,41 @@ export default function LabDashboard() {
               ))}
             </select>
           </div>
-          <div>
-            <label className="block text-sm font-medium text-text-primary mb-1.5">
-              Select File
-            </label>
-            <input
-              ref={fileInputRef}
-              type="file"
-              onChange={handleFileUpload}
-              disabled={!selectedProjectForUpload}
-              className="w-full px-4 py-2.5 rounded-organic border border-gray-300 bg-white file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-primary-50 file:text-primary-700 hover:file:bg-primary-100 disabled:opacity-50"
-            />
-          </div>
+          {droppedFile ? (
+            <div>
+              <label className="block text-sm font-medium text-text-primary mb-1.5">
+                File
+              </label>
+              <p className="px-4 py-2.5 rounded-organic border border-gray-200 bg-gray-50 text-text-secondary text-sm">
+                {droppedFile.name}
+              </p>
+            </div>
+          ) : (
+            <div>
+              <label className="block text-sm font-medium text-text-primary mb-1.5">
+                Select File
+              </label>
+              <input
+                ref={fileInputRef}
+                type="file"
+                onChange={handleFileUpload}
+                disabled={!selectedProjectForUpload}
+                className="w-full px-4 py-2.5 rounded-organic border border-gray-300 bg-white file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-primary-50 file:text-primary-700 hover:file:bg-primary-100 disabled:opacity-50"
+              />
+            </div>
+          )}
           <div className="flex justify-end gap-3 pt-2">
-            <Button type="button" variant="secondary" onClick={() => setShowUploadModal(false)}>
+            <Button type="button" variant="secondary" onClick={() => { setShowUploadModal(false); setDroppedFile(null) }}>
               Cancel
             </Button>
+            {droppedFile && (
+              <Button
+                disabled={!selectedProjectForUpload}
+                onClick={() => handleFileUpload()}
+              >
+                Upload
+              </Button>
+            )}
           </div>
         </div>
       </Modal>

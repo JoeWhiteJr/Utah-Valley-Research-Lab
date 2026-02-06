@@ -54,7 +54,8 @@ router.get('/', authenticate, async (req, res, next) => {
 router.post('/', authenticate, [
   body('type').isIn(['direct', 'group']),
   body('name').optional().trim(),
-  body('memberIds').isArray({ min: 1 })
+  body('memberIds').isArray({ min: 1 }),
+  body('memberIds.*').isUUID()
 ], async (req, res, next) => {
   const client = await db.getClient();
   try {
@@ -297,7 +298,8 @@ router.delete('/:id/messages/:messageId', authenticate, async (req, res, next) =
 
 // Add members to group chat
 router.post('/:id/members', authenticate, [
-  body('userIds').isArray({ min: 1 })
+  body('userIds').isArray({ min: 1 }),
+  body('userIds.*').isUUID()
 ], async (req, res, next) => {
   const client = await db.getClient();
   try {

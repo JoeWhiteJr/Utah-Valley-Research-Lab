@@ -35,7 +35,7 @@ function ProtectedRoute({ children }) {
     if (token && user) socket.connect(token)
     else socket.disconnect()
     return () => socket.disconnect()
-  }, [token, user])
+  }, [token, user?.id])
 
   if (isLoading) {
     return (
@@ -56,7 +56,8 @@ function ProtectedRoute({ children }) {
 }
 
 function AdminRoute({ children }) {
-  const { user } = useAuthStore()
+  const { user, isLoading } = useAuthStore()
+  if (isLoading) return null
   if (user?.role !== 'admin') return <Navigate to="/" replace />
   return children
 }
@@ -104,6 +105,9 @@ function App() {
 
         {/* Redirect old root to dashboard for logged-in users - optional fallback */}
         <Route path="/app" element={<Navigate to="/dashboard" replace />} />
+
+        {/* Catch-all: redirect unknown routes to home */}
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>
   )

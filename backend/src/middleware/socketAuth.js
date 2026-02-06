@@ -1,7 +1,14 @@
 const jwt = require('jsonwebtoken');
 const db = require('../config/database');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret';
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('JWT_SECRET environment variable is required in production');
+  }
+  console.warn('WARNING: JWT_SECRET not set. Using insecure default for development only.');
+}
+const jwtSecret = JWT_SECRET || 'dev-secret-DO-NOT-USE-IN-PRODUCTION';
 
 /**
  * Socket.io authentication middleware
@@ -18,7 +25,7 @@ const socketAuth = async (socket, next) => {
     }
 
     // Verify JWT
-    const decoded = jwt.verify(token, JWT_SECRET);
+    const decoded = jwt.verify(token, jwtSecret);
 
     // Fetch user from database
     const result = await db.query(

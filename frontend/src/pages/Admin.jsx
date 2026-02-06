@@ -180,7 +180,7 @@ export default function Admin() {
                     <Sparkles size={14} />
                     AI Review
                   </button>
-                  <button onClick={() => approveApplication(app.id)} className="px-3 py-1 bg-green-500 text-white rounded-lg text-sm">Approve</button>
+                  <button onClick={() => approveApplication(app.id, 'researcher')} className="px-3 py-1 bg-green-500 text-white rounded-lg text-sm">Approve</button>
                   <button onClick={() => rejectApplication(app.id)} className="px-3 py-1 bg-red-500 text-white rounded-lg text-sm">Reject</button>
                 </div>
               )}

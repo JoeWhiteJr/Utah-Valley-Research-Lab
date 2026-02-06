@@ -1,7 +1,8 @@
-import { TrendingUp, TrendingDown } from 'lucide-react'
+import { TrendingUp, TrendingDown, Minus } from 'lucide-react'
 
 export default function StatCard({ icon: Icon, label, value, trend, trendLabel, className = '' }) {
   const isPositive = trend > 0
+  const isNeutral = trend === 0
 
   return (
     <div className={`bg-white rounded-xl border border-gray-200 p-5 ${className}`}>
@@ -10,8 +11,8 @@ export default function StatCard({ icon: Icon, label, value, trend, trendLabel, 
           <Icon size={20} className="text-primary-500" />
         </div>
         {trend !== undefined && (
-          <div className={`flex items-center gap-1 text-xs font-medium ${isPositive ? 'text-green-600' : 'text-red-600'}`}>
-            {isPositive ? <TrendingUp size={14} /> : <TrendingDown size={14} />}
+          <div className={`flex items-center gap-1 text-xs font-medium ${isNeutral ? 'text-gray-500' : isPositive ? 'text-green-600' : 'text-red-600'}`}>
+            {isNeutral ? <Minus size={14} /> : isPositive ? <TrendingUp size={14} /> : <TrendingDown size={14} />}
             <span>{Math.abs(trend)}%</span>
           </div>
         )}

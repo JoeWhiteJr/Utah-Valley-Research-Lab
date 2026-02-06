@@ -35,6 +35,7 @@ export default function Chat() {
 
   const messagesEndRef = useRef(null)
   const messagesContainerRef = useRef(null)
+  const shouldAutoScroll = useRef(true)
 
   const isAdmin = user?.role === 'admin'
 
@@ -54,7 +55,10 @@ export default function Chat() {
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    if (shouldAutoScroll.current) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    }
+    shouldAutoScroll.current = true
   }, [messages])
 
   const handleOpenCreate = async () => {
@@ -134,6 +138,7 @@ export default function Chat() {
 
   const handleLoadMore = () => {
     if (hasMore && messages.length > 0) {
+      shouldAutoScroll.current = false
       fetchMessages(currentRoom.id, { before: messages[0].id })
     }
   }
@@ -367,7 +372,7 @@ export default function Chat() {
                     className="rounded border-gray-300 text-primary-600 focus:ring-primary-300"
                   />
                   <span className="text-sm">{u.name}</span>
-                  <span className="text-xs text-text-secondary capitalize ml-auto">{u.role?.replace('_', ' ')}</span>
+                  <span className="text-xs text-text-secondary capitalize ml-auto">{u.role?.replace(/_/g, ' ')}</span>
                 </label>
               ))}
             </div>

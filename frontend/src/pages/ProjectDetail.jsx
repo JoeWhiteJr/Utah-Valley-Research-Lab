@@ -115,12 +115,12 @@ export default function ProjectDetail() {
 
   const handleDragEnd = useCallback((event) => {
     const { active, over } = event
-    if (active.id !== over?.id) {
-      const oldIndex = actions.findIndex((a) => a.id === active.id)
-      const newIndex = actions.findIndex((a) => a.id === over.id)
-      const newOrder = arrayMove(actions, oldIndex, newIndex)
-      reorderActions(newOrder)
-    }
+    if (!over || active.id === over.id) return
+    const oldIndex = actions.findIndex((a) => a.id === active.id)
+    const newIndex = actions.findIndex((a) => a.id === over.id)
+    if (oldIndex === -1 || newIndex === -1) return
+    const newOrder = arrayMove(actions, oldIndex, newIndex)
+    reorderActions(newOrder)
   }, [actions, reorderActions])
 
   const handleUpdateProject = async (e) => {

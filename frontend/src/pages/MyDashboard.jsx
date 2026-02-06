@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuthStore } from '../store/authStore'
 import { useProjectStore } from '../store/projectStore'
@@ -8,7 +8,7 @@ import {
   CheckCircle2, Circle, Calendar, Clock, ArrowUpRight,
   FolderKanban, Zap, Target, Award
 } from 'lucide-react'
-import { format, isToday, isTomorrow, isPast, parseISO } from 'date-fns'
+import { format, isToday, isPast, parseISO } from 'date-fns'
 
 export default function MyDashboard() {
   const { user } = useAuthStore()
@@ -16,12 +16,7 @@ export default function MyDashboard() {
   const [myTasks, setMyTasks] = useState([])
   const [loadingTasks, setLoadingTasks] = useState(true)
 
-  useEffect(() => {
-    fetchProjects()
-    loadMyTasks()
-  }, [fetchProjects])
-
-  const loadMyTasks = async () => {
+  const loadMyTasks = useCallback(async () => {
     setLoadingTasks(true)
     try {
       const { data } = await actionsApi.my()
@@ -30,7 +25,12 @@ export default function MyDashboard() {
       console.error('Failed to load tasks:', error)
     }
     setLoadingTasks(false)
-  }
+  }, [])
+
+  useEffect(() => {
+    fetchProjects()
+    loadMyTasks()
+  }, [fetchProjects, loadMyTasks])
 
   // Filter projects where user is creator or has assigned tasks
   const myProjects = projects.filter(

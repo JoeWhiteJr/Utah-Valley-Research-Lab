@@ -41,8 +41,15 @@ api.interceptors.response.use(
       return Promise.reject(error)
     }
     if (error.response?.status === 401) {
-      localStorage.removeItem('token')
-      window.location.href = '/login'
+      // Don't redirect on auth endpoints (login/register) to avoid loops
+      const url = error.config?.url || ''
+      if (!url.includes('/auth/login') && !url.includes('/auth/register')) {
+        localStorage.removeItem('token')
+        // Use dynamic import to avoid circular dependency
+        import('../store/authStore').then(({ useAuthStore }) => {
+          useAuthStore.getState().logout()
+        })
+      }
     }
     return Promise.reject(error)
   }

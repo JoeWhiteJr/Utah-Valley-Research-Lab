@@ -12,6 +12,12 @@ export default function SearchInput({
   const timerRef = useRef(null)
 
   useEffect(() => {
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
+  }, []);
+
+  useEffect(() => {
     if (controlledValue !== undefined) {
       setInternalValue(controlledValue)
     }

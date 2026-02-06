@@ -4,7 +4,7 @@ const path = require('path');
 const fs = require('fs');
 const { v4: uuidv4 } = require('uuid');
 const db = require('../config/database');
-const { authenticate } = require('../middleware/auth');
+const { authenticate, requireProjectAccess } = require('../middleware/auth');
 
 const router = express.Router();
 
@@ -27,10 +27,8 @@ const upload = multer({
   storage,
   limits: { fileSize: 50 * 1024 * 1024 }, // 50MB limit
   fileFilter: (req, file, cb) => {
-    // Allow common file types
     const allowedTypes = [
-      'application/pdf',
-      'application/msword',
+      'application/pdf', 'application/msword',
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
       'application/vnd.ms-excel',
       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -48,14 +46,14 @@ const upload = multer({
       'audio/mp4',
       'video/mp4',
       'video/webm',
-      'video/quicktime',
-      'application/zip',
-      'application/x-rar-compressed'
+      'video/quicktime'
     ];
-    if (allowedTypes.includes(file.mimetype) ||
+    const allowedExtensions = /\.(pdf|doc|docx|xls|xlsx|ppt|pptx|txt|csv|png|jpg|jpeg|gif|webp|mp3|wav|ogg|m4a|mp4|webm|mov)$/i;
+    const extValid = allowedExtensions.test(file.originalname);
+    if ((allowedTypes.includes(file.mimetype) ||
         file.mimetype.startsWith('image/') ||
         file.mimetype.startsWith('audio/') ||
-        file.mimetype.startsWith('video/')) {
+        file.mimetype.startsWith('video/')) && extValid) {
       cb(null, true);
     } else {
       cb(new Error('File type not allowed'), false);
@@ -64,7 +62,7 @@ const upload = multer({
 });
 
 // Get files for a project
-router.get('/project/:projectId', authenticate, async (req, res, next) => {
+router.get('/project/:projectId', authenticate, requireProjectAccess(), async (req, res, next) => {
   try {
     const result = await db.query(`
       SELECT f.*, u.name as uploader_name
@@ -81,7 +79,7 @@ router.get('/project/:projectId', authenticate, async (req, res, next) => {
 });
 
 // Upload file
-router.post('/project/:projectId', authenticate, upload.single('file'), async (req, res, next) => {
+router.post('/project/:projectId', authenticate, requireProjectAccess(), upload.single('file'), async (req, res, next) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: { message: 'No file uploaded' } });

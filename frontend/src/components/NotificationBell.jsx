@@ -1,10 +1,28 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Bell } from 'lucide-react'
 import { useNotificationStore } from '../store/notificationStore'
 
 export default function NotificationBell() {
   const [isOpen, setIsOpen] = useState(false)
-  const { unreadCount, notifications, markAllRead, fetchNotifications } = useNotificationStore()
+  const { unreadCount, notifications, markAllRead, fetchNotifications, fetchUnreadCount } = useNotificationStore()
+  const bellRef = useRef(null)
+
+  // Fetch unread count on mount
+  useEffect(() => {
+    fetchUnreadCount()
+  }, [fetchUnreadCount])
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    if (!isOpen) return
+    const handleClickOutside = (e) => {
+      if (bellRef.current && !bellRef.current.contains(e.target)) {
+        setIsOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [isOpen])
 
   const handleClick = () => {
     if (!isOpen) fetchNotifications({ limit: 10 })
@@ -12,7 +30,7 @@ export default function NotificationBell() {
   }
 
   return (
-    <div className="relative">
+    <div className="relative" ref={bellRef}>
       <button onClick={handleClick} className="relative p-2 rounded-lg hover:bg-gray-100">
         <Bell size={20} />
         {unreadCount > 0 && <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">{unreadCount}</span>}

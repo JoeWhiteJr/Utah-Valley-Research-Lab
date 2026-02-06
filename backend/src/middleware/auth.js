@@ -1,7 +1,14 @@
 const jwt = require('jsonwebtoken');
 const db = require('../config/database');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret';
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('JWT_SECRET environment variable is required in production');
+  }
+  console.warn('WARNING: JWT_SECRET not set. Using insecure default for development only.');
+}
+const jwtSecret = JWT_SECRET || 'dev-secret-DO-NOT-USE-IN-PRODUCTION';
 
 const authenticate = async (req, res, next) => {
   try {
@@ -11,7 +18,7 @@ const authenticate = async (req, res, next) => {
     }
 
     const token = authHeader.split(' ')[1];
-    const decoded = jwt.verify(token, JWT_SECRET);
+    const decoded = jwt.verify(token, jwtSecret);
 
     const result = await db.query(
       'SELECT id, email, name, role, is_super_admin, deleted_at FROM users WHERE id = $1',
@@ -58,8 +65,40 @@ const requireSuperAdmin = (req, res, next) => {
   next();
 };
 
-const generateToken = (userId) => {
-  return jwt.sign({ userId }, JWT_SECRET, { expiresIn: '7d' });
+const requireProjectAccess = (paramName = 'projectId') => {
+  return async (req, res, next) => {
+    try {
+      const projectId = req.params[paramName];
+      if (!projectId) return next();
+
+      // Admins have access to all projects
+      if (req.user.role === 'admin') return next();
+
+      const result = await db.query(
+        'SELECT id FROM projects WHERE id = $1 AND created_by = $2',
+        [projectId, req.user.id]
+      );
+
+      // Also check if user is assigned to any action item in the project
+      if (result.rows.length === 0) {
+        const assignedResult = await db.query(
+          'SELECT id FROM action_items WHERE project_id = $1 AND assigned_to = $2 LIMIT 1',
+          [projectId, req.user.id]
+        );
+        if (assignedResult.rows.length === 0) {
+          return res.status(403).json({ error: { message: 'Access denied to this project' } });
+        }
+      }
+
+      next();
+    } catch (error) {
+      next(error);
+    }
+  };
 };
 
-module.exports = { authenticate, requireRole, requireSuperAdmin, generateToken };
+const generateToken = (userId) => {
+  return jwt.sign({ userId }, jwtSecret, { expiresIn: '7d' });
+};
+
+module.exports = { authenticate, requireRole, requireSuperAdmin, requireProjectAccess, generateToken };

@@ -5,7 +5,7 @@ const fs = require('fs');
 const { v4: uuidv4 } = require('uuid');
 const { body, validationResult } = require('express-validator');
 const db = require('../config/database');
-const { authenticate } = require('../middleware/auth');
+const { authenticate, requireProjectAccess } = require('../middleware/auth');
 
 const router = express.Router();
 
@@ -38,7 +38,7 @@ const upload = multer({
 });
 
 // Get meetings for a project
-router.get('/project/:projectId', authenticate, async (req, res, next) => {
+router.get('/project/:projectId', authenticate, requireProjectAccess(), async (req, res, next) => {
   try {
     const result = await db.query(`
       SELECT m.*, u.name as creator_name
@@ -75,7 +75,7 @@ router.get('/:id', authenticate, async (req, res, next) => {
 });
 
 // Upload meeting audio
-router.post('/project/:projectId', authenticate, upload.single('audio'), [
+router.post('/project/:projectId', authenticate, requireProjectAccess(), upload.single('audio'), [
   body('title').trim().notEmpty(),
   body('recorded_at').optional().isISO8601(),
   body('notes').optional()
