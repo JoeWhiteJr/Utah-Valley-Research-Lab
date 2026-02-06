@@ -112,7 +112,7 @@ export default function ProjectDetail() {
 
   const handleDeleteProject = async () => {
     const success = await deleteProject(id)
-    if (success) navigate('/projects')
+    if (success) navigate('/dashboard/projects')
   }
 
   const handleAddAction = async (e) => {
@@ -192,7 +192,7 @@ export default function ProjectDetail() {
     <div className="space-y-6">
       {/* Back button */}
       <button
-        onClick={() => navigate('/projects')}
+        onClick={() => navigate('/dashboard/projects')}
         className="inline-flex items-center gap-2 text-text-secondary hover:text-text-primary"
       >
         <ArrowLeft size={18} />

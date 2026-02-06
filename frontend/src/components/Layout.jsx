@@ -60,7 +60,7 @@ export default function Layout() {
             <NavLink
               key={to}
               to={to}
-              end={to === '/' || to === '/my-dashboard'}
+              end={to === '/dashboard' || to === '/dashboard/my-dashboard'}
               onClick={() => setSidebarOpen(false)}
               className={({ isActive }) =>
                 `flex items-center gap-3 px-4 py-3 rounded-organic text-sm font-medium transition-colors ${

@@ -11,7 +11,7 @@ export default function ProjectCard({ project, showActions = true }) {
 
   return (
     <Link
-      to={`/projects/${project.id}`}
+      to={`/dashboard/projects/${project.id}`}
       className="block bg-white rounded-xl border border-gray-200 hover:border-primary-300 hover:shadow-md transition-all overflow-hidden group"
     >
       {/* Header image */}

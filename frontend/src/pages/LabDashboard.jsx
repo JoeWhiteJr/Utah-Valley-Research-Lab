@@ -197,7 +197,7 @@ export default function LabDashboard() {
         <div className="flex items-center justify-between mb-5">
           <h2 className="font-display font-bold text-xl text-text-primary">Active Projects</h2>
           <Link
-            to="/projects"
+            to="/dashboard/projects"
             className="inline-flex items-center gap-1 text-primary-600 hover:text-primary-700 text-sm font-medium"
           >
             View all
@@ -253,7 +253,7 @@ export default function LabDashboard() {
             {completedProjects.slice(0, 4).map((project) => (
               <Link
                 key={project.id}
-                to={`/projects/${project.id}`}
+                to={`/dashboard/projects/${project.id}`}
                 className="group bg-white rounded-xl border border-gray-200 p-5 hover:border-green-300 hover:shadow-md transition-all"
               >
                 <div className="flex items-start justify-between mb-3">

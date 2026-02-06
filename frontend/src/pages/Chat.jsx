@@ -62,7 +62,7 @@ export default function Chat() {
 
     if (room) {
       setShowCreateModal(false)
-      navigate(`/chat/${room.id}`)
+      navigate(`/dashboard/chat/${room.id}`)
     } else {
       setCreateError('Failed to create chat')
     }
@@ -103,7 +103,7 @@ export default function Chat() {
         </div>
         <div className="flex-1 overflow-y-auto">
           {rooms.map((room) => (
-            <a key={room.id} href={`/chat/${room.id}`} className={`block px-4 py-3 hover:bg-gray-50 ${currentRoom?.id === room.id ? 'bg-primary-50' : ''}`}>
+            <a key={room.id} href={`/dashboard/chat/${room.id}`} className={`block px-4 py-3 hover:bg-gray-50 ${currentRoom?.id === room.id ? 'bg-primary-50' : ''}`}>
               <div className="font-medium">{room.name || 'Chat'}</div>
               <div className="text-sm text-text-secondary truncate">{room.last_message?.content || 'No messages'}</div>
             </a>
