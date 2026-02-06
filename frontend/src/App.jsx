@@ -80,7 +80,7 @@ function App() {
 
         {/* Auth Routes */}
         <Route path="/login" element={<Login />} />
-        <Route path="/register" element={<Register />} />
+        <Route path="/register" element={<Navigate to="/apply" replace />} />
         <Route path="/apply" element={<Apply />} />
         <Route path="/access-revoked" element={<AccessRevoked />} />
 

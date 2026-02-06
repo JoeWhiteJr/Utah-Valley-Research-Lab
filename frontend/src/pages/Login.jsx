@@ -85,9 +85,9 @@ export default function Login() {
           </form>
 
           <p className="mt-6 text-center text-sm text-text-secondary">
-            Don't have an account?{' '}
-            <Link to="/register" className="text-primary-600 hover:text-primary-700 font-medium">
-              Create one
+            Want to join the team?{' '}
+            <Link to="/apply" className="text-primary-600 hover:text-primary-700 font-medium">
+              Apply here
             </Link>
           </p>
         </div>
