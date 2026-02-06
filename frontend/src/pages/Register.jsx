@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { CheckCircle } from 'lucide-react'
 import { useAuthStore } from '../store/authStore'
 import Input from '../components/Input'
 import Button from '../components/Button'
@@ -11,14 +12,15 @@ export default function Register() {
   const [confirmPassword, setConfirmPassword] = useState('')
   const [localError, setLocalError] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [registrationSuccess, setRegistrationSuccess] = useState(false)
   const { register, error, clearError, token } = useAuthStore()
   const navigate = useNavigate()
 
   useEffect(() => {
-    if (token) {
+    if (token && !registrationSuccess) {
       navigate('/dashboard')
     }
-  }, [token, navigate])
+  }, [token, navigate, registrationSuccess])
 
   useEffect(() => {
     clearError()
@@ -39,14 +41,38 @@ export default function Register() {
     }
 
     setIsSubmitting(true)
-    const success = await register(name, email, password)
+    const result = await register(name, email, password)
     setIsSubmitting(false)
-    if (success) {
+    if (result?.requiresApproval) {
+      setRegistrationSuccess(true)
+    } else if (result?.success) {
       navigate('/dashboard')
     }
   }
 
   const displayError = localError || error
+
+  if (registrationSuccess) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <div className="w-full max-w-md">
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-8 text-center">
+            <CheckCircle className="mx-auto h-16 w-16 text-green-500 mb-4" />
+            <h2 className="font-display font-bold text-2xl text-gray-900 mb-2">Thank you for Registering!</h2>
+            <p className="text-text-secondary mb-6">
+              Your account is awaiting admin approval. You'll be able to log in once an administrator reviews your registration.
+            </p>
+            <Link
+              to="/"
+              className="inline-block px-6 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 font-medium"
+            >
+              Return to Home
+            </Link>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">

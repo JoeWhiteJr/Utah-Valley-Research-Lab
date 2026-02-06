@@ -135,7 +135,7 @@ describe('authStore', () => {
 
       const result = await useAuthStore.getState().register('New User', 'new@example.com', 'password')
 
-      expect(result).toBe(true)
+      expect(result).toEqual({ success: true, requiresApproval: false })
       const state = useAuthStore.getState()
       expect(state.user).toEqual({ id: '1', name: 'New User', email: 'new@example.com', is_super_admin: false })
       expect(state.token).toBe('new-token')
@@ -149,7 +149,7 @@ describe('authStore', () => {
 
       const result = await useAuthStore.getState().register('User', 'existing@example.com', 'password')
 
-      expect(result).toBe(false)
+      expect(result).toEqual({ success: false })
       const state = useAuthStore.getState()
       expect(state.error).toBe('Email already exists')
     })
@@ -159,7 +159,7 @@ describe('authStore', () => {
 
       const result = await useAuthStore.getState().register('User', 'test@example.com', 'password')
 
-      expect(result).toBe(false)
+      expect(result).toEqual({ success: false })
       const state = useAuthStore.getState()
       expect(state.error).toBe('Registration failed')
     })

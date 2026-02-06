@@ -106,10 +106,29 @@ stats-lab-manager/
 - **Meetings:** Track meetings with audio upload support
 - **Team Collaboration:** Role-based access control (Admin, Project Lead, Researcher, Viewer)
 
+## Development Workflow
+
+### Branching Strategy
+
+All new features and updates must be developed on separate branches before merging to main.
+
+**Branch naming:**
+- `feature/<name>` — New features (e.g., `feature/user-notifications`)
+- `fix/<name>` — Bug fixes (e.g., `fix/login-redirect`)
+- `hotfix/<name>` — Urgent production fixes
+
+**Steps:**
+1. Create branch from main: `git checkout -b feature/your-feature`
+2. Develop and commit your changes
+3. Push to remote: `git push -u origin feature/your-feature`
+4. Open a Pull Request on GitHub targeting `main`
+5. After review/approval, merge the PR
+6. Delete the branch after merging
+
 ## API Endpoints
 
 ### Authentication
-- `POST /api/auth/register` - Register new user
+- `POST /api/auth/register` - Submit registration (requires admin approval)
 - `POST /api/auth/login` - Login
 - `POST /api/auth/logout` - Logout
 - `GET /api/auth/me` - Get current user
@@ -154,6 +173,13 @@ stats-lab-manager/
 | Project Lead | Create/edit projects |
 | Researcher | View/edit assigned items |
 | Viewer | Read-only access |
+
+### Registration Flow
+
+1. New users register at `/register` — creates a pending application
+2. Admins review and approve/reject in the Admin Dashboard
+3. Approved users can log in with their chosen password (default role: Viewer)
+4. Users who try to log in before approval see a "pending review" message
 
 ## Environment Variables
 

@@ -8,7 +8,7 @@ export default function Login() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const { login, error, clearError, token } = useAuthStore()
+  const { login, error, clearError, pendingApproval, token } = useAuthStore()
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -61,7 +61,13 @@ export default function Login() {
               required
             />
 
-            {error && (
+            {pendingApproval && (
+              <div className="p-4 rounded-lg bg-amber-50 border border-amber-200 text-sm text-amber-800">
+                <p className="font-medium mb-1">Application Under Review</p>
+                <p>Your application is currently under review by the admins. Thank you for your patience.</p>
+              </div>
+            )}
+            {error && !pendingApproval && (
               <div className="p-3 rounded-lg bg-red-50 border border-red-200 text-sm text-red-600">
                 {error}
               </div>

@@ -126,10 +126,16 @@ router.put('/:id/approve', authenticate, requireRole('admin'), [
       return res.status(400).json({ error: { message: 'Application has already been reviewed' } });
     }
 
-    // Generate a temporary password
-    const tempPassword = Math.random().toString(36).slice(-8) + Math.random().toString(36).slice(-8);
-    const passwordHash = await bcrypt.hash(tempPassword, 12);
-    const role = req.body.role || 'researcher';
+    // Use stored password if available (registration), otherwise generate temp password
+    let tempPassword = null;
+    let passwordHash;
+    if (application.password_hash) {
+      passwordHash = application.password_hash;
+    } else {
+      tempPassword = Math.random().toString(36).slice(-8) + Math.random().toString(36).slice(-8);
+      passwordHash = await bcrypt.hash(tempPassword, 12);
+    }
+    const role = req.body.role || 'viewer';
 
     // Create user account
     const userResult = await client.query(
@@ -157,11 +163,14 @@ router.put('/:id/approve', authenticate, requireRole('admin'), [
       { status: 'approved', created_user_id: userResult.rows[0].id }
     );
 
-    res.json({
+    const response = {
       message: 'Application approved successfully',
-      user: userResult.rows[0],
-      temporaryPassword: tempPassword
-    });
+      user: userResult.rows[0]
+    };
+    if (tempPassword) {
+      response.temporaryPassword = tempPassword;
+    }
+    res.json(response);
   } catch (error) {
     await client.query('ROLLBACK');
     next(error);
@@ -285,12 +294,18 @@ router.post('/bulk', authenticate, requireRole('admin'), [
         const application = appResult.rows[0];
 
         if (action === 'approve') {
-          const tempPassword = Math.random().toString(36).slice(-8) + Math.random().toString(36).slice(-8);
-          const passwordHash = await bcrypt.hash(tempPassword, 12);
+          let tempPassword = null;
+          let passwordHash;
+          if (application.password_hash) {
+            passwordHash = application.password_hash;
+          } else {
+            tempPassword = Math.random().toString(36).slice(-8) + Math.random().toString(36).slice(-8);
+            passwordHash = await bcrypt.hash(tempPassword, 12);
+          }
 
           const userResult = await client.query(
             'INSERT INTO users (email, password_hash, name, role) VALUES ($1, $2, $3, $4) RETURNING id',
-            [application.email, passwordHash, application.name, 'researcher']
+            [application.email, passwordHash, application.name, 'viewer']
           );
 
           await client.query(
@@ -303,7 +318,11 @@ router.post('/bulk', authenticate, requireRole('admin'), [
             ['approved', req.user.id, id]
           );
 
-          results.success.push({ id, userId: userResult.rows[0].id, temporaryPassword: tempPassword });
+          const successEntry = { id, userId: userResult.rows[0].id };
+          if (tempPassword) {
+            successEntry.temporaryPassword = tempPassword;
+          }
+          results.success.push(successEntry);
         } else {
           await client.query(
             `UPDATE applications SET status = 'rejected', rejection_reason = $1, reviewed_by = $2, reviewed_at = CURRENT_TIMESTAMP WHERE id = $3`,

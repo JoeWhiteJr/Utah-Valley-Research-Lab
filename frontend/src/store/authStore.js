@@ -6,6 +6,7 @@ export const useAuthStore = create((set, get) => ({
   token: localStorage.getItem('token'),
   isLoading: true,
   error: null,
+  pendingApproval: false,
 
   initialize: async () => {
     const token = localStorage.getItem('token')
@@ -24,14 +25,20 @@ export const useAuthStore = create((set, get) => ({
   },
 
   login: async (email, password) => {
-    set({ error: null })
+    set({ error: null, pendingApproval: false })
     try {
       const { data } = await authApi.login({ email, password })
       localStorage.setItem('token', data.token)
       set({ user: { ...data.user, is_super_admin: data.user.is_super_admin || false }, token: data.token })
       return true
     } catch (error) {
-      set({ error: error.response?.data?.error?.message || 'Login failed' })
+      const errorCode = error.response?.data?.error?.code
+      const errorMessage = error.response?.data?.error?.message || 'Login failed'
+      if (errorCode === 'PENDING_APPROVAL') {
+        set({ error: errorMessage, pendingApproval: true })
+      } else {
+        set({ error: errorMessage })
+      }
       return false
     }
   },
@@ -40,12 +47,15 @@ export const useAuthStore = create((set, get) => ({
     set({ error: null })
     try {
       const { data } = await authApi.register({ name, email, password })
+      if (data.requiresApproval) {
+        return { success: true, requiresApproval: true }
+      }
       localStorage.setItem('token', data.token)
       set({ user: { ...data.user, is_super_admin: data.user.is_super_admin || false }, token: data.token })
-      return true
+      return { success: true, requiresApproval: false }
     } catch (error) {
       set({ error: error.response?.data?.error?.message || 'Registration failed' })
-      return false
+      return { success: false }
     }
   },
 
@@ -61,7 +71,7 @@ export const useAuthStore = create((set, get) => ({
 
   updateUser: (user) => set({ user }),
 
-  clearError: () => set({ error: null })
+  clearError: () => set({ error: null, pendingApproval: false })
 }))
 
 // Initialize auth on app load
