@@ -24,10 +24,12 @@ export default function Login() {
   const handleSubmit = async (e) => {
     e.preventDefault()
     setIsSubmitting(true)
-    const success = await login(email, password)
+    const result = await login(email, password)
     setIsSubmitting(false)
-    if (success) {
+    if (result.success) {
       navigate('/dashboard')
+    } else if (result.code === 'ACCOUNT_DELETED') {
+      navigate('/access-revoked')
     }
   }
 

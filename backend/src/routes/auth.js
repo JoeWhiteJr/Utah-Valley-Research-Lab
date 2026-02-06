@@ -20,8 +20,12 @@ router.post('/register', [
 
     const { email, password, name } = req.body;
 
-    const existing = await db.query('SELECT id FROM users WHERE email = $1', [email]);
+    // Check if email already exists in users table
+    const existing = await db.query('SELECT id, deleted_at FROM users WHERE email = $1', [email]);
     if (existing.rows.length > 0) {
+      if (existing.rows[0].deleted_at) {
+        return res.status(403).json({ error: { message: 'This account has been deactivated. Please contact an administrator.', code: 'ACCOUNT_DELETED' } });
+      }
       return res.status(409).json({ error: { message: 'Email already registered' } });
     }
 
@@ -61,7 +65,7 @@ router.post('/login', [
     const { email, password } = req.body;
 
     const result = await db.query(
-      'SELECT id, email, password_hash, name, role, is_super_admin FROM users WHERE email = $1',
+      'SELECT id, email, password_hash, name, role, is_super_admin, deleted_at FROM users WHERE email = $1',
       [email]
     );
 
@@ -70,6 +74,11 @@ router.post('/login', [
     }
 
     const user = result.rows[0];
+
+    if (user.deleted_at) {
+      return res.status(403).json({ error: { message: 'Your access has been revoked. Please contact an administrator.', code: 'ACCOUNT_DELETED' } });
+    }
+
     const validPassword = await bcrypt.compare(password, user.password_hash);
 
     if (!validPassword) {

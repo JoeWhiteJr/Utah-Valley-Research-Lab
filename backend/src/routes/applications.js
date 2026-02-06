@@ -31,7 +31,7 @@ router.post('/', [
     }
 
     // Check if user already exists
-    const existingUser = await db.query('SELECT id FROM users WHERE email = $1', [email]);
+    const existingUser = await db.query('SELECT id FROM users WHERE email = $1 AND deleted_at IS NULL', [email]);
     if (existingUser.rows.length > 0) {
       return res.status(409).json({ error: { message: 'An account with this email already exists' } });
     }

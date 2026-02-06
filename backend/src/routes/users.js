@@ -10,7 +10,7 @@ const router = express.Router();
 router.get('/', authenticate, requireRole('admin'), async (req, res, next) => {
   try {
     const result = await db.query(
-      'SELECT id, email, name, role, created_at FROM users ORDER BY created_at DESC'
+      'SELECT id, email, name, role, created_at FROM users WHERE deleted_at IS NULL ORDER BY created_at DESC'
     );
     res.json({ users: result.rows });
   } catch (error) {
@@ -22,7 +22,7 @@ router.get('/', authenticate, requireRole('admin'), async (req, res, next) => {
 router.get('/team', authenticate, async (req, res, next) => {
   try {
     const result = await db.query(
-      'SELECT id, name, role FROM users ORDER BY name ASC'
+      'SELECT id, name, role FROM users WHERE deleted_at IS NULL ORDER BY name ASC'
     );
     res.json({ users: result.rows });
   } catch (error) {
@@ -121,7 +121,7 @@ router.put('/preferences', authenticate, [
 router.get('/:id', authenticate, async (req, res, next) => {
   try {
     const result = await db.query(
-      'SELECT id, email, name, role, created_at FROM users WHERE id = $1',
+      'SELECT id, email, name, role, created_at FROM users WHERE id = $1 AND deleted_at IS NULL',
       [req.params.id]
     );
 
@@ -151,7 +151,7 @@ router.put('/profile', authenticate, [
     // Check if email is already taken by another user
     if (email) {
       const existing = await db.query(
-        'SELECT id FROM users WHERE email = $1 AND id != $2',
+        'SELECT id FROM users WHERE email = $1 AND id != $2 AND deleted_at IS NULL',
         [email, req.user.id]
       );
       if (existing.rows.length > 0) {
@@ -227,7 +227,7 @@ router.put('/:id/role', authenticate, requireRole('admin'), [
     const { role } = req.body;
 
     // Check if target user is currently an admin
-    const targetUser = await db.query('SELECT role FROM users WHERE id = $1', [req.params.id]);
+    const targetUser = await db.query('SELECT role FROM users WHERE id = $1 AND deleted_at IS NULL', [req.params.id]);
     if (targetUser.rows.length === 0) {
       return res.status(404).json({ error: { message: 'User not found' } });
     }
@@ -258,7 +258,7 @@ router.delete('/:id', authenticate, requireRole('admin'), async (req, res, next)
     }
 
     // Check if target is an admin — require super admin
-    const targetUser = await db.query('SELECT role FROM users WHERE id = $1', [req.params.id]);
+    const targetUser = await db.query('SELECT role FROM users WHERE id = $1 AND deleted_at IS NULL', [req.params.id]);
     if (targetUser.rows.length === 0) {
       return res.status(404).json({ error: { message: 'User not found' } });
     }
@@ -266,7 +266,7 @@ router.delete('/:id', authenticate, requireRole('admin'), async (req, res, next)
       return res.status(403).json({ error: { message: 'Only super admin can delete admin users' } });
     }
 
-    const result = await db.query('DELETE FROM users WHERE id = $1 RETURNING id', [req.params.id]);
+    const result = await db.query('UPDATE users SET deleted_at = NOW() WHERE id = $1 AND deleted_at IS NULL RETURNING id', [req.params.id]);
 
     res.json({ message: 'User deleted successfully' });
   } catch (error) {

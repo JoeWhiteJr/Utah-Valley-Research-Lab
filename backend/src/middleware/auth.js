@@ -14,12 +14,16 @@ const authenticate = async (req, res, next) => {
     const decoded = jwt.verify(token, JWT_SECRET);
 
     const result = await db.query(
-      'SELECT id, email, name, role, is_super_admin FROM users WHERE id = $1',
+      'SELECT id, email, name, role, is_super_admin, deleted_at FROM users WHERE id = $1',
       [decoded.userId]
     );
 
     if (result.rows.length === 0) {
       return res.status(401).json({ error: { message: 'User not found' } });
+    }
+
+    if (result.rows[0].deleted_at) {
+      return res.status(403).json({ error: { message: 'Your access has been revoked. Please contact an administrator.', code: 'ACCOUNT_DELETED' } });
     }
 
     req.user = result.rows[0];

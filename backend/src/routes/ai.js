@@ -7,33 +7,31 @@ const router = express.Router();
 
 // Lazy load Google Generative AI SDK
 let GoogleGenerativeAI = null;
-let geminiModel = null;
+let genAI = null;
 
-const getGeminiModel = () => {
+const getModel = (modelName = 'gemini-2.5-flash') => {
   if (!process.env.GEMINI_API_KEY) {
     return null;
   }
 
-  if (!geminiModel) {
+  if (!genAI) {
     try {
       if (!GoogleGenerativeAI) {
-        const mod = require('@google/generative-ai');
-        GoogleGenerativeAI = mod.GoogleGenerativeAI;
+        ({ GoogleGenerativeAI } = require('@google/generative-ai'));
       }
-      const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-      geminiModel = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
+      genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
     } catch (error) {
-      console.error('Failed to initialize Gemini client:', error.message);
+      console.error('Failed to initialize Google AI client:', error.message);
       return null;
     }
   }
 
-  return geminiModel;
+  return genAI.getGenerativeModel({ model: modelName });
 };
 
 // Check if AI is available
 router.get('/status', authenticate, (req, res) => {
-  const model = getGeminiModel();
+  const model = getModel();
   res.json({
     available: !!model,
     message: model ? 'AI features are available' : 'GEMINI_API_KEY not configured'
@@ -51,7 +49,7 @@ router.post('/chat', authenticate, [
       return res.status(400).json({ error: { message: 'Validation failed', details: errors.array() } });
     }
 
-    const model = getGeminiModel();
+    const model = getModel();
     if (!model) {
       return res.status(503).json({
         error: { message: 'AI features are not available. GEMINI_API_KEY not configured.' }
@@ -79,8 +77,8 @@ router.post('/chat', authenticate, [
       }
     });
   } catch (error) {
-    if (error.status === 401 || error.message?.includes('API key')) {
-      return res.status(503).json({ error: { message: 'Invalid Gemini API key' } });
+    if (error.status === 429) {
+      return res.status(429).json({ error: { message: 'AI rate limit exceeded. Please try again later.' } });
     }
     next(error);
   }
@@ -96,7 +94,7 @@ router.post('/review-application', authenticate, requireRole('admin'), [
       return res.status(400).json({ error: { message: 'Validation failed', details: errors.array() } });
     }
 
-    const model = getGeminiModel();
+    const model = getModel();
     if (!model) {
       return res.status(503).json({
         error: { message: 'AI features are not available. GEMINI_API_KEY not configured.' }
@@ -116,27 +114,32 @@ router.post('/review-application', authenticate, requireRole('admin'), [
 
     const application = appResult.rows[0];
 
-    const systemPrompt = `You are an AI assistant helping review team member applications for a research lab.
-Analyze the application and provide:
-1. A brief summary (2-3 sentences)
-2. Key strengths identified
-3. Any potential concerns or areas to clarify
-4. A recommendation (Strong Yes / Yes / Maybe / No) with brief reasoning
-
-Be objective and professional. Focus on the content provided.`;
-
-    const userMessage = `Please review this application:
+    const result = await model.generateContent({
+      contents: [{
+        role: 'user',
+        parts: [{
+          text: `Please review this application:
 
 Name: ${application.name}
 Email: ${application.email}
 Message/Statement:
 ${application.message}
 
-Application submitted: ${new Date(application.created_at).toLocaleDateString()}`;
+Application submitted: ${new Date(application.created_at).toLocaleDateString()}`
+        }]
+      }],
+      systemInstruction: {
+        parts: [{
+          text: `You are an AI assistant helping review team member applications for a research lab.
+Analyze the application and provide:
+1. A brief summary (2-3 sentences)
+2. Key strengths identified
+3. Any potential concerns or areas to clarify
+4. A recommendation (Strong Yes / Yes / Maybe / No) with brief reasoning
 
-    const result = await model.generateContent({
-      contents: [{ role: 'user', parts: [{ text: userMessage }] }],
-      systemInstruction: { parts: [{ text: systemPrompt }] }
+Be objective and professional. Focus on the content provided.`
+        }]
+      }
     });
 
     const review = result.response.text() || 'Unable to generate review';
@@ -150,8 +153,8 @@ Application submitted: ${new Date(application.created_at).toLocaleDateString()}`
       }
     });
   } catch (error) {
-    if (error.status === 401 || error.message?.includes('API key')) {
-      return res.status(503).json({ error: { message: 'Invalid Gemini API key' } });
+    if (error.status === 429) {
+      return res.status(429).json({ error: { message: 'AI rate limit exceeded. Please try again later.' } });
     }
     next(error);
   }
@@ -168,7 +171,7 @@ router.post('/summarize-chat', authenticate, [
       return res.status(400).json({ error: { message: 'Validation failed', details: errors.array() } });
     }
 
-    const model = getGeminiModel();
+    const model = getModel();
     if (!model) {
       return res.status(503).json({
         error: { message: 'AI features are not available. GEMINI_API_KEY not configured.' }
@@ -204,11 +207,13 @@ router.post('/summarize-chat', authenticate, [
       `[${new Date(m.created_at).toLocaleString()}] ${m.sender_name}: ${m.content}`
     ).join('\n');
 
-    const systemPrompt = 'You are a helpful assistant. Summarize the following chat conversation concisely, highlighting key topics discussed, decisions made, and any action items mentioned.';
-
     const result = await model.generateContent({
       contents: [{ role: 'user', parts: [{ text: `Summarize this conversation:\n\n${chatTranscript}` }] }],
-      systemInstruction: { parts: [{ text: systemPrompt }] }
+      systemInstruction: {
+        parts: [{
+          text: 'You are a helpful assistant. Summarize the following chat conversation concisely, highlighting key topics discussed, decisions made, and any action items mentioned.'
+        }]
+      }
     });
 
     const summary = result.response.text() || 'Unable to generate summary';
@@ -223,8 +228,8 @@ router.post('/summarize-chat', authenticate, [
       }
     });
   } catch (error) {
-    if (error.status === 401 || error.message?.includes('API key')) {
-      return res.status(503).json({ error: { message: 'Invalid Gemini API key' } });
+    if (error.status === 429) {
+      return res.status(429).json({ error: { message: 'AI rate limit exceeded. Please try again later.' } });
     }
     next(error);
   }

@@ -16,6 +16,7 @@ import Settings from './pages/Settings'
 import Admin from './pages/Admin'
 import Chat from './pages/Chat'
 import Apply from './pages/Apply'
+import AccessRevoked from './pages/AccessRevoked'
 
 // Jared's public site components
 import PublicLayout from './components/public/layout/PublicLayout'
@@ -80,6 +81,7 @@ function App() {
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
         <Route path="/apply" element={<Apply />} />
+        <Route path="/access-revoked" element={<AccessRevoked />} />
 
         {/* Protected Routes - Joe's app */}
         <Route

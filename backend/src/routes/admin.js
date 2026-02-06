@@ -26,6 +26,7 @@ router.get('/stats', authenticate, requireRole('admin'), async (req, res, next) 
           COUNT(*) FILTER (WHERE created_at > CURRENT_DATE - INTERVAL '7 days') as new_this_week,
           COUNT(*) FILTER (WHERE created_at > CURRENT_DATE - INTERVAL '30 days') as new_this_month
         FROM users
+        WHERE deleted_at IS NULL
       `),
       // Application stats
       db.query(`
@@ -158,7 +159,7 @@ router.get('/users/search', authenticate, requireRole('admin'), [
     let query = `
       SELECT id, email, name, role, created_at
       FROM users
-      WHERE 1=1
+      WHERE deleted_at IS NULL
     `;
     const params = [];
     let paramCount = 1;
@@ -200,6 +201,101 @@ router.get('/applications/trends', authenticate, requireRole('admin'), async (re
     `);
 
     res.json({ trends: result.rows });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Get all published projects (with original project data)
+router.get('/published-projects', authenticate, requireRole('admin'), async (req, res, next) => {
+  try {
+    const result = await db.query(`
+      SELECT
+        pp.*,
+        p.title as original_title,
+        p.description as original_description,
+        p.header_image as original_image,
+        p.status as original_status
+      FROM published_projects pp
+      JOIN projects p ON pp.project_id = p.id
+      ORDER BY pp.published_at DESC
+    `);
+
+    res.json({ publishedProjects: result.rows });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Publish a project
+router.post('/publish-project', authenticate, requireRole('admin'), async (req, res, next) => {
+  try {
+    const { project_id, title, description, image, status } = req.body;
+
+    // Check project exists
+    const projectCheck = await db.query('SELECT id FROM projects WHERE id = $1', [project_id]);
+    if (projectCheck.rows.length === 0) {
+      return res.status(404).json({ error: { message: 'Project not found' } });
+    }
+
+    // Check not already published
+    const dupCheck = await db.query('SELECT id FROM published_projects WHERE project_id = $1', [project_id]);
+    if (dupCheck.rows.length > 0) {
+      return res.status(409).json({ error: { message: 'Project is already published' } });
+    }
+
+    const result = await db.query(
+      `INSERT INTO published_projects (project_id, published_title, published_description, published_image, published_status, published_by)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       RETURNING *`,
+      [project_id, title, description, image, status, req.user.id]
+    );
+
+    res.status(201).json({ publishedProject: result.rows[0] });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Update a published project
+router.put('/published-projects/:id', authenticate, requireRole('admin'), async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { title, description, image, status } = req.body;
+
+    const result = await db.query(
+      `UPDATE published_projects
+       SET published_title = COALESCE($1, published_title),
+           published_description = COALESCE($2, published_description),
+           published_image = COALESCE($3, published_image),
+           published_status = COALESCE($4, published_status)
+       WHERE id = $5
+       RETURNING *`,
+      [title, description, image, status, id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: { message: 'Published project not found' } });
+    }
+
+    res.json({ publishedProject: result.rows[0] });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Unpublish a project (delete record)
+router.delete('/published-projects/:id', authenticate, requireRole('admin'), async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    const result = await db.query('DELETE FROM published_projects WHERE id = $1 RETURNING id', [id]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: { message: 'Published project not found' } });
+    }
+
+    res.json({ message: 'Project unpublished' });
   } catch (error) {
     next(error);
   }

@@ -2,16 +2,20 @@ import { useState, useEffect } from 'react'
 import { useAdminStore } from '../store/adminStore'
 import { useApplicationStore } from '../store/applicationStore'
 import { useAuthStore } from '../store/authStore'
+import { useProjectStore } from '../store/projectStore'
+import { usePublishStore } from '../store/publishStore'
 import { usersApi } from '../services/api'
 import Button from '../components/Button'
 import Modal from '../components/Modal'
-import { LayoutDashboard, Users, ScrollText, Trash2, Sparkles } from 'lucide-react'
+import { LayoutDashboard, Users, ScrollText, Trash2, Sparkles, Globe, Eye, Pencil, XCircle } from 'lucide-react'
 
 export default function Admin() {
   const [activeTab, setActiveTab] = useState('dashboard')
   const { stats, fetchStats } = useAdminStore()
   const { applications, fetchApplications, approveApplication, rejectApplication, requestAiReview, aiReview } = useApplicationStore()
   const { user } = useAuthStore()
+  const { projects, fetchProjects } = useProjectStore()
+  const { publishedProjects, fetchPublishedProjects, publishProject, updatePublishedProject, unpublishProject } = usePublishStore()
 
   // Team state
   const [teamMembers, setTeamMembers] = useState([])
@@ -21,6 +25,14 @@ export default function Admin() {
   const [reviewingAppId, setReviewingAppId] = useState(null)
   const [isReviewing, setIsReviewing] = useState(false)
 
+  // Publish state
+  const [showPublishModal, setShowPublishModal] = useState(false)
+  const [editingPublished, setEditingPublished] = useState(null)
+  const [publishForm, setPublishForm] = useState({ title: '', description: '', image: '', status: 'ongoing' })
+  const [publishProjectId, setPublishProjectId] = useState(null)
+  const [isPublishing, setIsPublishing] = useState(false)
+  const [showUnpublishConfirm, setShowUnpublishConfirm] = useState(null)
+
   const isSuperAdmin = user?.is_super_admin === true
 
   useEffect(() => { fetchStats(); fetchApplications() }, [fetchStats, fetchApplications])
@@ -28,6 +40,10 @@ export default function Admin() {
   useEffect(() => {
     if (activeTab === 'team') {
       loadTeam()
+    }
+    if (activeTab === 'publish') {
+      fetchProjects()
+      fetchPublishedProjects()
     }
   }, [activeTab])
 
@@ -63,23 +79,79 @@ export default function Admin() {
     }
   }
 
-  const isAdminRoleChange = (currentRole, newRole) => {
-    return currentRole === 'admin' || newRole === 'admin'
-  }
-
   const handleAiReview = async (app) => {
     setReviewingAppId(app.id)
     setIsReviewing(true)
     setShowReviewModal(true)
-    const review = await requestAiReview(app.id)
+    await requestAiReview(app.id)
     setIsReviewing(false)
+  }
+
+  // Publish helpers
+  const publishedMap = {}
+  publishedProjects.forEach((pp) => { publishedMap[pp.project_id] = pp })
+
+  const mapStatusToPublic = (projectStatus) => {
+    if (projectStatus === 'completed') return 'completed'
+    return 'ongoing'
+  }
+
+  const openPublishModal = (project) => {
+    setPublishProjectId(project.id)
+    setEditingPublished(null)
+    setPublishForm({
+      title: project.title || '',
+      description: project.description || '',
+      image: project.header_image || '',
+      status: mapStatusToPublic(project.status)
+    })
+    setShowPublishModal(true)
+  }
+
+  const openEditModal = (pp) => {
+    setEditingPublished(pp)
+    setPublishProjectId(pp.project_id)
+    setPublishForm({
+      title: pp.published_title || '',
+      description: pp.published_description || '',
+      image: pp.published_image || '',
+      status: pp.published_status || 'ongoing'
+    })
+    setShowPublishModal(true)
+  }
+
+  const handlePublishSubmit = async () => {
+    setIsPublishing(true)
+    if (editingPublished) {
+      await updatePublishedProject(editingPublished.id, {
+        title: publishForm.title,
+        description: publishForm.description,
+        image: publishForm.image,
+        status: publishForm.status
+      })
+    } else {
+      await publishProject({
+        project_id: publishProjectId,
+        title: publishForm.title,
+        description: publishForm.description,
+        image: publishForm.image,
+        status: publishForm.status
+      })
+    }
+    setIsPublishing(false)
+    setShowPublishModal(false)
+  }
+
+  const handleUnpublish = async (pp) => {
+    await unpublishProject(pp.id)
+    setShowUnpublishConfirm(null)
   }
 
   return (
     <div>
       <h1 className="font-display font-bold text-2xl mb-6">Admin Dashboard</h1>
       <div className="flex gap-2 border-b mb-6">
-        {[['dashboard', 'Dashboard', LayoutDashboard], ['applications', 'Applications', Users], ['team', 'Team', Users]].map(([id, label, Icon]) => (
+        {[['dashboard', 'Dashboard', LayoutDashboard], ['applications', 'Applications', Users], ['team', 'Team', Users], ['publish', 'Publish', Globe]].map(([id, label, Icon]) => (
           <button key={id} onClick={() => setActiveTab(id)} className={`flex items-center gap-2 px-4 py-3 border-b-2 ${activeTab === id ? 'border-primary-500 text-primary-600' : 'border-transparent'}`}>
             <Icon size={18} />{label}
           </button>
@@ -183,6 +255,80 @@ export default function Admin() {
         </div>
       )}
 
+      {/* Publish Tab */}
+      {activeTab === 'publish' && (
+        <div>
+          <h2 className="font-display font-semibold text-lg mb-6">Publish Team Projects</h2>
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {projects.map((project) => {
+              const pp = publishedMap[project.id]
+              const isPublished = !!pp
+              return (
+                <div key={project.id} className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+                  {/* Image */}
+                  <div className="h-32 bg-gradient-to-br from-primary-100 to-primary-200 flex items-center justify-center relative">
+                    {(isPublished ? pp.published_image : project.header_image) ? (
+                      <img
+                        src={isPublished ? pp.published_image : project.header_image}
+                        alt={project.title}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="text-primary-400 text-4xl font-bold opacity-30">{project.title?.charAt(0)}</div>
+                    )}
+                    {isPublished && (
+                      <span className="absolute top-2 left-2 px-2 py-0.5 bg-green-500 text-white rounded-full text-xs font-medium">
+                        Published
+                      </span>
+                    )}
+                    <span className={`absolute top-2 right-2 px-2 py-0.5 rounded-full text-xs font-medium ${
+                      project.status === 'active' ? 'bg-blue-100 text-blue-700' :
+                      project.status === 'completed' ? 'bg-green-100 text-green-700' :
+                      'bg-gray-100 text-gray-700'
+                    }`}>
+                      {project.status}
+                    </span>
+                  </div>
+                  {/* Content */}
+                  <div className="p-4">
+                    <h3 className="font-semibold text-text-primary mb-1 truncate">{project.title}</h3>
+                    <p className="text-sm text-text-secondary line-clamp-2 mb-3">{project.description}</p>
+                    <div className="flex gap-2">
+                      {isPublished ? (
+                        <>
+                          <button
+                            onClick={() => openEditModal(pp)}
+                            className="flex items-center gap-1 px-3 py-1.5 bg-primary-50 text-primary-700 rounded-lg text-sm hover:bg-primary-100"
+                          >
+                            <Pencil size={14} /> Edit
+                          </button>
+                          <button
+                            onClick={() => setShowUnpublishConfirm(pp)}
+                            className="flex items-center gap-1 px-3 py-1.5 bg-red-50 text-red-700 rounded-lg text-sm hover:bg-red-100"
+                          >
+                            <XCircle size={14} /> Unpublish
+                          </button>
+                        </>
+                      ) : (
+                        <button
+                          onClick={() => openPublishModal(project)}
+                          className="flex items-center gap-1 px-3 py-1.5 bg-green-50 text-green-700 rounded-lg text-sm hover:bg-green-100"
+                        >
+                          <Globe size={14} /> Publish
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+          {projects.length === 0 && (
+            <div className="text-center py-12 text-text-secondary">No team projects found.</div>
+          )}
+        </div>
+      )}
+
       {/* Delete Member Confirmation */}
       <Modal
         isOpen={!!showDeleteConfirm}
@@ -230,6 +376,124 @@ export default function Admin() {
         )}
         <div className="flex justify-end pt-4">
           <Button variant="secondary" onClick={() => setShowReviewModal(false)}>Close</Button>
+        </div>
+      </Modal>
+
+      {/* Unpublish Confirmation Modal */}
+      <Modal
+        isOpen={!!showUnpublishConfirm}
+        onClose={() => setShowUnpublishConfirm(null)}
+        title="Unpublish Project"
+        size="sm"
+      >
+        <p className="text-text-secondary">
+          Are you sure you want to unpublish <strong>{showUnpublishConfirm?.published_title}</strong>?
+          It will be removed from the public projects page.
+        </p>
+        <div className="flex justify-end gap-3 mt-6">
+          <Button variant="secondary" onClick={() => setShowUnpublishConfirm(null)}>
+            Cancel
+          </Button>
+          <Button variant="danger" onClick={() => handleUnpublish(showUnpublishConfirm)}>
+            Unpublish
+          </Button>
+        </div>
+      </Modal>
+
+      {/* Publish / Edit Modal */}
+      <Modal
+        isOpen={showPublishModal}
+        onClose={() => setShowPublishModal(false)}
+        title={editingPublished ? 'Edit Published Project' : 'Publish Project'}
+        size="lg"
+      >
+        <div className="grid md:grid-cols-2 gap-6">
+          {/* Form */}
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-text-primary mb-1">Title</label>
+              <input
+                type="text"
+                value={publishForm.title}
+                onChange={(e) => setPublishForm({ ...publishForm, title: e.target.value })}
+                className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-primary-300"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-text-primary mb-1">Description</label>
+              <textarea
+                value={publishForm.description}
+                onChange={(e) => setPublishForm({ ...publishForm, description: e.target.value })}
+                rows={5}
+                className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-primary-300 resize-none"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-text-primary mb-1">Image URL</label>
+              <input
+                type="text"
+                value={publishForm.image}
+                onChange={(e) => setPublishForm({ ...publishForm, image: e.target.value })}
+                placeholder="https://..."
+                className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-primary-300"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-text-primary mb-1">Status</label>
+              <select
+                value={publishForm.status}
+                onChange={(e) => setPublishForm({ ...publishForm, status: e.target.value })}
+                className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-primary-300"
+              >
+                <option value="ongoing">Ongoing</option>
+                <option value="completed">Completed</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Live Preview */}
+          <div>
+            <label className="block text-sm font-medium text-text-primary mb-2">Preview</label>
+            <div className="bg-gray-50 rounded-xl border border-gray-200 overflow-hidden">
+              <div className="h-32 bg-gradient-to-br from-blue-100 to-blue-200 flex items-center justify-center relative">
+                {publishForm.image ? (
+                  <img
+                    src={publishForm.image}
+                    alt="Preview"
+                    className="w-full h-full object-cover"
+                    onError={(e) => { e.target.style.display = 'none' }}
+                  />
+                ) : (
+                  <div className="text-blue-400 text-4xl font-bold opacity-30">
+                    {publishForm.title?.charAt(0) || '?'}
+                  </div>
+                )}
+                <span className={`absolute top-2 right-2 px-2 py-0.5 rounded-full text-xs font-medium capitalize ${
+                  publishForm.status === 'completed' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'
+                }`}>
+                  {publishForm.status}
+                </span>
+              </div>
+              <div className="p-4">
+                <h4 className="font-semibold text-gray-900 mb-1">{publishForm.title || 'Untitled'}</h4>
+                <p className="text-sm text-gray-600 line-clamp-3">{publishForm.description || 'No description'}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex justify-end gap-3 mt-6">
+          <Button variant="secondary" onClick={() => setShowPublishModal(false)}>
+            Cancel
+          </Button>
+          <Button
+            variant="primary"
+            onClick={handlePublishSubmit}
+            disabled={!publishForm.title || isPublishing}
+            loading={isPublishing}
+          >
+            {editingPublished ? 'Save Changes' : 'Publish'}
+          </Button>
         </div>
       </Modal>
     </div>

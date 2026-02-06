@@ -22,12 +22,16 @@ const socketAuth = async (socket, next) => {
 
     // Fetch user from database
     const result = await db.query(
-      'SELECT id, email, name, role FROM users WHERE id = $1',
+      'SELECT id, email, name, role, deleted_at FROM users WHERE id = $1',
       [decoded.userId]
     );
 
     if (result.rows.length === 0) {
       return next(new Error('User not found'));
+    }
+
+    if (result.rows[0].deleted_at) {
+      return next(new Error('ACCOUNT_DELETED'));
     }
 
     // Attach user to socket

@@ -22,6 +22,11 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
   (response) => response,
   (error) => {
+    if (error.response?.status === 403 && error.response?.data?.error?.code === 'ACCOUNT_DELETED') {
+      localStorage.removeItem('token')
+      window.location.href = '/access-revoked'
+      return Promise.reject(error)
+    }
     if (error.response?.status === 401) {
       localStorage.removeItem('token')
       window.location.href = '/login'
@@ -151,7 +156,16 @@ export const adminApi = {
     api.get('/admin/audit-log', { params: { limit, offset, action, entity_type } }),
   searchUsers: (q, role) =>
     api.get('/admin/users/search', { params: { q, role } }),
-  getApplicationTrends: () => api.get('/admin/applications/trends')
+  getApplicationTrends: () => api.get('/admin/applications/trends'),
+  getPublishedProjects: () => api.get('/admin/published-projects'),
+  publishProject: (data) => api.post('/admin/publish-project', data),
+  updatePublishedProject: (id, data) => api.put(`/admin/published-projects/${id}`, data),
+  unpublishProject: (id) => api.delete(`/admin/published-projects/${id}`)
+}
+
+// Public (no auth)
+export const publicApi = {
+  getProjects: () => api.get('/public/projects')
 }
 
 // Notifications

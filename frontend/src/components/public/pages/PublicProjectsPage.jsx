@@ -1,48 +1,44 @@
-// PublicProjectsPage.jsx - Projects page with filtering and project cards
+// PublicProjectsPage.jsx - Projects page fetching from API with filtering
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import * as LucideIcons from 'lucide-react';
-import { FlaskConical, Heart, Anchor, ArrowRight, Building2 } from 'lucide-react';
+import { ArrowRight, BarChart3 } from 'lucide-react';
 import PageHero from '../shared/PageHero';
-import FeaturedProjectCard from '../shared/FeaturedProjectCard';
 import ScrollAnimateWrapper from '../shared/ScrollAnimateWrapper';
+import { usePublishStore } from '../../../store/publishStore';
 import {
   projectsPageData,
-  featuredProjectsData,
-  ongoingProjectsData,
-  earlyStageProjectsData,
   ctaData,
 } from '../../../data/publicSiteData';
 
-// Icon mapping for early stage projects
-const iconMap = {
-  FlaskConical,
-  Heart,
-  Anchor,
-};
-
-// Simpler project card for ongoing projects
-function ProjectCard({ title, type, status, client, clientIcon, description }) {
-  const ClientIcon = LucideIcons[clientIcon] || Building2;
-
+// Project card for published projects
+function ProjectCard({ title, status, description, image }) {
   return (
     <div className="bg-white rounded-xl border border-gray-100 overflow-hidden hover:shadow-lg transition-shadow duration-300">
-      {/* Image placeholder */}
+      {/* Image */}
       <div className="h-40 bg-gradient-to-br from-pub-blue-100 to-pub-blue-200 flex items-center justify-center relative">
-        <LucideIcons.BarChart3 className="w-12 h-12 text-pub-blue-400" />
-        <span className="absolute top-3 right-3 px-3 py-1 rounded-full text-xs font-medium capitalize bg-amber-100 text-amber-700">
+        {image ? (
+          <img
+            src={image}
+            alt={title}
+            className="w-full h-full object-cover"
+            onError={(e) => {
+              e.target.style.display = 'none';
+              e.target.nextSibling && (e.target.nextSibling.style.display = 'flex');
+            }}
+          />
+        ) : null}
+        {!image && <BarChart3 className="w-12 h-12 text-pub-blue-400" />}
+        <span className={`absolute top-3 right-3 px-3 py-1 rounded-full text-xs font-medium capitalize ${
+          status === 'completed' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'
+        }`}>
           {status}
         </span>
       </div>
 
       {/* Content */}
       <div className="p-5">
-        <span className="text-sm text-gray-500">{type}</span>
         <h4 className="text-lg font-bold text-gray-900 mt-1 mb-2">{title}</h4>
-        <p className="flex items-center gap-2 text-gray-600 text-sm mb-3">
-          <ClientIcon className="w-4 h-4" />
-          {client}
-        </p>
         <p className="text-gray-600 text-sm line-clamp-3">{description}</p>
       </div>
     </div>
@@ -52,31 +48,20 @@ function ProjectCard({ title, type, status, client, clientIcon, description }) {
 export default function PublicProjectsPage() {
   const [activeFilter, setActiveFilter] = useState('All');
   const { hero, filters } = projectsPageData;
+  const { publicProjects, isLoading, fetchPublicProjects } = usePublishStore();
 
   useEffect(() => {
     document.title = 'Projects | Utah Valley Research Lab';
-  }, []);
+    fetchPublicProjects();
+  }, [fetchPublicProjects]);
+
   const projectsCta = ctaData.projects;
 
-  // Combine all projects for filtering
-  const allFeatured = featuredProjectsData;
-  const allOngoing = ongoingProjectsData;
-
   // Filter projects based on active filter
-  const filteredFeatured = allFeatured.filter((project) => {
+  const filteredProjects = publicProjects.filter((project) => {
     if (activeFilter === 'All') return true;
-    return project.status.toLowerCase() === activeFilter.toLowerCase();
+    return project.published_status?.toLowerCase() === activeFilter.toLowerCase();
   });
-
-  const filteredOngoing = allOngoing.filter((project) => {
-    if (activeFilter === 'All') return true;
-    return project.status.toLowerCase() === activeFilter.toLowerCase();
-  });
-
-  // Show sections based on filter
-  const showFeatured = activeFilter === 'All' || activeFilter === 'Completed' || filteredFeatured.length > 0;
-  const showOngoing = activeFilter === 'All' || activeFilter === 'Ongoing' || filteredOngoing.length > 0;
-  const showEarlyStage = activeFilter === 'All';
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -105,48 +90,33 @@ export default function PublicProjectsPage() {
             </div>
           </ScrollAnimateWrapper>
 
-          {/* Featured Projects */}
-          {showFeatured && filteredFeatured.length > 0 && (
-            <div className="mb-16">
-              <ScrollAnimateWrapper>
-                <h3 className="text-2xl font-bold text-gray-900 mb-8">Featured Projects</h3>
-              </ScrollAnimateWrapper>
-              <div className="space-y-8">
-                {filteredFeatured.map((project, index) => (
-                  <ScrollAnimateWrapper key={project.id} delay={index * 100}>
-                    <FeaturedProjectCard
-                      title={project.title}
-                      type={project.type}
-                      status={project.status}
-                      client={project.client}
-                      clientIcon={project.clientIcon}
-                      description={project.fullDescription || project.description}
-                      highlights={project.highlights}
-                      findings={project.findings}
-                      isFeatured={project.isFeatured}
-                    />
-                  </ScrollAnimateWrapper>
-                ))}
-              </div>
+          {/* Loading State */}
+          {isLoading && (
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+                  <div className="h-40 bg-gray-100 animate-pulse" />
+                  <div className="p-5 space-y-3">
+                    <div className="h-5 bg-gray-100 rounded animate-pulse w-3/4" />
+                    <div className="h-4 bg-gray-100 rounded animate-pulse" />
+                    <div className="h-4 bg-gray-100 rounded animate-pulse w-2/3" />
+                  </div>
+                </div>
+              ))}
             </div>
           )}
 
-          {/* Ongoing Projects */}
-          {showOngoing && filteredOngoing.length > 0 && (
+          {/* Projects Grid */}
+          {!isLoading && filteredProjects.length > 0 && (
             <div className="mb-16">
-              <ScrollAnimateWrapper>
-                <h3 className="text-2xl font-bold text-gray-900 mb-8">Ongoing Projects</h3>
-              </ScrollAnimateWrapper>
               <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {filteredOngoing.map((project, index) => (
+                {filteredProjects.map((project, index) => (
                   <ScrollAnimateWrapper key={project.id} delay={index * 100}>
                     <ProjectCard
-                      title={project.title}
-                      type={project.type}
-                      status={project.status}
-                      client={project.client}
-                      clientIcon={project.clientIcon}
-                      description={project.description}
+                      title={project.published_title}
+                      status={project.published_status}
+                      description={project.published_description}
+                      image={project.published_image}
                     />
                   </ScrollAnimateWrapper>
                 ))}
@@ -154,37 +124,14 @@ export default function PublicProjectsPage() {
             </div>
           )}
 
-          {/* Early Stage Projects */}
-          {showEarlyStage && (
-            <div className="mb-16">
-              <ScrollAnimateWrapper>
-                <h3 className="text-2xl font-bold text-gray-900 mb-8">Early Stage</h3>
-              </ScrollAnimateWrapper>
-              <ScrollAnimateWrapper delay={100}>
-                <div className="flex flex-wrap gap-4">
-                  {earlyStageProjectsData.map((project, index) => {
-                    const Icon = iconMap[project.icon] || FlaskConical;
-                    return (
-                      <div
-                        key={index}
-                        className="flex items-center gap-3 px-5 py-3 bg-white rounded-full border border-gray-200 hover:border-pub-blue-300 hover:shadow-md transition-all duration-200"
-                      >
-                        <Icon className="w-5 h-5 text-pub-blue-600" />
-                        <span className="text-gray-700 font-medium">{project.name}</span>
-                      </div>
-                    );
-                  })}
-                </div>
-              </ScrollAnimateWrapper>
-            </div>
-          )}
-
-          {/* No Results Message */}
-          {filteredFeatured.length === 0 && filteredOngoing.length === 0 && (
+          {/* Empty State */}
+          {!isLoading && filteredProjects.length === 0 && (
             <ScrollAnimateWrapper>
               <div className="text-center py-12">
                 <p className="text-gray-500 text-lg">
-                  No {activeFilter.toLowerCase()} projects found.
+                  {activeFilter === 'All'
+                    ? 'No projects published yet.'
+                    : `No ${activeFilter.toLowerCase()} projects found.`}
                 </p>
               </div>
             </ScrollAnimateWrapper>
