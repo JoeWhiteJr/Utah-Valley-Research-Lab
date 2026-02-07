@@ -442,8 +442,12 @@ export default function ProjectDetail() {
 
         {canEdit && (
           <div className="flex gap-2 items-center">
-            <Button variant="outline" onClick={handleGenerateAiSummary}>
-              <Sparkles size={16} />
+            <Button
+              variant="outline"
+              onClick={handleGenerateAiSummary}
+              disabled={aiSummaryLoading}
+            >
+              {aiSummaryLoading ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
               AI Summary
             </Button>
             <Button variant="outline" onClick={() => setShowEditModal(true)}>
@@ -1177,6 +1181,53 @@ export default function ProjectDetail() {
           setPreviewFile(null)
         }}
       />
+
+      {/* AI Summary Modal */}
+      <Modal isOpen={showAiSummary} onClose={() => setShowAiSummary(false)} title="AI Project Summary" size="lg">
+        <div className="space-y-4">
+          {aiSummaryError ? (
+            <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm">
+              {aiSummaryError}
+            </div>
+          ) : aiSummary ? (
+            <>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <div className="p-3 bg-primary-50 rounded-lg text-center">
+                  <p className="text-xl font-bold text-primary-700">{aiSummary.stats?.totalActions ?? actions.length}</p>
+                  <p className="text-xs text-primary-600">Total Tasks</p>
+                </div>
+                <div className="p-3 bg-green-50 rounded-lg text-center">
+                  <p className="text-xl font-bold text-green-700">{aiSummary.stats?.completedActions ?? actions.filter(a => a.completed).length}</p>
+                  <p className="text-xs text-green-600">Completed</p>
+                </div>
+                <div className="p-3 bg-amber-50 rounded-lg text-center">
+                  <p className="text-xl font-bold text-amber-700">{aiSummary.stats?.pendingActions ?? actions.filter(a => !a.completed).length}</p>
+                  <p className="text-xs text-amber-600">Pending</p>
+                </div>
+                <div className="p-3 bg-blue-50 rounded-lg text-center">
+                  <p className="text-xl font-bold text-blue-700">{aiSummary.stats?.noteCount ?? notes.length}</p>
+                  <p className="text-xs text-blue-600">Notes</p>
+                </div>
+              </div>
+              <div className="prose prose-sm max-w-none">
+                <div className="whitespace-pre-wrap text-text-secondary leading-relaxed">
+                  {aiSummary.summary}
+                </div>
+              </div>
+              <div className="flex justify-end pt-2">
+                <Button variant="outline" size="sm" onClick={handleGenerateAiSummary} disabled={aiSummaryLoading}>
+                  {aiSummaryLoading ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
+                  Regenerate
+                </Button>
+              </div>
+            </>
+          ) : (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 size={24} className="animate-spin text-primary-500" />
+            </div>
+          )}
+        </div>
+      </Modal>
     </div>
   )
 }

@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuthStore } from '../store/authStore'
 import { useProjectStore } from '../store/projectStore'
+import { aiApi } from '../services/api'
 import ProjectCard from '../components/ProjectCard'
 import Button from '../components/Button'
 import Modal from '../components/Modal'
@@ -9,7 +10,7 @@ import Input from '../components/Input'
 import { CalendarView } from '../components/calendar/CalendarView'
 import {
   Plus, Upload, FolderKanban, Users, TrendingUp,
-  FileText, ArrowUpRight, Sparkles, Calendar, LayoutGrid
+  FileText, ArrowUpRight, Sparkles, Calendar, LayoutGrid, Brain, Loader2
 } from 'lucide-react'
 import { format } from 'date-fns'
 
@@ -24,6 +25,12 @@ export default function LabDashboard() {
   const [dragActive, setDragActive] = useState(false)
   const fileInputRef = useRef(null)
   const [activeTab, setActiveTab] = useState('overview')
+
+  // AI Summary state
+  const [showAiSummary, setShowAiSummary] = useState(false)
+  const [aiSummary, setAiSummary] = useState(null)
+  const [aiSummaryLoading, setAiSummaryLoading] = useState(false)
+  const [aiSummaryError, setAiSummaryError] = useState(null)
 
   const canCreate = user?.role === 'admin' || user?.role === 'project_lead'
 
@@ -81,6 +88,21 @@ export default function LabDashboard() {
     }
   }
 
+  const handleGenerateDashboardSummary = async () => {
+    setAiSummaryLoading(true)
+    setAiSummaryError(null)
+    try {
+      const { data } = await aiApi.summarizeDashboard()
+      setAiSummary(data)
+      setShowAiSummary(true)
+    } catch (error) {
+      setAiSummaryError(error.response?.data?.error?.message || 'Failed to generate AI summary')
+      setShowAiSummary(true)
+    } finally {
+      setAiSummaryLoading(false)
+    }
+  }
+
   return (
     <div className="space-y-8">
       {/* Hero Section */}
@@ -112,6 +134,15 @@ export default function LabDashboard() {
                   New Project
                 </Button>
               )}
+              <Button
+                variant="outline"
+                onClick={handleGenerateDashboardSummary}
+                disabled={aiSummaryLoading}
+                className="border-white/30 text-white hover:bg-white/10"
+              >
+                {aiSummaryLoading ? <Loader2 size={18} className="animate-spin" /> : <Brain size={18} />}
+                AI Summary
+              </Button>
               <Button
                 variant="outline"
                 onClick={() => setShowUploadModal(true)}
@@ -413,6 +444,57 @@ export default function LabDashboard() {
               </Button>
             )}
           </div>
+        </div>
+      </Modal>
+
+      {/* AI Dashboard Summary Modal */}
+      <Modal isOpen={showAiSummary} onClose={() => setShowAiSummary(false)} title="AI Dashboard Summary" size="lg">
+        <div className="space-y-4">
+          {aiSummaryError ? (
+            <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm">
+              {aiSummaryError}
+            </div>
+          ) : aiSummary ? (
+            <>
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                <div className="p-3 bg-primary-50 rounded-lg text-center">
+                  <p className="text-xl font-bold text-primary-700">{aiSummary.stats?.activeProjects ?? activeProjects.length}</p>
+                  <p className="text-xs text-primary-600">Active</p>
+                </div>
+                <div className="p-3 bg-amber-50 rounded-lg text-center">
+                  <p className="text-xl font-bold text-amber-700">{aiSummary.stats?.pendingTasks ?? (totalTasks - completedTasks)}</p>
+                  <p className="text-xs text-amber-600">Pending</p>
+                </div>
+                <div className="p-3 bg-red-50 rounded-lg text-center">
+                  <p className="text-xl font-bold text-red-700">{aiSummary.stats?.overdueTasks ?? 0}</p>
+                  <p className="text-xs text-red-600">Overdue</p>
+                </div>
+                <div className="p-3 bg-blue-50 rounded-lg text-center">
+                  <p className="text-xl font-bold text-blue-700">{aiSummary.stats?.dueThisWeek ?? 0}</p>
+                  <p className="text-xs text-blue-600">Due This Week</p>
+                </div>
+                <div className="p-3 bg-green-50 rounded-lg text-center">
+                  <p className="text-xl font-bold text-green-700">{aiSummary.stats?.completedThisWeek ?? 0}</p>
+                  <p className="text-xs text-green-600">Done This Week</p>
+                </div>
+              </div>
+              <div className="prose prose-sm max-w-none">
+                <div className="whitespace-pre-wrap text-text-secondary leading-relaxed">
+                  {aiSummary.summary}
+                </div>
+              </div>
+              <div className="flex justify-end pt-2">
+                <Button variant="outline" size="sm" onClick={handleGenerateDashboardSummary} disabled={aiSummaryLoading}>
+                  {aiSummaryLoading ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
+                  Regenerate
+                </Button>
+              </div>
+            </>
+          ) : (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 size={24} className="animate-spin text-primary-500" />
+            </div>
+          )}
         </div>
       </Modal>
     </div>
