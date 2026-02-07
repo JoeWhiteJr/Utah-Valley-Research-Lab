@@ -67,4 +67,4 @@ CREATE INDEX IF NOT EXISTS idx_calendar_attendees_event ON calendar_event_attend
 -- Auto-update trigger for updated_at
 CREATE TRIGGER update_calendar_events_updated_at
   BEFORE UPDATE ON calendar_events
-  FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
