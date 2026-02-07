@@ -8,6 +8,8 @@ describe('Actions API', () => {
   let testUserId;
   let testProjectId;
   let testActionId;
+  let secondUserId;
+  let secondUserToken;
 
   beforeAll(async () => {
     await db.query("DELETE FROM users WHERE email LIKE '%actiontest%'");
@@ -20,6 +22,32 @@ describe('Actions API', () => {
 
     authToken = user.token;
     testUserId = user.id;
+
+    // Create second test user for multi-assignee tests
+    const user2 = await createTestUser({
+      name: 'Action Test User 2',
+      email: 'actiontest2@example.com',
+      role: 'researcher'
+    });
+    secondUserId = user2.id;
+    secondUserToken = user2.token;
+
+    // Ensure action_item_assignees table exists (migration may not have run in test)
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS action_item_assignees (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        action_item_id UUID NOT NULL REFERENCES action_items(id) ON DELETE CASCADE,
+        user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        assigned_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+        UNIQUE(action_item_id, user_id)
+      )
+    `);
+
+    // Ensure parent_task_id column exists
+    await db.query(`
+      ALTER TABLE action_items
+      ADD COLUMN IF NOT EXISTS parent_task_id UUID REFERENCES action_items(id) ON DELETE CASCADE
+    `);
 
     // Create a test project
     const projectRes = await request(app)
@@ -34,6 +62,7 @@ describe('Actions API', () => {
   });
 
   afterAll(async () => {
+    await db.query("DELETE FROM action_item_assignees WHERE action_item_id IN (SELECT id FROM action_items WHERE project_id = $1)", [testProjectId]);
     await db.query("DELETE FROM action_items WHERE project_id = $1", [testProjectId]);
     await db.query("DELETE FROM projects WHERE created_by = $1", [testUserId]);
     await db.query("DELETE FROM users WHERE email LIKE '%actiontest%'");
@@ -84,6 +113,47 @@ describe('Actions API', () => {
       expect(res.body.action.assigned_to).toBe(testUserId);
     });
 
+    it('should create action item with multiple assignees', async () => {
+      const res = await request(app)
+        .post(`/api/actions/project/${testProjectId}`)
+        .set('Authorization', `Bearer ${authToken}`)
+        .send({
+          title: 'Multi-assigned action',
+          assignee_ids: [testUserId, secondUserId]
+        });
+
+      expect(res.status).toBe(201);
+      expect(res.body.action.assignees).toHaveLength(2);
+      const assigneeIds = res.body.action.assignees.map(a => a.user_id);
+      expect(assigneeIds).toContain(testUserId);
+      expect(assigneeIds).toContain(secondUserId);
+    });
+
+    it('should create a subtask with parent_task_id', async () => {
+      const res = await request(app)
+        .post(`/api/actions/project/${testProjectId}`)
+        .set('Authorization', `Bearer ${authToken}`)
+        .send({
+          title: 'Subtask of test action',
+          parent_task_id: testActionId
+        });
+
+      expect(res.status).toBe(201);
+      expect(res.body.action.parent_task_id).toBe(testActionId);
+    });
+
+    it('should reject subtask with invalid parent', async () => {
+      const res = await request(app)
+        .post(`/api/actions/project/${testProjectId}`)
+        .set('Authorization', `Bearer ${authToken}`)
+        .send({
+          title: 'Bad subtask',
+          parent_task_id: '00000000-0000-0000-0000-000000000000'
+        });
+
+      expect(res.status).toBe(400);
+    });
+
     it('should reject action without title', async () => {
       const res = await request(app)
         .post(`/api/actions/project/${testProjectId}`)
@@ -129,6 +199,32 @@ describe('Actions API', () => {
       expect(res.body.actions.length).toBeGreaterThan(0);
     });
 
+    it('should include assignees array on action items', async () => {
+      const res = await request(app)
+        .get(`/api/actions/project/${testProjectId}`)
+        .set('Authorization', `Bearer ${authToken}`);
+
+      expect(res.status).toBe(200);
+      const multiAssigned = res.body.actions.find(a => a.title === 'Multi-assigned action');
+      if (multiAssigned) {
+        expect(multiAssigned.assignees).toBeDefined();
+        expect(Array.isArray(multiAssigned.assignees)).toBe(true);
+        expect(multiAssigned.assignees.length).toBe(2);
+      }
+    });
+
+    it('should include parent_task_id for subtasks', async () => {
+      const res = await request(app)
+        .get(`/api/actions/project/${testProjectId}`)
+        .set('Authorization', `Bearer ${authToken}`);
+
+      expect(res.status).toBe(200);
+      const subtask = res.body.actions.find(a => a.title === 'Subtask of test action');
+      if (subtask) {
+        expect(subtask.parent_task_id).toBe(testActionId);
+      }
+    });
+
     it('should return empty array for project with no actions', async () => {
       // Create a new project without actions
       const projectRes = await request(app)
@@ -142,6 +238,81 @@ describe('Actions API', () => {
 
       expect(res.status).toBe(200);
       expect(res.body.actions).toEqual([]);
+
+      // Cleanup
+      await db.query("UPDATE users SET role = 'admin' WHERE id = $1", [testUserId]);
+      await request(app)
+        .delete(`/api/projects/${projectRes.body.project.id}`)
+        .set('Authorization', `Bearer ${authToken}`);
+      await db.query("UPDATE users SET role = 'project_lead' WHERE id = $1", [testUserId]);
+    });
+  });
+
+  describe('GET /api/actions/project/:projectId/progress', () => {
+    it('should return auto-calculated progress', async () => {
+      const res = await request(app)
+        .get(`/api/actions/project/${testProjectId}/progress`)
+        .set('Authorization', `Bearer ${authToken}`);
+
+      expect(res.status).toBe(200);
+      expect(res.body).toHaveProperty('progress');
+      expect(res.body).toHaveProperty('total_tasks');
+      expect(res.body).toHaveProperty('completed_tasks');
+      expect(typeof res.body.progress).toBe('number');
+      expect(res.body.progress).toBeGreaterThanOrEqual(0);
+      expect(res.body.progress).toBeLessThanOrEqual(100);
+    });
+
+    it('should return 0% for project with no completed tasks', async () => {
+      // Create a fresh project with only incomplete tasks
+      const projectRes = await request(app)
+        .post('/api/projects')
+        .set('Authorization', `Bearer ${authToken}`)
+        .send({ title: 'Progress Test Project' });
+
+      const newProjectId = projectRes.body.project.id;
+
+      await request(app)
+        .post(`/api/actions/project/${newProjectId}`)
+        .set('Authorization', `Bearer ${authToken}`)
+        .send({ title: 'Incomplete task 1' });
+
+      await request(app)
+        .post(`/api/actions/project/${newProjectId}`)
+        .set('Authorization', `Bearer ${authToken}`)
+        .send({ title: 'Incomplete task 2' });
+
+      const res = await request(app)
+        .get(`/api/actions/project/${newProjectId}/progress`)
+        .set('Authorization', `Bearer ${authToken}`);
+
+      expect(res.status).toBe(200);
+      expect(res.body.progress).toBe(0);
+      expect(res.body.total_tasks).toBe(2);
+      expect(res.body.completed_tasks).toBe(0);
+
+      // Cleanup
+      await db.query("DELETE FROM action_items WHERE project_id = $1", [newProjectId]);
+      await db.query("UPDATE users SET role = 'admin' WHERE id = $1", [testUserId]);
+      await request(app)
+        .delete(`/api/projects/${newProjectId}`)
+        .set('Authorization', `Bearer ${authToken}`);
+      await db.query("UPDATE users SET role = 'project_lead' WHERE id = $1", [testUserId]);
+    });
+
+    it('should return 0% for project with no tasks', async () => {
+      const projectRes = await request(app)
+        .post('/api/projects')
+        .set('Authorization', `Bearer ${authToken}`)
+        .send({ title: 'Empty Progress Project' });
+
+      const res = await request(app)
+        .get(`/api/actions/project/${projectRes.body.project.id}/progress`)
+        .set('Authorization', `Bearer ${authToken}`);
+
+      expect(res.status).toBe(200);
+      expect(res.body.progress).toBe(0);
+      expect(res.body.total_tasks).toBe(0);
 
       // Cleanup
       await db.query("UPDATE users SET role = 'admin' WHERE id = $1", [testUserId]);
@@ -200,6 +371,30 @@ describe('Actions API', () => {
       expect(res.body.action.due_date).toContain('2025-06-15');
     });
 
+    it('should update assignees via assignee_ids', async () => {
+      const res = await request(app)
+        .put(`/api/actions/${testActionId}`)
+        .set('Authorization', `Bearer ${authToken}`)
+        .send({
+          assignee_ids: [testUserId, secondUserId]
+        });
+
+      expect(res.status).toBe(200);
+      expect(res.body.action.assignees).toHaveLength(2);
+    });
+
+    it('should clear assignees when empty array provided', async () => {
+      const res = await request(app)
+        .put(`/api/actions/${testActionId}`)
+        .set('Authorization', `Bearer ${authToken}`)
+        .send({
+          assignee_ids: []
+        });
+
+      expect(res.status).toBe(200);
+      expect(res.body.action.assignees).toHaveLength(0);
+    });
+
     it('should reject update with no fields', async () => {
       const res = await request(app)
         .put(`/api/actions/${testActionId}`)
@@ -218,6 +413,54 @@ describe('Actions API', () => {
         });
 
       expect(res.status).toBe(404);
+    });
+  });
+
+  describe('PUT /api/actions/:id/parent', () => {
+    let parentActionId;
+    let childActionId;
+
+    beforeAll(async () => {
+      const res1 = await request(app)
+        .post(`/api/actions/project/${testProjectId}`)
+        .set('Authorization', `Bearer ${authToken}`)
+        .send({ title: 'Parent Task for Subtask Test' });
+      parentActionId = res1.body.action.id;
+
+      const res2 = await request(app)
+        .post(`/api/actions/project/${testProjectId}`)
+        .set('Authorization', `Bearer ${authToken}`)
+        .send({ title: 'Child Task for Subtask Test' });
+      childActionId = res2.body.action.id;
+    });
+
+    it('should set parent task', async () => {
+      const res = await request(app)
+        .put(`/api/actions/${childActionId}/parent`)
+        .set('Authorization', `Bearer ${authToken}`)
+        .send({ parent_task_id: parentActionId });
+
+      expect(res.status).toBe(200);
+      expect(res.body.action.parent_task_id).toBe(parentActionId);
+    });
+
+    it('should prevent self-reference', async () => {
+      const res = await request(app)
+        .put(`/api/actions/${parentActionId}/parent`)
+        .set('Authorization', `Bearer ${authToken}`)
+        .send({ parent_task_id: parentActionId });
+
+      expect(res.status).toBe(400);
+    });
+
+    it('should remove parent task (unset subtask)', async () => {
+      const res = await request(app)
+        .put(`/api/actions/${childActionId}/parent`)
+        .set('Authorization', `Bearer ${authToken}`)
+        .send({ parent_task_id: null });
+
+      expect(res.status).toBe(200);
+      expect(res.body.action.parent_task_id).toBeNull();
     });
   });
 
@@ -320,6 +563,31 @@ describe('Actions API', () => {
         .set('Authorization', `Bearer ${authToken}`);
 
       expect(res.status).toBe(404);
+    });
+
+    it('should cascade delete subtasks when parent is deleted', async () => {
+      // Create parent
+      const parentRes = await request(app)
+        .post(`/api/actions/project/${testProjectId}`)
+        .set('Authorization', `Bearer ${authToken}`)
+        .send({ title: 'Parent to delete' });
+      const parentId = parentRes.body.action.id;
+
+      // Create subtask
+      const childRes = await request(app)
+        .post(`/api/actions/project/${testProjectId}`)
+        .set('Authorization', `Bearer ${authToken}`)
+        .send({ title: 'Child to cascade delete', parent_task_id: parentId });
+      const childId = childRes.body.action.id;
+
+      // Delete parent
+      await request(app)
+        .delete(`/api/actions/${parentId}`)
+        .set('Authorization', `Bearer ${authToken}`);
+
+      // Verify child is also deleted
+      const childCheck = await db.query('SELECT id FROM action_items WHERE id = $1', [childId]);
+      expect(childCheck.rows.length).toBe(0);
     });
   });
 });

@@ -12,6 +12,11 @@ export default function ProjectCard({ project, showActions = true }) {
 
   const isInactive = project.status === 'inactive'
 
+  // Auto-calculate progress from tasks
+  const totalActions = parseInt(project.total_actions) || 0
+  const completedActions = parseInt(project.completed_actions) || 0
+  const calculatedProgress = totalActions === 0 ? 0 : Math.round((completedActions / totalActions) * 100)
+
   return (
     <Link
       to={`/dashboard/projects/${project.id}`}
@@ -56,16 +61,16 @@ export default function ProjectCard({ project, showActions = true }) {
           </p>
         )}
 
-        {/* Progress bar */}
+        {/* Progress bar - auto-calculated from tasks */}
         <div className="mt-4">
           <div className="flex items-center justify-between text-xs mb-1.5">
             <span className="text-text-secondary">Progress</span>
-            <span className="font-medium text-text-primary">{project.progress || 0}%</span>
+            <span className="font-medium text-text-primary">{calculatedProgress}%</span>
           </div>
           <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
             <div
               className="h-full bg-gradient-to-r from-primary-400 to-primary-500 rounded-full transition-all duration-500"
-              style={{ width: `${project.progress || 0}%` }}
+              style={{ width: `${calculatedProgress}%` }}
             />
           </div>
         </div>
