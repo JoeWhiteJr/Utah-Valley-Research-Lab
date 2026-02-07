@@ -103,20 +103,20 @@ describe('ProjectCard', () => {
   })
 
   describe('progress handling', () => {
-    it('defaults to 0% when progress is null', () => {
-      const projectNoProgress = { ...mockProject, progress: null }
-      renderWithRouter(<ProjectCard project={projectNoProgress} />)
+    it('defaults to 0% when no tasks exist', () => {
+      const projectNoTasks = { ...mockProject, total_actions: 0, completed_actions: 0 }
+      renderWithRouter(<ProjectCard project={projectNoTasks} />)
       expect(screen.getByText('0%')).toBeInTheDocument()
     })
 
-    it('defaults to 0% when progress is undefined', () => {
-      const projectNoProgress = { ...mockProject, progress: undefined }
-      renderWithRouter(<ProjectCard project={projectNoProgress} />)
+    it('defaults to 0% when task counts are undefined', () => {
+      const projectNoTasks = { ...mockProject, total_actions: undefined, completed_actions: undefined }
+      renderWithRouter(<ProjectCard project={projectNoTasks} />)
       expect(screen.getByText('0%')).toBeInTheDocument()
     })
 
-    it('shows 100% progress', () => {
-      const fullProgress = { ...mockProject, progress: 100 }
+    it('shows 100% progress when all tasks completed', () => {
+      const fullProgress = { ...mockProject, total_actions: 10, completed_actions: 10 }
       renderWithRouter(<ProjectCard project={fullProgress} />)
       expect(screen.getByText('100%')).toBeInTheDocument()
     })
