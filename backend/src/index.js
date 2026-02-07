@@ -19,6 +19,7 @@ const adminRoutes = require('./routes/admin');
 const notificationRoutes = require('./routes/notifications');
 const aiRoutes = require('./routes/ai');
 const publicRoutes = require('./routes/public');
+const calendarRoutes = require('./routes/calendar');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -28,7 +29,22 @@ app.set('trust proxy', 1);
 
 // Middleware
 app.use(cors({
-  origin: process.env.CORS_ORIGIN || 'http://localhost:5173',
+  origin: function (origin, callback) {
+    // Allow requests with no origin (mobile apps, curl, etc.)
+    if (!origin) return callback(null, true);
+    const allowed = process.env.CORS_ORIGIN;
+    if (!allowed || allowed === '*') {
+      // When wildcard or unset, allow any origin but mirror it back
+      // (credentials: true requires a specific origin, not '*')
+      return callback(null, origin);
+    }
+    // Support comma-separated origins
+    const origins = allowed.split(',').map(o => o.trim());
+    if (origins.includes(origin)) {
+      return callback(null, origin);
+    }
+    return callback(null, false);
+  },
   credentials: true
 }));
 app.use(express.json());
@@ -63,6 +79,7 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/ai', aiRoutes);
 app.use('/api/public', publicRoutes);
+app.use('/api/calendar', calendarRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {
@@ -89,8 +106,10 @@ app.use((req, res) => {
 const server = http.createServer(app);
 
 // Initialize Socket.io
-const CORS_ORIGIN = process.env.CORS_ORIGIN || 'http://localhost:5173';
-socketService.initialize(server, CORS_ORIGIN);
+const SOCKET_CORS = process.env.CORS_ORIGIN && process.env.CORS_ORIGIN !== '*'
+  ? process.env.CORS_ORIGIN
+  : '*';
+socketService.initialize(server, SOCKET_CORS);
 
 // Only start server if not in test environment
 if (process.env.NODE_ENV !== 'test') {
