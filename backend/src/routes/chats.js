@@ -213,6 +213,9 @@ router.get('/:id/messages', authenticate, [
     let messagesQuery = `
       SELECT m.*, u.name as sender_name,
         CASE WHEN m.deleted_at IS NOT NULL THEN 'Message deleted' ELSE m.content END as content,
+        rm.content as reply_to_content,
+        rm.sender_id as reply_to_sender_id,
+        ru2.name as reply_to_sender_name,
         COALESCE(
           (SELECT json_agg(json_build_object(
             'id', mr.id, 'emoji', mr.emoji, 'user_id', mr.user_id,
@@ -225,6 +228,8 @@ router.get('/:id/messages', authenticate, [
         ) as reactions
       FROM messages m
       JOIN users u ON m.sender_id = u.id
+      LEFT JOIN messages rm ON m.reply_to_id = rm.id
+      LEFT JOIN users ru2 ON rm.sender_id = ru2.id
       WHERE m.room_id = $1
     `;
     const params = [req.params.id];
@@ -242,9 +247,18 @@ router.get('/:id/messages', authenticate, [
 
     const result = await db.query(messagesQuery, params);
 
+    // Get read receipts
+    const readResult = await db.query(`
+      SELECT cm.user_id, cm.last_read_at, u.name as user_name
+      FROM chat_members cm
+      JOIN users u ON cm.user_id = u.id
+      WHERE cm.room_id = $1 AND cm.last_read_at IS NOT NULL
+    `, [req.params.id]);
+
     res.json({
       messages: result.rows.reverse(),
-      hasMore: result.rows.length === limit
+      hasMore: result.rows.length === limit,
+      read_receipts: readResult.rows
     });
   } catch (error) {
     next(error);
@@ -272,13 +286,13 @@ router.post('/:id/messages', authenticate, [
       return res.status(403).json({ error: { message: 'Not a member of this chat' } });
     }
 
-    const { content, type = 'text', file_url, file_name } = req.body;
+    const { content, type = 'text', file_url, file_name, reply_to_id } = req.body;
 
     const result = await db.query(
-      `INSERT INTO messages (room_id, sender_id, content, type, file_url, file_name)
-       VALUES ($1, $2, $3, $4, $5, $6)
+      `INSERT INTO messages (room_id, sender_id, content, type, file_url, file_name, reply_to_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
        RETURNING *, (SELECT name FROM users WHERE id = $2) as sender_name`,
-      [req.params.id, req.user.id, content, type, file_url || null, file_name || null]
+      [req.params.id, req.user.id, content, type, file_url || null, file_name || null, reply_to_id || null]
     );
 
     // Update room's updated_at
@@ -676,10 +690,18 @@ router.delete('/:id/members/:userId', authenticate, async (req, res, next) => {
 // Mark room as read
 router.put('/:id/read', authenticate, async (req, res, next) => {
   try {
-    await db.query(
-      'UPDATE chat_members SET last_read_at = CURRENT_TIMESTAMP WHERE room_id = $1 AND user_id = $2',
+    const result = await db.query(
+      'UPDATE chat_members SET last_read_at = CURRENT_TIMESTAMP WHERE room_id = $1 AND user_id = $2 RETURNING last_read_at',
       [req.params.id, req.user.id]
     );
+
+    // Emit read receipt to room so others can update "seen by" indicators
+    socketService.emitToRoom(req.params.id, 'room_read', {
+      roomId: req.params.id,
+      user_id: req.user.id,
+      user_name: req.user.name,
+      last_read_at: result.rows[0]?.last_read_at
+    });
 
     res.json({ message: 'Marked as read' });
   } catch (error) {
@@ -760,6 +782,49 @@ router.get('/uploads/:filename', authenticate, (req, res, next) => {
   }
 
   res.sendFile(filePath);
+});
+
+// Edit a message (sender only)
+router.put('/:roomId/messages/:messageId', authenticate, async (req, res, next) => {
+  try {
+    const { content } = req.body;
+    if (!content || !content.trim()) {
+      return res.status(400).json({ error: { message: 'Message content is required' } });
+    }
+
+    const result = await db.query(
+      'SELECT * FROM messages WHERE id = $1 AND room_id = $2',
+      [req.params.messageId, req.params.roomId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: { message: 'Message not found' } });
+    }
+
+    const message = result.rows[0];
+    if (message.sender_id !== req.user.id) {
+      return res.status(403).json({ error: { message: 'You can only edit your own messages' } });
+    }
+
+    if (message.deleted_at) {
+      return res.status(400).json({ error: { message: 'Cannot edit a deleted message' } });
+    }
+
+    const updated = await db.query(
+      'UPDATE messages SET content = $1, edited_at = NOW() WHERE id = $2 RETURNING *',
+      [content.trim(), req.params.messageId]
+    );
+
+    // Emit socket event
+    socketService.emitToRoom(req.params.roomId, 'message_edited', {
+      roomId: req.params.roomId,
+      message: updated.rows[0]
+    });
+
+    res.json({ message: updated.rows[0] });
+  } catch (error) {
+    next(error);
+  }
 });
 
 module.exports = router;

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useAuthStore } from '../store/authStore'
-import { usersApi } from '../services/api'
+import { usersApi, getUploadUrl } from '../services/api'
 import Button from '../components/Button'
 import Input from '../components/Input'
 import { User, Shield, Bell } from 'lucide-react'
@@ -13,6 +13,7 @@ export default function Settings() {
   const [profileData, setProfileData] = useState({ name: '', email: '' })
   const [isSavingProfile, setIsSavingProfile] = useState(false)
   const [profileMessage, setProfileMessage] = useState({ type: '', text: '' })
+  const [avatarUploading, setAvatarUploading] = useState(false)
 
   // Password state
   const [passwordData, setPasswordData] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' })
@@ -141,6 +142,41 @@ export default function Settings() {
             <div className="bg-white rounded-xl border border-gray-200 p-6">
               <h2 className="font-display font-semibold text-lg mb-6">Profile Information</h2>
               <form onSubmit={handleSaveProfile} className="space-y-5">
+                <div className="flex items-center gap-4 mb-6">
+                  <div className="w-16 h-16 rounded-full bg-primary-100 flex items-center justify-center overflow-hidden">
+                    {user?.avatar_url ? (
+                      <img src={getUploadUrl(user.avatar_url)} alt="" className="w-full h-full object-cover" />
+                    ) : (
+                      <span className="text-primary-700 font-bold text-xl">
+                        {user?.name?.charAt(0)?.toUpperCase() || 'U'}
+                      </span>
+                    )}
+                  </div>
+                  <div>
+                    <label className="cursor-pointer inline-flex items-center px-3 py-1.5 text-sm font-medium rounded-organic bg-gray-100 hover:bg-gray-200 text-text-primary transition-colors">
+                      {avatarUploading ? 'Uploading...' : 'Change Photo'}
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        disabled={avatarUploading}
+                        onChange={async (e) => {
+                          const file = e.target.files?.[0]
+                          if (!file) return
+                          setAvatarUploading(true)
+                          try {
+                            const { data } = await usersApi.uploadAvatar(file)
+                            updateUser(data.user)
+                          } catch {
+                            setProfileMessage({ type: 'error', text: 'Failed to upload avatar' })
+                          }
+                          setAvatarUploading(false)
+                        }}
+                      />
+                    </label>
+                    <p className="text-xs text-text-secondary mt-1">Max 5MB, JPG/PNG</p>
+                  </div>
+                </div>
                 <Input
                   label="Full name"
                   value={profileData.name}

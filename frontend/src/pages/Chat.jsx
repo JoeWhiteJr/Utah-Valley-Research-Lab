@@ -11,8 +11,10 @@ import AudioRecorder from '../components/chat/AudioRecorder'
 import ChatFileUpload, { FileAttachment, LinkPreview } from '../components/chat/ChatFileUpload'
 import EmojiPicker from '../components/chat/EmojiPicker'
 import MessageReactions from '../components/chat/MessageReactions'
+import MentionAutocomplete from '../components/chat/MentionAutocomplete'
 import { useChatNotifications } from '../components/chat/useChatNotifications'
-import { MessageCircle, Plus, Sparkles, Send, Trash2, Smile } from 'lucide-react'
+import { chatApi } from '../services/api'
+import { MessageCircle, Plus, Sparkles, Send, Trash2, Smile, Pencil, Reply, X } from 'lucide-react'
 import { format, isToday, isYesterday } from 'date-fns'
 
 // Detect URLs in text
@@ -59,7 +61,7 @@ export default function Chat() {
   const { roomId } = useParams()
   const navigate = useNavigate()
   const {
-    rooms, currentRoom, messages, hasMore, isLoading,
+    rooms, currentRoom, messages, readReceipts, hasMore, isLoading,
     fetchRooms, fetchRoom, fetchMessages, sendMessage, deleteMessage, markRead,
     clearCurrentRoom, createRoom, summarizeChat,
     toggleReaction, sendAudioMessage, sendFileMessage, deleteRoom
@@ -80,6 +82,13 @@ export default function Chat() {
   const [isSending, setIsSending] = useState(false)
   const [showEmojiPicker, setShowEmojiPicker] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+
+  const [editingMessage, setEditingMessage] = useState(null)
+  const [editText, setEditText] = useState('')
+  const [replyingTo, setReplyingTo] = useState(null)
+
+  const [mentionQuery, setMentionQuery] = useState('')
+  const [showMentions, setShowMentions] = useState(false)
 
   const [typingUsers, setTypingUsers] = useState([])
   const [onlineUserIds, setOnlineUserIds] = useState([])
@@ -199,7 +208,9 @@ export default function Chat() {
 
     setIsSending(true)
     setMessageText('')
-    await sendMessage(currentRoom.id, text)
+    const replyId = replyingTo?.id
+    setReplyingTo(null)
+    await sendMessage(currentRoom.id, text, 'text', undefined, replyId)
     setIsSending(false)
   }
 
@@ -239,6 +250,66 @@ export default function Chat() {
 
   const handleDeleteMessage = async (messageId) => {
     await deleteMessage(currentRoom.id, messageId)
+  }
+
+  const handleStartEdit = (msg) => {
+    setEditingMessage(msg)
+    setEditText(msg.content)
+  }
+
+  const handleSaveEdit = async () => {
+    if (!editText.trim() || !editingMessage) return
+    try {
+      await chatApi.editMessage(currentRoom.id, editingMessage.id, editText.trim())
+      setEditingMessage(null)
+      setEditText('')
+    } catch (error) {
+      console.error('Failed to edit message:', error)
+    }
+  }
+
+  const handleCancelEdit = () => {
+    setEditingMessage(null)
+    setEditText('')
+  }
+
+  const handleReply = (msg) => {
+    setReplyingTo(msg)
+    textareaRef.current?.focus()
+  }
+
+  const handleCancelReply = () => {
+    setReplyingTo(null)
+  }
+
+  const handleTextChange = (e) => {
+    const val = e.target.value
+    setMessageText(val)
+    handleTyping()
+
+    // Check for @mention
+    const cursorPos = e.target.selectionStart
+    const textBefore = val.substring(0, cursorPos)
+    const atMatch = textBefore.match(/@(\w*)$/)
+    if (atMatch) {
+      setMentionQuery(atMatch[1])
+      setShowMentions(true)
+    } else {
+      setShowMentions(false)
+      setMentionQuery('')
+    }
+  }
+
+  const handleMentionSelect = (member) => {
+    const name = member.name || member.user_name
+    const cursorPos = textareaRef.current?.selectionStart || messageText.length
+    const textBefore = messageText.substring(0, cursorPos)
+    const textAfter = messageText.substring(cursorPos)
+    const newBefore = textBefore.replace(/@\w*$/, `@${name} `)
+    setMessageText(newBefore + textAfter)
+    setShowMentions(false)
+    setMentionQuery('')
+    textareaRef.current?.focus()
   }
 
   const handleLoadMore = () => {
@@ -288,6 +359,16 @@ export default function Chat() {
     return format(date, 'MMM d, h:mm a')
   }
 
+  const renderTextWithMentions = (text) => {
+    const parts = text.split(/(@\w+(?:\s\w+)?)/g)
+    return parts.map((part, i) => {
+      if (part.startsWith('@')) {
+        return <span key={i} className="font-medium text-primary-600 dark:text-primary-400">{part}</span>
+      }
+      return part
+    })
+  }
+
   const renderMessageContent = (msg) => {
     const isDeleted = !!msg.deleted_at
 
@@ -318,11 +399,11 @@ export default function Chat() {
       )
     }
 
-    // Text message with URL detection
+    // Text message with URL detection and @mention highlighting
     const urls = extractUrls(msg.content)
     return (
       <div>
-        <p className="whitespace-pre-wrap break-words">{msg.content}</p>
+        <p className="whitespace-pre-wrap break-words">{renderTextWithMentions(msg.content)}</p>
         {urls.map((url, i) => (
           <LinkPreview key={i} url={url} />
         ))}
@@ -444,6 +525,7 @@ export default function Chat() {
               {messages.map((msg) => {
                 const isOwn = msg.sender_id === user?.id
                 const isDeleted = !!msg.deleted_at
+                const isEditing = editingMessage?.id === msg.id
 
                 return (
                   <div key={msg.id} className={`flex ${isOwn ? 'justify-end' : 'justify-start'}`}>
@@ -455,13 +537,29 @@ export default function Chat() {
                       )}
                       <div className="flex items-end gap-1.5">
                         {isOwn && !isDeleted && (
-                          <button
-                            onClick={() => handleDeleteMessage(msg.id)}
-                            className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-red-50 text-gray-400 hover:text-red-500 transition-opacity"
-                            title="Delete message"
-                          >
-                            <Trash2 size={14} />
-                          </button>
+                          <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button
+                              onClick={() => handleReply(msg)}
+                              className="p-1 rounded hover:bg-gray-100 text-gray-400 hover:text-primary-500"
+                              title="Reply"
+                            >
+                              <Reply size={14} />
+                            </button>
+                            <button
+                              onClick={() => handleStartEdit(msg)}
+                              className="p-1 rounded hover:bg-gray-100 text-gray-400 hover:text-primary-500"
+                              title="Edit message"
+                            >
+                              <Pencil size={14} />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteMessage(msg.id)}
+                              className="p-1 rounded hover:bg-red-50 text-gray-400 hover:text-red-500"
+                              title="Delete message"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
                         )}
                         <div
                           className={`px-3.5 py-2 rounded-2xl text-sm ${
@@ -472,16 +570,68 @@ export default function Chat() {
                                 : 'bg-gray-100 text-text-primary rounded-bl-md'
                           }`}
                         >
-                          {renderMessageContent(msg)}
+                          {msg.reply_to_content && (
+                            <div className="text-xs mb-1 px-2 py-1 rounded bg-black/5 border-l-2 border-primary-400">
+                              <span className="font-medium">{msg.reply_to_sender_name}</span>
+                              <p className="truncate opacity-75">{msg.reply_to_content}</p>
+                            </div>
+                          )}
+                          {isEditing ? (
+                            <div className="space-y-2">
+                              <textarea
+                                value={editText}
+                                onChange={(e) => setEditText(e.target.value)}
+                                className="w-full px-2 py-1 rounded border border-gray-300 bg-white text-text-primary text-sm resize-none focus:outline-none focus:ring-1 focus:ring-primary-300"
+                                rows={2}
+                                autoFocus
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter' && !e.shiftKey) {
+                                    e.preventDefault()
+                                    handleSaveEdit()
+                                  }
+                                  if (e.key === 'Escape') {
+                                    handleCancelEdit()
+                                  }
+                                }}
+                              />
+                              <div className="flex items-center gap-1.5 justify-end">
+                                <button
+                                  onClick={handleCancelEdit}
+                                  className="text-xs px-2 py-0.5 rounded bg-gray-200 text-text-secondary hover:bg-gray-300"
+                                >
+                                  Cancel
+                                </button>
+                                <button
+                                  onClick={handleSaveEdit}
+                                  className="text-xs px-2 py-0.5 rounded bg-primary-500 text-white hover:bg-primary-600"
+                                >
+                                  Save
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            renderMessageContent(msg)
+                          )}
                         </div>
-                        {!isOwn && !isDeleted && (isAdmin || msg.sender_id === user?.id) && (
-                          <button
-                            onClick={() => handleDeleteMessage(msg.id)}
-                            className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-red-50 text-gray-400 hover:text-red-500 transition-opacity"
-                            title="Delete message"
-                          >
-                            <Trash2 size={14} />
-                          </button>
+                        {!isOwn && !isDeleted && (
+                          <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button
+                              onClick={() => handleReply(msg)}
+                              className="p-1 rounded hover:bg-gray-100 text-gray-400 hover:text-primary-500"
+                              title="Reply"
+                            >
+                              <Reply size={14} />
+                            </button>
+                            {(isAdmin || msg.sender_id === user?.id) && (
+                              <button
+                                onClick={() => handleDeleteMessage(msg.id)}
+                                className="p-1 rounded hover:bg-red-50 text-gray-400 hover:text-red-500"
+                                title="Delete message"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            )}
+                          </div>
                         )}
                       </div>
                       {/* Message reactions */}
@@ -494,13 +644,40 @@ export default function Chat() {
                       )}
                       <p className={`text-[10px] text-text-secondary mt-0.5 px-1 ${isOwn ? 'text-right' : ''}`}>
                         {formatMessageTime(msg.created_at)}
+                        {msg.edited_at && <span className="ml-1 opacity-75">(edited)</span>}
                       </p>
+                      {isOwn && !isDeleted && readReceipts.length > 0 && (() => {
+                        const readers = readReceipts.filter(r =>
+                          r.user_id !== user?.id &&
+                          new Date(r.last_read_at) >= new Date(msg.created_at)
+                        )
+                        if (readers.length === 0) return null
+                        return (
+                          <p className="text-[10px] text-text-secondary mt-0.5 px-1 text-right">
+                            Seen by {readers.map(r => r.user_name.split(' ')[0]).join(', ')}
+                          </p>
+                        )
+                      })()}
                     </div>
                   </div>
                 )
               })}
               <div ref={messagesEndRef} />
             </div>
+
+            {/* Reply preview */}
+            {replyingTo && (
+              <div className="px-4 py-2 border-t border-gray-100 bg-gray-50 flex items-center gap-2">
+                <Reply size={14} className="text-primary-500" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-medium text-primary-600">{replyingTo.sender_name}</p>
+                  <p className="text-xs text-text-secondary truncate">{replyingTo.content}</p>
+                </div>
+                <button onClick={handleCancelReply} className="p-1 hover:bg-gray-200 rounded">
+                  <X size={14} />
+                </button>
+              </div>
+            )}
 
             {/* Message input */}
             <div className="px-4 py-3 border-t border-gray-200 bg-white">
@@ -541,20 +718,29 @@ export default function Chat() {
                   onRecordingComplete={handleRecordingComplete}
                   disabled={isSending}
                 />
-                <textarea
-                  ref={textareaRef}
-                  value={messageText}
-                  onChange={(e) => { setMessageText(e.target.value); handleTyping() }}
-                  onKeyDown={handleKeyDown}
-                  placeholder="Type a message..."
-                  rows={1}
-                  className="flex-1 px-4 py-2.5 rounded-xl border border-gray-300 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary-300 focus:border-primary-300 focus:bg-white resize-none text-sm"
-                  style={{ maxHeight: '120px', minHeight: '42px' }}
-                  onInput={(e) => {
-                    e.target.style.height = 'auto'
-                    e.target.style.height = Math.min(e.target.scrollHeight, 120) + 'px'
-                  }}
-                />
+                <div className="flex-1 relative">
+                  {showMentions && currentRoom?.members && (
+                    <MentionAutocomplete
+                      members={currentRoom.members}
+                      query={mentionQuery}
+                      onSelect={handleMentionSelect}
+                    />
+                  )}
+                  <textarea
+                    ref={textareaRef}
+                    value={messageText}
+                    onChange={handleTextChange}
+                    onKeyDown={handleKeyDown}
+                    placeholder="Type a message... (@ to mention)"
+                    rows={1}
+                    className="w-full px-4 py-2.5 rounded-xl border border-gray-300 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary-300 focus:border-primary-300 focus:bg-white resize-none text-sm"
+                    style={{ maxHeight: '120px', minHeight: '42px' }}
+                    onInput={(e) => {
+                      e.target.style.height = 'auto'
+                      e.target.style.height = Math.min(e.target.scrollHeight, 120) + 'px'
+                    }}
+                  />
+                </div>
                 <button
                   type="submit"
                   disabled={!messageText.trim() || isSending}

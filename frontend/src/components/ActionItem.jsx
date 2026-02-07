@@ -1,9 +1,10 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { GripVertical, Trash2, Pencil, Calendar, User, Users, Tag, ChevronDown, ChevronRight, CornerDownRight } from 'lucide-react'
+import { GripVertical, Trash2, Pencil, Calendar, User, Users, Tag, ChevronDown, ChevronRight, CornerDownRight, MessageSquare, Send as SendIcon } from 'lucide-react'
 import { format } from 'date-fns'
 import CategoryBadge from './CategoryBadge'
+import { commentsApi } from '../services/api'
 
 export default function ActionItem({
   action,
@@ -22,6 +23,11 @@ export default function ActionItem({
   const [isHovered, setIsHovered] = useState(false)
   const [showCategoryPicker, setShowCategoryPicker] = useState(false)
   const [showSubtasks, setShowSubtasks] = useState(true)
+  const [showComments, setShowComments] = useState(false)
+  const [comments, setComments] = useState([])
+  const [newComment, setNewComment] = useState('')
+  const [loadingComments, setLoadingComments] = useState(false)
+  const [commentCount, setCommentCount] = useState(action.comment_count || 0)
 
   const {
     attributes,
@@ -48,6 +54,16 @@ export default function ActionItem({
     }
     setShowCategoryPicker(false)
   }
+
+  useEffect(() => {
+    if (showComments && comments.length === 0) {
+      setLoadingComments(true)
+      commentsApi.list(action.id)
+        .then(({ data }) => setComments(data.comments || []))
+        .catch(() => {})
+        .finally(() => setLoadingComments(false))
+    }
+  }, [showComments])
 
   // Handle drop on this task (to make subtask)
   const handleDragOver = (e) => {
@@ -214,6 +230,13 @@ export default function ActionItem({
                 )}
               </div>
             )}
+            <button
+              onClick={() => setShowComments(!showComments)}
+              className={`flex items-center gap-1 text-xs text-text-secondary hover:text-primary-600 ${showComments ? 'text-primary-600' : ''}`}
+            >
+              <MessageSquare size={12} />
+              {commentCount > 0 && <span>{commentCount}</span>}
+            </button>
           </div>
         </div>
 
@@ -243,6 +266,51 @@ export default function ActionItem({
           <Trash2 size={16} />
         </button>
       </div>
+
+      {showComments && (
+        <div className="ml-8 mt-1 p-3 bg-gray-50 rounded-lg border border-gray-100">
+          {loadingComments ? (
+            <p className="text-xs text-text-secondary">Loading...</p>
+          ) : (
+            <>
+              {comments.map(c => (
+                <div key={c.id} className="mb-2 last:mb-0">
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-xs font-medium text-text-primary">{c.user_name}</span>
+                    <span className="text-[10px] text-text-secondary">
+                      {new Date(c.created_at).toLocaleDateString()}
+                    </span>
+                  </div>
+                  <p className="text-xs text-text-secondary mt-0.5">{c.content}</p>
+                </div>
+              ))}
+              <form
+                onSubmit={async (e) => {
+                  e.preventDefault()
+                  if (!newComment.trim()) return
+                  try {
+                    const { data } = await commentsApi.create(action.id, newComment.trim())
+                    setComments(prev => [...prev, data.comment])
+                    setCommentCount(prev => prev + 1)
+                    setNewComment('')
+                  } catch {}
+                }}
+                className="flex gap-2 mt-2"
+              >
+                <input
+                  value={newComment}
+                  onChange={(e) => setNewComment(e.target.value)}
+                  placeholder="Add a comment..."
+                  className="flex-1 text-xs px-2 py-1.5 rounded border border-gray-300 focus:outline-none focus:ring-1 focus:ring-primary-300"
+                />
+                <button type="submit" className="p-1.5 rounded bg-primary-500 text-white hover:bg-primary-600">
+                  <SendIcon size={12} />
+                </button>
+              </form>
+            </>
+          )}
+        </div>
+      )}
 
       {/* Render subtasks */}
       {!isSubtask && showSubtasks && subtasks.length > 0 && (

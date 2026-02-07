@@ -6,6 +6,7 @@ export const useChatStore = create((set, get) => ({
   rooms: [],
   currentRoom: null,
   messages: [],
+  readReceipts: [],
   hasMore: false,
   isLoading: false,
   error: null,
@@ -54,22 +55,26 @@ export const useChatStore = create((set, get) => ({
         set((state) => ({
           messages: [...data.messages, ...state.messages],
           hasMore: data.hasMore,
+          readReceipts: data.read_receipts || state.readReceipts,
           isLoading: false
         }))
       } else {
-        set({ messages: data.messages, hasMore: data.hasMore, isLoading: false })
+        set({ messages: data.messages, hasMore: data.hasMore, readReceipts: data.read_receipts || [], isLoading: false })
       }
     } catch (error) {
       set({ error: error.response?.data?.error?.message || 'Failed to fetch messages', isLoading: false })
     }
   },
 
-  sendMessage: async (roomId, content, type = 'text', fileData) => {
+  sendMessage: async (roomId, content, type = 'text', fileData, replyToId) => {
     try {
       const payload = { content, type }
       if (fileData) {
         payload.file_url = fileData.url
         payload.file_name = fileData.name
+      }
+      if (replyToId) {
+        payload.reply_to_id = replyToId
       }
       const { data } = await chatApi.sendMessage(roomId, payload)
       return data.message
@@ -179,6 +184,14 @@ export const useChatStore = create((set, get) => ({
     }))
   },
 
+  onMessageEdited: (roomId, editedMessage) => {
+    set((state) => ({
+      messages: state.currentRoom?.id === roomId
+        ? state.messages.map(m => m.id === editedMessage.id ? { ...m, ...editedMessage } : m)
+        : state.messages
+    }))
+  },
+
   onNewRoom: (room) => {
     set((state) => ({ rooms: [room, ...state.rooms] }))
   },
@@ -189,6 +202,25 @@ export const useChatStore = create((set, get) => ({
       currentRoom: state.currentRoom?.id === roomId ? null : state.currentRoom,
       messages: state.currentRoom?.id === roomId ? [] : state.messages,
     }))
+  },
+
+  onRoomRead: ({ roomId, user_id, user_name, last_read_at }) => {
+    const { currentRoom } = get()
+    if (currentRoom && currentRoom.id === roomId) {
+      set((state) => {
+        const existing = state.readReceipts.find(r => r.user_id === user_id)
+        if (existing) {
+          return {
+            readReceipts: state.readReceipts.map(r =>
+              r.user_id === user_id ? { ...r, last_read_at } : r
+            )
+          }
+        }
+        return {
+          readReceipts: [...state.readReceipts, { user_id, user_name, last_read_at }]
+        }
+      })
+    }
   },
 
   // Reactions
@@ -248,6 +280,6 @@ export const useChatStore = create((set, get) => ({
     }
   },
 
-  clearCurrentRoom: () => set({ currentRoom: null, messages: [], hasMore: false }),
+  clearCurrentRoom: () => set({ currentRoom: null, messages: [], readReceipts: [], hasMore: false }),
   clearError: () => set({ error: null })
 }))

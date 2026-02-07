@@ -175,6 +175,13 @@ export const usersApi = {
   getPreferences: () => api.get('/users/preferences'),
   updatePreferences: (data) => api.put('/users/preferences', data),
   getStreak: () => api.get('/users/streak'),
+  uploadAvatar: (file) => {
+    const formData = new FormData()
+    formData.append('avatar', file)
+    return api.post('/users/avatar', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    })
+  },
 }
 
 // Chat
@@ -187,6 +194,8 @@ export const chatApi = {
   sendMessage: (roomId, data) => api.post(`/chats/${roomId}/messages`, data),
   deleteMessage: (roomId, messageId) =>
     api.delete(`/chats/${roomId}/messages/${messageId}`),
+  editMessage: (roomId, messageId, content) =>
+    api.put(`/chats/${roomId}/messages/${messageId}`, { content }),
   addMembers: (roomId, userIds) =>
     api.post(`/chats/${roomId}/members`, { userIds }),
   removeMember: (roomId, userId) =>
@@ -304,6 +313,19 @@ export const calendarApi = {
 // Search
 export const searchApi = {
   search: (q) => api.get('/search', { params: { q } })
+}
+
+// Comments
+export const commentsApi = {
+  list: (actionId) => api.get(`/comments/actions/${actionId}/comments`),
+  create: (actionId, content) => api.post(`/comments/actions/${actionId}/comments`, { content }),
+  delete: (actionId, commentId) => api.delete(`/comments/actions/${actionId}/comments/${commentId}`),
+  counts: (projectId) => api.get(`/comments/project/${projectId}/comment-counts`)
+}
+
+// Activity
+export const activityApi = {
+  list: (params) => api.get('/activity', { params })
 }
 
 export default api

@@ -22,6 +22,8 @@ const aiRoutes = require('./routes/ai');
 const publicRoutes = require('./routes/public');
 const calendarRoutes = require('./routes/calendar');
 const searchRoutes = require('./routes/search');
+const commentRoutes = require('./routes/comments');
+const activityRoutes = require('./routes/activity');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -59,6 +61,7 @@ app.use(express.urlencoded({ extended: true }));
 // Other file uploads remain behind authenticated /api/files/:id/download endpoint
 const uploadDir = process.env.UPLOAD_DIR || path.join(__dirname, '../uploads');
 app.use('/uploads/covers', express.static(path.join(uploadDir, 'covers')));
+app.use('/uploads/avatars', express.static(path.join(uploadDir, 'avatars')));
 
 // Rate limiting
 const authLimiter = rateLimit({
@@ -91,6 +94,8 @@ app.use('/api/ai', aiRoutes);
 app.use('/api/public', publicRoutes);
 app.use('/api/calendar', calendarRoutes);
 app.use('/api/search', searchRoutes);
+app.use('/api/comments', commentRoutes);
+app.use('/api/activity', activityRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

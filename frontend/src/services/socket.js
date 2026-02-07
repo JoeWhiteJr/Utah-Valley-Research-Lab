@@ -46,6 +46,10 @@ export const connect = (token) => {
     useChatStore.getState().onMessageDeleted(data)
   })
 
+  socket.on('message_edited', ({ roomId, message }) => {
+    useChatStore.getState().onMessageEdited(roomId, message)
+  })
+
   socket.on('new_room', (room) => {
     useChatStore.getState().onNewRoom(room)
   })
@@ -104,6 +108,10 @@ export const connect = (token) => {
 
   socket.on('notification', (notification) => {
     useNotificationStore.getState().addNotification(notification)
+  })
+
+  socket.on('room_read', (data) => {
+    useChatStore.getState().onRoomRead(data)
   })
 
   return socket

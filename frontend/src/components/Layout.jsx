@@ -1,11 +1,14 @@
 import { Outlet, NavLink, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../store/authStore'
+import { getUploadUrl } from '../services/api'
 import { useThemeStore } from '../store/themeStore'
 import { LayoutDashboard, User, FolderKanban, Settings, LogOut, Menu, X, MessageCircle, Shield, ExternalLink, Search, Sun, Moon } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import NotificationBell from './NotificationBell'
 import SearchModal from './SearchModal'
+import ShortcutsHelpModal from './ShortcutsHelpModal'
 import Breadcrumbs from './Breadcrumbs'
+import useKeyboardShortcuts from '../hooks/useKeyboardShortcuts'
 
 export default function Layout() {
   const { user, logout } = useAuthStore()
@@ -13,6 +16,12 @@ export default function Layout() {
   const navigate = useNavigate()
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [searchOpen, setSearchOpen] = useState(false)
+  const [shortcutsOpen, setShortcutsOpen] = useState(false)
+
+  useKeyboardShortcuts({
+    onSearch: () => setSearchOpen(true),
+    onShortcutsHelp: () => setShortcutsOpen(true),
+  })
 
   // Cmd+K / Ctrl+K to open search
   useEffect(() => {
@@ -124,10 +133,14 @@ export default function Layout() {
 
         <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-gray-100 dark:border-gray-700">
           <div className="flex items-center gap-3 px-4 py-3">
-            <div className="w-9 h-9 rounded-full bg-primary-100 dark:bg-primary-900/50 flex items-center justify-center">
-              <span className="text-primary-700 dark:text-primary-300 font-medium text-sm">
-                {user?.name?.charAt(0)?.toUpperCase() || 'U'}
-              </span>
+            <div className="w-9 h-9 rounded-full bg-primary-100 dark:bg-primary-900/50 flex items-center justify-center overflow-hidden">
+              {user?.avatar_url ? (
+                <img src={getUploadUrl(user.avatar_url)} alt="" className="w-full h-full object-cover" />
+              ) : (
+                <span className="text-primary-700 dark:text-primary-300 font-medium text-sm">
+                  {user?.name?.charAt(0)?.toUpperCase() || 'U'}
+                </span>
+              )}
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-text-primary dark:text-gray-200 truncate">{user?.name}</p>
@@ -169,6 +182,9 @@ export default function Layout() {
 
       {/* Search Modal */}
       <SearchModal isOpen={searchOpen} onClose={() => setSearchOpen(false)} />
+
+      {/* Shortcuts Help Modal */}
+      <ShortcutsHelpModal isOpen={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
     </div>
   )
 }

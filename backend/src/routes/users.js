@@ -36,7 +36,7 @@ router.get('/', authenticate, requireRole('admin'), async (req, res, next) => {
 router.get('/team', authenticate, async (req, res, next) => {
   try {
     const result = await db.query(
-      'SELECT id, name, role FROM users WHERE deleted_at IS NULL ORDER BY name ASC'
+      'SELECT id, name, role, avatar_url FROM users WHERE deleted_at IS NULL ORDER BY name ASC'
     );
     res.json({ users: result.rows });
   } catch (error) {
@@ -223,7 +223,7 @@ router.put('/profile', authenticate, [
 
     values.push(req.user.id);
     const result = await db.query(
-      `UPDATE users SET ${updates.join(', ')} WHERE id = $${paramCount} RETURNING id, email, name, role`,
+      `UPDATE users SET ${updates.join(', ')} WHERE id = $${paramCount} RETURNING id, email, name, role, avatar_url`,
       values
     );
 
@@ -320,6 +320,48 @@ router.delete('/:id', authenticate, requireRole('admin'), async (req, res, next)
     const result = await db.query('UPDATE users SET deleted_at = NOW() WHERE id = $1 AND deleted_at IS NULL RETURNING id', [req.params.id]);
 
     res.json({ message: 'User deleted successfully' });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Avatar upload
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
+const { v4: uuidv4 } = require('uuid');
+
+const avatarStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const dir = path.join(process.env.UPLOAD_DIR || path.join(__dirname, '../../uploads'), 'avatars');
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    cb(null, dir);
+  },
+  filename: (req, file, cb) => {
+    cb(null, `${uuidv4()}${path.extname(file.originalname)}`);
+  }
+});
+
+const avatarUpload = multer({
+  storage: avatarStorage,
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype.startsWith('image/')) cb(null, true);
+    else cb(new Error('Only images allowed'), false);
+  }
+});
+
+router.post('/avatar', authenticate, avatarUpload.single('avatar'), async (req, res, next) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: { message: 'No image uploaded' } });
+    }
+    const avatarUrl = `/uploads/avatars/${req.file.filename}`;
+    const result = await db.query(
+      'UPDATE users SET avatar_url = $1 WHERE id = $2 RETURNING id, email, name, role, avatar_url',
+      [avatarUrl, req.user.id]
+    );
+    res.json({ user: result.rows[0] });
   } catch (error) {
     next(error);
   }

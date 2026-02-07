@@ -2,7 +2,7 @@ import { useEffect, useState, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuthStore } from '../store/authStore'
 import { useProjectStore } from '../store/projectStore'
-import { aiApi } from '../services/api'
+import { aiApi, activityApi } from '../services/api'
 import ProjectCard from '../components/ProjectCard'
 import Button from '../components/Button'
 import Modal from '../components/Modal'
@@ -32,11 +32,22 @@ export default function LabDashboard() {
   const [aiSummaryLoading, setAiSummaryLoading] = useState(false)
   const [aiSummaryError, setAiSummaryError] = useState(null)
 
+  // Activity feed state
+  const [activities, setActivities] = useState([])
+  const [loadingActivities, setLoadingActivities] = useState(true)
+
   const canCreate = user?.role === 'admin' || user?.role === 'project_lead'
 
   useEffect(() => {
     fetchProjects()
   }, [fetchProjects])
+
+  useEffect(() => {
+    activityApi.list({ limit: 10 })
+      .then(({ data }) => setActivities(data.activities || []))
+      .catch(() => {})
+      .finally(() => setLoadingActivities(false))
+  }, [])
 
   const activeProjects = projects.filter((p) => p.status === 'active')
   const completedProjects = projects.filter((p) => p.status === 'completed')
@@ -341,6 +352,36 @@ export default function LabDashboard() {
               </div>
             </section>
           )}
+
+          {/* Recent Activity */}
+          <section>
+            <h2 className="font-display font-bold text-xl text-text-primary mb-4">Recent Activity</h2>
+            <div className="bg-white rounded-xl border border-gray-200 divide-y divide-gray-100">
+              {loadingActivities ? (
+                <div className="p-4 text-center text-text-secondary text-sm">Loading activity...</div>
+              ) : activities.length > 0 ? (
+                activities.map(a => (
+                  <div key={a.id} className="px-4 py-3 flex items-start gap-3">
+                    <div className="w-8 h-8 rounded-full bg-primary-100 flex items-center justify-center flex-shrink-0">
+                      <span className="text-primary-700 text-xs font-medium">{a.user_name?.charAt(0)}</span>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm">
+                        <span className="font-medium text-text-primary">{a.user_name}</span>{' '}
+                        <span className="text-text-secondary">{a.action}</span>{' '}
+                        {a.entity_title && <span className="font-medium text-text-primary">{a.entity_title}</span>}
+                      </p>
+                      <p className="text-xs text-text-secondary mt-0.5">
+                        {new Date(a.created_at).toLocaleDateString()} at {new Date(a.created_at).toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'})}
+                      </p>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="p-8 text-center text-text-secondary text-sm">No recent activity</div>
+              )}
+            </div>
+          </section>
         </>
       ) : (
         /* Calendar Tab */

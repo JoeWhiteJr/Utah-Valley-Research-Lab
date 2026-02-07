@@ -27,7 +27,7 @@ router.post('/login', [
     const { email, password } = req.body;
 
     const result = await db.query(
-      'SELECT id, email, password_hash, name, role, is_super_admin FROM users WHERE email = $1',
+      'SELECT id, email, password_hash, name, role, is_super_admin, avatar_url FROM users WHERE email = $1',
       [email]
     );
 
@@ -48,7 +48,7 @@ router.post('/login', [
     logActivity(user.id, 'login');
 
     res.json({
-      user: { id: user.id, email: user.email, name: user.name, role: user.role, is_super_admin: user.is_super_admin },
+      user: { id: user.id, email: user.email, name: user.name, role: user.role, is_super_admin: user.is_super_admin, avatar_url: user.avatar_url },
       token
     });
   } catch (error) {
