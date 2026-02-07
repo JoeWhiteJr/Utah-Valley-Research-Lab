@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { searchApi } from '../services/api'
-import { Search, FolderKanban, CheckSquare, MessageCircle, X } from 'lucide-react'
+import { Search, FolderKanban, CheckSquare, MessageCircle } from 'lucide-react'
 
 export default function SearchModal({ isOpen, onClose }) {
   const [query, setQuery] = useState('')
@@ -113,7 +113,7 @@ export default function SearchModal({ isOpen, onClose }) {
 
           {!isSearching && query.length >= 2 && results.length === 0 && (
             <div className="p-8 text-center text-sm text-text-secondary dark:text-gray-400">
-              No results found for "{query}"
+              No results found for &ldquo;{query}&rdquo;
             </div>
           )}
 
