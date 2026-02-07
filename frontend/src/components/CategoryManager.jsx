@@ -273,7 +273,7 @@ export default function CategoryManager({
         size="sm"
       >
         <p className="text-text-secondary">
-          Are you sure you want to delete the category "{deleteConfirm?.name}"?
+          Are you sure you want to delete the category &quot;{deleteConfirm?.name}&quot;?
           Tasks in this category will become uncategorized.
         </p>
         <div className="flex justify-end gap-3 mt-6">

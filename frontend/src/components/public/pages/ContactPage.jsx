@@ -145,7 +145,7 @@ export default function ContactPage() {
                       Message Sent!
                     </h3>
                     <p className="text-gray-600 mb-6">
-                      Thank you for reaching out. We'll get back to you within 1-2 business days.
+                      Thank you for reaching out. We&apos;ll get back to you within 1-2 business days.
                     </p>
                     <button
                       onClick={reset}

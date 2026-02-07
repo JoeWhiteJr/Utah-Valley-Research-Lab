@@ -135,10 +135,10 @@ export default function BlogPage() {
                     </svg>
                   </div>
                   <h4 className="text-lg font-semibold text-gray-900 mb-1">
-                    You're subscribed!
+                    You&apos;re subscribed!
                   </h4>
                   <p className="text-gray-600">
-                    We'll notify you when new content is available.
+                    We&apos;ll notify you when new content is available.
                   </p>
                 </div>
               )}
