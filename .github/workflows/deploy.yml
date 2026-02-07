@@ -18,44 +18,18 @@ jobs:
           key: ${{ secrets.SERVER_SSH_KEY }}
           script_stop: true
           script: |
-            # Ensure swap is active (prevents OOM during Vite build)
-            if [ ! -f /swapfile ]; then
-              sudo fallocate -l 2G /swapfile
-              sudo chmod 600 /swapfile
-              sudo mkswap /swapfile
-              sudo swapon /swapfile
-              echo "/swapfile none swap sw 0 0" | sudo tee -a /etc/fstab
-            else
-              sudo swapon /swapfile 2>/dev/null || true
-            fi
-
+            sudo swapon /swapfile 2>/dev/null || true
             cd /opt/stats-lab-manager
             git pull origin main
             docker compose -f docker-compose.ec2.yml up -d --build --remove-orphans
-
-            # Wait for DB health check
-            until docker exec statslab-db pg_isready -U statslab -q 2>/dev/null; do sleep 2; done
-
-            # Run migrations
+            sleep 10
             for f in database/migrations/*.sql; do
               docker exec -i statslab-db psql -U statslab -d statslab < "$f" 2>/dev/null || true
             done
-
             docker system prune -f
-            # Check backend health
             sleep 5
             echo "=== Backend container status ==="
             docker inspect statslab-backend --format='{{.State.Status}} (exit: {{.State.ExitCode}})' || true
             echo "=== Backend logs (last 50 lines) ==="
             docker logs statslab-backend --tail 50 2>&1 || true
             echo "=== Deployment complete! ==="
-
-            # Post-deploy backup (non-blocking)
-            # Recommended: capture a backup after every deploy so we have a
-            # known-good snapshot. Failure here should not fail the deploy.
-            echo "=== Running post-deploy database backup ==="
-            if [ -x /opt/stats-lab-manager/deploy/backup.sh ]; then
-              /opt/stats-lab-manager/deploy/backup.sh || echo "WARNING: Post-deploy backup failed (non-blocking)"
-            else
-              echo "NOTE: deploy/backup.sh not found or not executable — skipping post-deploy backup"
-            fi
