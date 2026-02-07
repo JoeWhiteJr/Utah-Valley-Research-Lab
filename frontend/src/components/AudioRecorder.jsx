@@ -38,12 +38,32 @@ export default function AudioRecorder({ onSave, onCancel }) {
       setError(null)
       audioChunksRef.current = []
 
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true
+        }
+      })
       streamRef.current = stream
 
-      const mediaRecorder = new MediaRecorder(stream, {
-        mimeType: 'audio/webm;codecs=opus'
-      })
+      // Determine the best supported mimeType for this browser
+      const mimeTypes = [
+        'audio/webm;codecs=opus',
+        'audio/webm',
+        'audio/ogg;codecs=opus',
+        'audio/mp4'
+      ]
+      let selectedMimeType = ''
+      for (const type of mimeTypes) {
+        if (MediaRecorder.isTypeSupported(type)) {
+          selectedMimeType = type
+          break
+        }
+      }
+
+      const options = selectedMimeType ? { mimeType: selectedMimeType } : {}
+      const mediaRecorder = new MediaRecorder(stream, options)
       mediaRecorderRef.current = mediaRecorder
 
       mediaRecorder.ondataavailable = (event) => {
@@ -53,7 +73,8 @@ export default function AudioRecorder({ onSave, onCancel }) {
       }
 
       mediaRecorder.onstop = () => {
-        const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' })
+        const actualType = mediaRecorder.mimeType || 'audio/webm'
+        const blob = new Blob(audioChunksRef.current, { type: actualType })
         setAudioBlob(blob)
         setAudioUrl(URL.createObjectURL(blob))
 
@@ -71,7 +92,15 @@ export default function AudioRecorder({ onSave, onCancel }) {
 
     } catch (err) {
       console.error('Error accessing microphone:', err)
-      setError('Unable to access microphone. Please check permissions.')
+      if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+        setError('Microphone access denied. Please allow microphone permissions in your browser settings.')
+      } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
+        setError('No microphone found. Please connect a microphone and try again.')
+      } else if (err.name === 'NotReadableError') {
+        setError('Microphone is in use by another application.')
+      } else {
+        setError('Unable to access microphone. Please check your browser permissions.')
+      }
     }
   }
 
@@ -117,8 +146,16 @@ export default function AudioRecorder({ onSave, onCancel }) {
   const handleSave = () => {
     if (audioBlob && onSave) {
       // Create a File from the Blob with a proper name
-      const file = new File([audioBlob], `recording-${Date.now()}.webm`, {
-        type: 'audio/webm'
+      const mimeToExt = {
+        'audio/webm': '.webm',
+        'audio/webm;codecs=opus': '.webm',
+        'audio/ogg': '.ogg',
+        'audio/ogg;codecs=opus': '.ogg',
+        'audio/mp4': '.m4a'
+      }
+      const ext = mimeToExt[audioBlob.type] || '.webm'
+      const file = new File([audioBlob], `recording-${Date.now()}${ext}`, {
+        type: audioBlob.type || 'audio/webm'
       })
       onSave(file)
     }
