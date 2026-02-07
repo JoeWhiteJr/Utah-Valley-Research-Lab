@@ -82,7 +82,9 @@ export const actionsApi = {
   create: (projectId, data) => api.post(`/actions/project/${projectId}`, data),
   update: (id, data) => api.put(`/actions/${id}`, data),
   delete: (id) => api.delete(`/actions/${id}`),
-  reorder: (items) => api.put('/actions/reorder', { items })
+  reorder: (items) => api.put('/actions/reorder', { items }),
+  setParent: (id, parentTaskId) => api.put(`/actions/${id}/parent`, { parent_task_id: parentTaskId }),
+  getProgress: (projectId) => api.get(`/actions/project/${projectId}/progress`)
 }
 
 // Categories
@@ -170,7 +172,31 @@ export const chatApi = {
     api.post(`/chats/${roomId}/members`, { userIds }),
   removeMember: (roomId, userId) =>
     api.delete(`/chats/${roomId}/members/${userId}`),
-  markRead: (roomId) => api.put(`/chats/${roomId}/read`)
+  markRead: (roomId) => api.put(`/chats/${roomId}/read`),
+  // Reactions
+  toggleReaction: (roomId, messageId, emoji) =>
+    api.post(`/chats/${roomId}/messages/${messageId}/reactions`, { emoji }),
+  getReactions: (roomId, messageId) =>
+    api.get(`/chats/${roomId}/messages/${messageId}/reactions`),
+  // File upload for chat
+  uploadFile: (roomId, file, onUploadProgress) => {
+    const formData = new FormData()
+    formData.append('file', file)
+    return api.post(`/chats/${roomId}/upload`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      onUploadProgress: onUploadProgress
+        ? (progressEvent) => {
+            const percentCompleted = Math.round(
+              (progressEvent.loaded * 100) / progressEvent.total
+            )
+            onUploadProgress(percentCompleted)
+          }
+        : undefined
+    })
+  },
+  // Push notifications
+  pushSubscribe: (subscription) => api.post('/chats/push-subscribe', subscription),
+  pushUnsubscribe: (endpoint) => api.post('/chats/push-unsubscribe', { endpoint })
 }
 
 // Applications
@@ -222,7 +248,11 @@ export const aiApi = {
   reviewApplication: (applicationId) =>
     api.post('/ai/review-application', { applicationId }),
   summarizeChat: (roomId, messageCount) =>
-    api.post('/ai/summarize-chat', { roomId, messageCount })
+    api.post('/ai/summarize-chat', { roomId, messageCount }),
+  summarizeProject: (projectId) =>
+    api.post('/ai/summarize-project', { projectId }),
+  summarizeDashboard: () =>
+    api.post('/ai/summarize-dashboard')
 }
 
 export default api

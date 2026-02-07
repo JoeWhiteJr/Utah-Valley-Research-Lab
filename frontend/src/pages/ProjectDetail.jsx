@@ -4,7 +4,7 @@ import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, us
 import { SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy, arrayMove } from '@dnd-kit/sortable'
 import { useAuthStore } from '../store/authStore'
 import { useProjectStore } from '../store/projectStore'
-import { usersApi, filesApi, getUploadUrl } from '../services/api'
+import { usersApi, filesApi, aiApi, getUploadUrl } from '../services/api'
 import Button from '../components/Button'
 import Modal from '../components/Modal'
 import Input from '../components/Input'
@@ -19,7 +19,7 @@ import AudioRecorder from '../components/AudioRecorder'
 import CategoryManager from '../components/CategoryManager'
 import {
   ArrowLeft, Edit3, Trash2, Plus, Upload, ListTodo, FileText,
-  StickyNote, Mic, Image, Settings, MoreVertical, Check
+  StickyNote, Mic, Image, Settings, MoreVertical, Check, Users, Sparkles, Loader2
 } from 'lucide-react'
 
 const tabs = [
@@ -42,7 +42,8 @@ export default function ProjectDetail() {
     notes, fetchNotes, createNote, updateNote, deleteNote,
     meetings, fetchMeetings, createMeeting, updateMeeting, deleteMeeting,
     clearCurrentProject, isLoading,
-    uploadProgress, isUploading
+    uploadProgress, isUploading,
+    setParentTask, calculateProgress
   } = useProjectStore()
 
   const [activeTab, setActiveTab] = useState('overview')
@@ -53,7 +54,7 @@ export default function ProjectDetail() {
 
   // Action modals
   const [showActionModal, setShowActionModal] = useState(false)
-  const [newAction, setNewAction] = useState({ title: '', due_date: '', assigned_to: '', category_id: '' })
+  const [newAction, setNewAction] = useState({ title: '', due_date: '', assigned_to: '', assignee_ids: [], category_id: '', parent_task_id: '' })
 
   // Note modals
   const [showNoteModal, setShowNoteModal] = useState(false)
@@ -79,6 +80,12 @@ export default function ProjectDetail() {
 
   // Settings menu state
   const [showSettingsMenu, setShowSettingsMenu] = useState(false)
+
+  // AI Summary state
+  const [showAiSummary, setShowAiSummary] = useState(false)
+  const [aiSummary, setAiSummary] = useState(null)
+  const [aiSummaryLoading, setAiSummaryLoading] = useState(false)
+  const [aiSummaryError, setAiSummaryError] = useState(null)
 
   // Category filter state
   const [categoryFilter, setCategoryFilter] = useState(null)
@@ -147,17 +154,52 @@ export default function ProjectDetail() {
     await createAction(id, {
       title: newAction.title,
       due_date: newAction.due_date || null,
-      assigned_to: newAction.assigned_to || null,
-      category_id: newAction.category_id || null
+      assigned_to: newAction.assignee_ids.length > 0 ? newAction.assignee_ids[0] : (newAction.assigned_to || null),
+      assignee_ids: newAction.assignee_ids.length > 0 ? newAction.assignee_ids : (newAction.assigned_to ? [newAction.assigned_to] : []),
+      category_id: newAction.category_id || null,
+      parent_task_id: newAction.parent_task_id || null
     })
     setShowActionModal(false)
-    setNewAction({ title: '', due_date: '', assigned_to: '', category_id: '' })
+    setNewAction({ title: '', due_date: '', assigned_to: '', assignee_ids: [], category_id: '', parent_task_id: '' })
   }
+
+  // Handle drag-and-drop to make subtask
+  const handleMakeSubtask = async (childId, parentId) => {
+    if (childId === parentId) return
+    await setParentTask(childId, parentId)
+  }
+
+  // Get parent tasks (top-level only)
+  const parentTasks = actions.filter(a => !a.parent_task_id)
+
+  // Group actions: parent tasks and their subtasks
+  const getSubtasks = (parentId) => actions.filter(a => a.parent_task_id === parentId)
+
+  // Auto-calculated progress
+  const autoProgress = calculateProgress()
 
   // Handle project status change (admin only)
   const handleStatusChange = async (newStatus) => {
     await updateProject(id, { status: newStatus })
     setShowSettingsMenu(false)
+  }
+
+  // Handle AI Summary generation
+  const handleGenerateAiSummary = async () => {
+    setShowAiSummary(true)
+    setAiSummaryLoading(true)
+    setAiSummaryError(null)
+    setAiSummary(null)
+    try {
+      const { data } = await aiApi.summarizeProject(id)
+      setAiSummary(data)
+    } catch (error) {
+      setAiSummaryError(
+        error.response?.data?.error?.message || 'Failed to generate AI summary. Please try again.'
+      )
+    } finally {
+      setAiSummaryLoading(false)
+    }
   }
 
   // Handle category creation for the project
@@ -381,16 +423,18 @@ export default function ProjectDetail() {
             <p className="mt-2 text-text-secondary max-w-2xl">{currentProject.description}</p>
           )}
 
-          {/* Progress */}
+          {/* Progress - auto-calculated from tasks */}
           <div className="mt-4 max-w-md">
             <div className="flex items-center justify-between text-sm mb-1.5">
               <span className="text-text-secondary">Progress</span>
-              <span className="font-medium text-text-primary">{currentProject.progress || 0}%</span>
+              <span className="font-medium text-text-primary">
+                {autoProgress}% ({actions.filter(a => a.completed).length}/{actions.length} tasks)
+              </span>
             </div>
             <div className="h-2.5 bg-gray-100 rounded-full overflow-hidden">
               <div
-                className="h-full bg-gradient-to-r from-primary-400 to-primary-500 rounded-full"
-                style={{ width: `${currentProject.progress || 0}%` }}
+                className="h-full bg-gradient-to-r from-primary-400 to-primary-500 rounded-full transition-all duration-500"
+                style={{ width: `${autoProgress}%` }}
               />
             </div>
           </div>
@@ -398,6 +442,10 @@ export default function ProjectDetail() {
 
         {canEdit && (
           <div className="flex gap-2 items-center">
+            <Button variant="outline" onClick={handleGenerateAiSummary}>
+              <Sparkles size={16} />
+              AI Summary
+            </Button>
             <Button variant="outline" onClick={() => setShowEditModal(true)}>
               <Edit3 size={16} />
               Edit
@@ -564,22 +612,26 @@ export default function ProjectDetail() {
                       items={(categoryFilter === 'uncategorized'
                         ? actions.filter(a => !a.category_id)
                         : filteredActions
-                      ).map(a => a.id)}
+                      ).filter(a => !a.parent_task_id).map(a => a.id)}
                       strategy={verticalListSortingStrategy}
                     >
                       <div className="space-y-2">
                         {(categoryFilter === 'uncategorized'
                           ? actions.filter(a => !a.category_id)
                           : filteredActions
-                        ).map((action) => (
+                        ).filter(a => !a.parent_task_id).map((action) => (
                           <ActionItem
                             key={action.id}
                             action={action}
                             users={teamMembers}
                             categories={categories}
+                            subtasks={getSubtasks(action.id)}
                             onToggle={(actionId, completed) => updateAction(actionId, { completed })}
+                            onToggleSubtask={(actionId, completed) => updateAction(actionId, { completed })}
                             onDelete={deleteAction}
+                            onDeleteSubtask={deleteAction}
                             onUpdateCategory={updateAction}
+                            onDrop={handleMakeSubtask}
                           />
                         ))}
                       </div>
@@ -794,14 +846,12 @@ export default function ProjectDetail() {
                   <option value="archived">Archived</option>
                 </select>
               </div>
-              <Input
-                label="Progress %"
-                type="number"
-                min="0"
-                max="100"
-                value={editData.progress}
-                onChange={(e) => setEditData({ ...editData, progress: parseInt(e.target.value) || 0 })}
-              />
+              <div>
+                <label className="block text-sm font-medium text-text-primary mb-1.5">Progress</label>
+                <div className="px-4 py-2.5 rounded-organic border border-gray-200 bg-gray-50 text-text-secondary text-sm">
+                  Auto-calculated: {autoProgress}%
+                </div>
+              </div>
             </div>
           )}
           <div className="flex justify-end gap-3 pt-2">
@@ -838,18 +888,55 @@ export default function ProjectDetail() {
               onChange={(e) => setNewAction({ ...newAction, due_date: e.target.value })}
             />
             <div>
-              <label className="block text-sm font-medium text-text-primary mb-1.5">Assign to</label>
+              <label className="block text-sm font-medium text-text-primary mb-1.5">Parent Task (optional)</label>
               <select
-                value={newAction.assigned_to}
-                onChange={(e) => setNewAction({ ...newAction, assigned_to: e.target.value })}
+                value={newAction.parent_task_id}
+                onChange={(e) => setNewAction({ ...newAction, parent_task_id: e.target.value })}
                 className="w-full px-4 py-2.5 rounded-organic border border-gray-300 bg-white focus:outline-none focus:ring-2 focus:ring-primary-300"
               >
-                <option value="">Unassigned</option>
-                {teamMembers.map((member) => (
-                  <option key={member.id} value={member.id}>{member.name}</option>
+                <option value="">No parent (top-level task)</option>
+                {parentTasks.map((task) => (
+                  <option key={task.id} value={task.id}>{task.title}</option>
                 ))}
               </select>
             </div>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-text-primary mb-1.5">
+              <span className="flex items-center gap-1.5">
+                <Users size={14} />
+                Assign to (select multiple)
+              </span>
+            </label>
+            <div className="border border-gray-300 rounded-organic p-2 max-h-40 overflow-y-auto bg-white">
+              {teamMembers.length > 0 ? teamMembers.map((member) => (
+                <label
+                  key={member.id}
+                  className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-gray-50 cursor-pointer"
+                >
+                  <input
+                    type="checkbox"
+                    checked={newAction.assignee_ids.includes(member.id)}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        setNewAction({ ...newAction, assignee_ids: [...newAction.assignee_ids, member.id] })
+                      } else {
+                        setNewAction({ ...newAction, assignee_ids: newAction.assignee_ids.filter(id => id !== member.id) })
+                      }
+                    }}
+                    className="rounded border-gray-300 text-primary-600 focus:ring-primary-300"
+                  />
+                  <span className="text-sm text-text-primary">{member.name}</span>
+                </label>
+              )) : (
+                <p className="text-sm text-text-secondary px-2 py-1">No team members found</p>
+              )}
+            </div>
+            {newAction.assignee_ids.length > 0 && (
+              <p className="text-xs text-text-secondary mt-1">
+                {newAction.assignee_ids.length} member{newAction.assignee_ids.length !== 1 ? 's' : ''} selected
+              </p>
+            )}
           </div>
           {categories.length > 0 && (
             <div>
@@ -1015,6 +1102,69 @@ export default function ProjectDetail() {
             <Button type="submit">Save Notes</Button>
           </div>
         </form>
+      </Modal>
+
+      {/* AI Summary Modal */}
+      <Modal
+        isOpen={showAiSummary}
+        onClose={() => { setShowAiSummary(false); setAiSummary(null); setAiSummaryError(null); }}
+        title="AI Project Summary"
+        size="lg"
+      >
+        <div className="space-y-4">
+          {aiSummaryLoading && (
+            <div className="flex flex-col items-center justify-center py-12">
+              <Loader2 size={36} className="text-primary-500 animate-spin mb-4" />
+              <p className="text-text-secondary">Generating AI summary...</p>
+              <p className="text-xs text-text-secondary mt-1">Analyzing project data, action items, notes, and meetings</p>
+            </div>
+          )}
+          {aiSummaryError && (
+            <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm">
+              {aiSummaryError}
+            </div>
+          )}
+          {aiSummary && (
+            <>
+              {/* Stats bar */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <div className="p-3 bg-primary-50 rounded-lg text-center">
+                  <p className="text-lg font-bold text-primary-700">{aiSummary.stats?.totalActions || 0}</p>
+                  <p className="text-xs text-primary-600">Total Tasks</p>
+                </div>
+                <div className="p-3 bg-green-50 rounded-lg text-center">
+                  <p className="text-lg font-bold text-green-700">{aiSummary.stats?.completedActions || 0}</p>
+                  <p className="text-xs text-green-600">Completed</p>
+                </div>
+                <div className="p-3 bg-amber-50 rounded-lg text-center">
+                  <p className="text-lg font-bold text-amber-700">{aiSummary.stats?.pendingActions || 0}</p>
+                  <p className="text-xs text-amber-600">Pending</p>
+                </div>
+                <div className="p-3 bg-secondary-50 rounded-lg text-center">
+                  <p className="text-lg font-bold text-secondary-700">{aiSummary.stats?.notesCount || 0}</p>
+                  <p className="text-xs text-secondary-600">Notes</p>
+                </div>
+              </div>
+              {/* Summary content */}
+              <div className="prose prose-sm max-w-none bg-gray-50 rounded-lg p-5 border border-gray-200">
+                <div className="whitespace-pre-wrap text-text-primary text-sm leading-relaxed">
+                  {aiSummary.summary}
+                </div>
+              </div>
+            </>
+          )}
+          <div className="flex justify-end gap-3 pt-2">
+            {aiSummary && (
+              <Button variant="secondary" onClick={handleGenerateAiSummary} disabled={aiSummaryLoading}>
+                <Sparkles size={16} />
+                Regenerate
+              </Button>
+            )}
+            <Button variant="outline" onClick={() => { setShowAiSummary(false); setAiSummary(null); setAiSummaryError(null); }}>
+              Close
+            </Button>
+          </div>
+        </div>
       </Modal>
 
       {/* File Preview Modal */}

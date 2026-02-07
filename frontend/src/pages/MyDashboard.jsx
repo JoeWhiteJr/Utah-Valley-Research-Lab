@@ -223,16 +223,25 @@ export default function MyDashboard() {
                 <h3 className="font-medium text-text-primary group-hover:text-primary-700 line-clamp-1 mb-2">
                   {project.title}
                 </h3>
-                <div className="flex items-center justify-between text-sm text-text-secondary">
-                  <span>{project.completed_actions || 0}/{project.total_actions || 0} tasks</span>
-                  <span>{project.progress || 0}%</span>
-                </div>
-                <div className="mt-2 h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-gradient-to-r from-primary-400 to-primary-500 rounded-full transition-all duration-500"
-                    style={{ width: `${project.progress || 0}%` }}
-                  />
-                </div>
+                {(() => {
+                  const total = parseInt(project.total_actions) || 0
+                  const completed = parseInt(project.completed_actions) || 0
+                  const progress = total === 0 ? 0 : Math.round((completed / total) * 100)
+                  return (
+                    <>
+                      <div className="flex items-center justify-between text-sm text-text-secondary">
+                        <span>{completed}/{total} tasks</span>
+                        <span>{progress}%</span>
+                      </div>
+                      <div className="mt-2 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-gradient-to-r from-primary-400 to-primary-500 rounded-full transition-all duration-500"
+                          style={{ width: `${progress}%` }}
+                        />
+                      </div>
+                    </>
+                  )
+                })()}
               </Link>
             ))}
           </div>

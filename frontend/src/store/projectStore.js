@@ -67,11 +67,20 @@ export const useProjectStore = create((set, get) => ({
       const formData = new FormData()
       formData.append('cover', file)
       const { data } = await projectsApi.uploadCover(id, formData)
+      // Add cache-busting timestamp to force browser to reload the new image
+      const projectWithCacheBust = {
+        ...data.project,
+        header_image: data.project.header_image
+          ? data.project.header_image + '?t=' + Date.now()
+          : data.project.header_image
+      }
       set((state) => ({
-        projects: state.projects.map((p) => (p.id === id ? data.project : p)),
-        currentProject: state.currentProject?.id === id ? data.project : state.currentProject
+        projects: state.projects.map((p) => (p.id === id ? { ...p, ...projectWithCacheBust } : p)),
+        currentProject: state.currentProject?.id === id
+          ? { ...state.currentProject, ...projectWithCacheBust }
+          : state.currentProject
       }))
-      return data.project
+      return projectWithCacheBust
     } catch (error) {
       set({ error: error.response?.data?.error?.message || 'Failed to upload cover image' })
       return null
@@ -198,12 +207,36 @@ export const useProjectStore = create((set, get) => ({
     }
   },
 
-  // Calculate progress based on action items
+  // Calculate progress based on action items (including subtasks)
   calculateProgress: () => {
     const actions = get().actions
     if (actions.length === 0) return 0
     const completed = actions.filter(a => a.completed).length
     return Math.round((completed / actions.length) * 100)
+  },
+
+  // Fetch auto-calculated progress from backend
+  fetchProgress: async (projectId) => {
+    try {
+      const { data } = await actionsApi.getProgress(projectId)
+      return data
+    } catch (error) {
+      return { progress: 0, total_tasks: 0, completed_tasks: 0 }
+    }
+  },
+
+  // Set parent task (make subtask via drag-and-drop)
+  setParentTask: async (actionId, parentTaskId) => {
+    try {
+      const { data } = await actionsApi.setParent(actionId, parentTaskId)
+      set((state) => ({
+        actions: state.actions.map((a) => (a.id === actionId ? data.action : a))
+      }))
+      return data.action
+    } catch (error) {
+      set({ error: error.response?.data?.error?.message || 'Failed to set parent task' })
+      return null
+    }
   },
 
   // Files

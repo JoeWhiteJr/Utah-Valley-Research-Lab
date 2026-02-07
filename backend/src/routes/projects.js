@@ -43,7 +43,7 @@ const coverUpload = multer({
 router.get('/', authenticate, async (req, res, next) => {
   try {
     const { status } = req.query;
-    const validStatuses = ['active', 'completed', 'archived'];
+    const validStatuses = ['active', 'completed', 'archived', 'inactive'];
     if (status && !validStatuses.includes(status)) {
       return res.status(400).json({ error: { message: 'Invalid status filter' } });
     }
@@ -51,7 +51,14 @@ router.get('/', authenticate, async (req, res, next) => {
     let query = `
       SELECT p.*, u.name as creator_name,
         (SELECT COUNT(*) FROM action_items WHERE project_id = p.id) as total_actions,
-        (SELECT COUNT(*) FROM action_items WHERE project_id = p.id AND completed = true) as completed_actions
+        (SELECT COUNT(*) FROM action_items WHERE project_id = p.id AND completed = true) as completed_actions,
+        CASE
+          WHEN (SELECT COUNT(*) FROM action_items WHERE project_id = p.id) = 0 THEN 0
+          ELSE ROUND(
+            (SELECT COUNT(*) FROM action_items WHERE project_id = p.id AND completed = true)::numeric /
+            (SELECT COUNT(*) FROM action_items WHERE project_id = p.id)::numeric * 100
+          )
+        END as calculated_progress
       FROM projects p
       JOIN users u ON p.created_by = u.id
     `;
@@ -65,7 +72,12 @@ router.get('/', authenticate, async (req, res, next) => {
     query += ' ORDER BY p.updated_at DESC';
 
     const result = await db.query(query, params);
-    res.json({ projects: result.rows });
+    // Override progress with auto-calculated value from tasks
+    const projects = result.rows.map(p => ({
+      ...p,
+      progress: parseInt(p.calculated_progress) || 0
+    }));
+    res.json({ projects });
   } catch (error) {
     next(error);
   }
@@ -75,7 +87,16 @@ router.get('/', authenticate, async (req, res, next) => {
 router.get('/:id', authenticate, async (req, res, next) => {
   try {
     const result = await db.query(`
-      SELECT p.*, u.name as creator_name
+      SELECT p.*, u.name as creator_name,
+        (SELECT COUNT(*) FROM action_items WHERE project_id = p.id) as total_actions,
+        (SELECT COUNT(*) FROM action_items WHERE project_id = p.id AND completed = true) as completed_actions,
+        CASE
+          WHEN (SELECT COUNT(*) FROM action_items WHERE project_id = p.id) = 0 THEN 0
+          ELSE ROUND(
+            (SELECT COUNT(*) FROM action_items WHERE project_id = p.id AND completed = true)::numeric /
+            (SELECT COUNT(*) FROM action_items WHERE project_id = p.id)::numeric * 100
+          )
+        END as calculated_progress
       FROM projects p
       JOIN users u ON p.created_by = u.id
       WHERE p.id = $1
@@ -85,7 +106,11 @@ router.get('/:id', authenticate, async (req, res, next) => {
       return res.status(404).json({ error: { message: 'Project not found' } });
     }
 
-    res.json({ project: result.rows[0] });
+    const project = {
+      ...result.rows[0],
+      progress: parseInt(result.rows[0].calculated_progress) || 0
+    };
+    res.json({ project });
   } catch (error) {
     next(error);
   }
@@ -181,10 +206,18 @@ router.post('/:id/cover', authenticate, requireRole('admin', 'project_lead'), co
     }
 
     const imageUrl = `/uploads/covers/${req.file.filename}`;
-    const result = await db.query(
-      'UPDATE projects SET header_image = $1 WHERE id = $2 RETURNING *',
+    await db.query(
+      'UPDATE projects SET header_image = $1 WHERE id = $2',
       [imageUrl, req.params.id]
     );
+
+    // Return full project with creator_name to match the shape expected by the frontend
+    const result = await db.query(`
+      SELECT p.*, u.name as creator_name
+      FROM projects p
+      JOIN users u ON p.created_by = u.id
+      WHERE p.id = $1
+    `, [req.params.id]);
 
     res.json({ project: result.rows[0] });
   } catch (error) {
