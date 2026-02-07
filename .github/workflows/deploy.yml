@@ -27,4 +27,10 @@ jobs:
               docker exec -i statslab-db psql -U statslab -d statslab < "$f" 2>/dev/null || true
             done
             docker system prune -f
-            echo "Deployment complete!"
+            # Check backend health
+            sleep 5
+            echo "=== Backend container status ==="
+            docker inspect statslab-backend --format='{{.State.Status}} (exit: {{.State.ExitCode}})' || true
+            echo "=== Backend logs (last 50 lines) ==="
+            docker logs statslab-backend --tail 50 2>&1 || true
+            echo "=== Deployment complete! ==="
