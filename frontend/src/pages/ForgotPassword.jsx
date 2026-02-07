@@ -54,7 +54,7 @@ export default function ForgotPassword() {
             <>
               <h2 className="font-display font-semibold text-xl text-text-primary dark:text-gray-100 mb-2">Forgot password?</h2>
               <p className="text-text-secondary dark:text-gray-400 text-sm mb-6">
-                Enter your email and we'll generate a reset link.
+                Enter your email and we&apos;ll generate a reset link.
               </p>
 
               <form onSubmit={handleSubmit} className="space-y-4">

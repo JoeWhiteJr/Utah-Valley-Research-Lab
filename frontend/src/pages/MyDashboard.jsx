@@ -3,10 +3,9 @@ import { Link } from 'react-router-dom'
 import { useAuthStore } from '../store/authStore'
 import { useProjectStore } from '../store/projectStore'
 import { actionsApi, usersApi } from '../services/api'
-import Button from '../components/Button'
 import { CalendarView } from '../components/calendar/CalendarView'
 import {
-  CheckCircle2, Circle, Calendar, Clock, ArrowUpRight,
+  CheckCircle2, Circle, Calendar, ArrowUpRight,
   FolderKanban, Zap, Target, Award
 } from 'lucide-react'
 import { format, isToday, isPast, parseISO } from 'date-fns'
@@ -90,7 +89,7 @@ export default function MyDashboard() {
                 {getGreeting()}, {user?.name?.split(' ')[0]}
               </h1>
               <p className="text-slate-400">
-                Here's your personal research overview
+                Here&apos;s your personal research overview
               </p>
             </div>
           </div>
@@ -207,7 +206,7 @@ export default function MyDashboard() {
                 All caught up!
               </h3>
               <p className="text-text-secondary dark:text-gray-400 max-w-sm mx-auto">
-                You don't have any pending tasks assigned to you. Check out your projects to add new tasks.
+                You don&apos;t have any pending tasks assigned to you. Check out your projects to add new tasks.
               </p>
             </div>
           )}
@@ -294,7 +293,7 @@ export default function MyDashboard() {
               No projects yet
             </h3>
             <p className="text-text-secondary dark:text-gray-400 max-w-sm mx-auto">
-              You haven't been assigned to any projects yet.
+              You haven&apos;t been assigned to any projects yet.
             </p>
           </div>
         )}

@@ -39,7 +39,7 @@ export default function Apply() {
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8 max-w-md w-full text-center">
           <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-4" />
           <h1 className="font-display font-bold text-2xl text-text-primary dark:text-gray-100 mb-2">Application Submitted!</h1>
-          <p className="text-text-secondary dark:text-gray-400 mb-6">We'll review your application and get back to you soon.</p>
+          <p className="text-text-secondary dark:text-gray-400 mb-6">We&apos;ll review your application and get back to you soon.</p>
           <Link to="/login"><Button>Go to Login</Button></Link>
         </div>
       </div>

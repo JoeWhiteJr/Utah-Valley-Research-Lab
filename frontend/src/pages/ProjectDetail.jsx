@@ -19,7 +19,7 @@ import AudioRecorder from '../components/AudioRecorder'
 import CategoryManager from '../components/CategoryManager'
 import {
   ArrowLeft, Edit3, Trash2, Plus, Upload, ListTodo, FileText,
-  StickyNote, Mic, Image, Settings, MoreVertical, Check, Users, Sparkles, Loader2
+  StickyNote, Mic, Image, MoreVertical, Check, Users, Sparkles, Loader2
 } from 'lucide-react'
 
 const tabs = [

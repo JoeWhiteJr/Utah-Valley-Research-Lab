@@ -114,7 +114,7 @@ export default function SearchModal({
             </div>
           ) : !hasResults ? (
             <div className="p-8 text-center text-gray-500">
-              <p>No results found for "{query}"</p>
+              <p>No results found for &quot;{query}&quot;</p>
             </div>
           ) : (
             <div className="py-2">

@@ -7,7 +7,7 @@ import { usePublishStore } from '../store/publishStore'
 import { usersApi } from '../services/api'
 import Button from '../components/Button'
 import Modal from '../components/Modal'
-import { LayoutDashboard, Users, ScrollText, Trash2, Sparkles, Globe, Eye, Pencil, XCircle, BrainCircuit, Calendar } from 'lucide-react'
+import { LayoutDashboard, Users, Trash2, Sparkles, Globe, Pencil, XCircle, BrainCircuit, Calendar } from 'lucide-react'
 
 export default function Admin() {
   const [activeTab, setActiveTab] = useState('dashboard')
@@ -176,8 +176,6 @@ export default function Admin() {
     setShowUnpublishConfirm(null)
   }
 
-  const pendingApplications = applications.filter(app => app.status === 'pending')
-
   return (
     <div>
       <h1 className="font-display font-bold text-2xl mb-6 text-text-primary dark:text-gray-100">Admin Dashboard</h1>
@@ -262,7 +260,7 @@ export default function Admin() {
               {!aiSummaryLoading && !aiSummary && !aiSummaryError && (
                 <div className="text-center py-10">
                   <BrainCircuit size={40} className="mx-auto text-purple-300 dark:text-purple-600 mb-3" />
-                  <p className="text-text-secondary dark:text-gray-400 text-sm">Click "Generate AI Summary" to create an AI-powered overview of your lab's activity.</p>
+                  <p className="text-text-secondary dark:text-gray-400 text-sm">Click &quot;Generate AI Summary&quot; to create an AI-powered overview of your lab&apos;s activity.</p>
                   <p className="text-text-secondary dark:text-gray-400 text-xs mt-1">The summary will show what has been done, what is in progress, and what still needs attention.</p>
                 </div>
               )}

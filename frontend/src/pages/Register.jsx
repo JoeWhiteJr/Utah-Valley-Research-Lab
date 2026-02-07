@@ -64,7 +64,7 @@ export default function Register() {
             <CheckCircle className="mx-auto h-16 w-16 text-green-500 mb-4" />
             <h2 className="font-display font-bold text-2xl text-gray-900 dark:text-gray-100 mb-2">Thank you for Registering!</h2>
             <p className="text-text-secondary dark:text-gray-400 mb-6">
-              Your account is awaiting admin approval. You'll be able to log in once an administrator reviews your registration.
+              Your account is awaiting admin approval. You&apos;ll be able to log in once an administrator reviews your registration.
             </p>
             <Link
               to="/"
