@@ -176,7 +176,7 @@ export const useChatStore = create((set, get) => ({
     }))
   },
 
-  onMessageDeleted: ({ roomId, messageId }) => {
+  onMessageDeleted: ({ messageId }) => {
     set((state) => ({
       messages: state.messages.map((m) =>
         m.id === messageId ? { ...m, content: 'Message deleted', deleted_at: new Date().toISOString() } : m

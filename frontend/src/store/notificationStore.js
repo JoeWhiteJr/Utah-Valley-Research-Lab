@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { notificationsApi } from '../services/api'
 
-export const useNotificationStore = create((set, get) => ({
+export const useNotificationStore = create((set, _get) => ({
   notifications: [],
   unreadCount: 0,
   total: 0,

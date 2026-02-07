@@ -9,7 +9,7 @@ describe('Actions API', () => {
   let testProjectId;
   let testActionId;
   let secondUserId;
-  let secondUserToken;
+  let _secondUserToken;
 
   beforeAll(async () => {
     await db.query("DELETE FROM users WHERE email LIKE '%actiontest%'");
@@ -30,7 +30,7 @@ describe('Actions API', () => {
       role: 'researcher'
     });
     secondUserId = user2.id;
-    secondUserToken = user2.token;
+    _secondUserToken = user2.token;
 
     // Ensure action_item_assignees table exists (migration may not have run in test)
     await db.query(`

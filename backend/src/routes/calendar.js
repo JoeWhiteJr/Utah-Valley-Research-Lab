@@ -1,8 +1,8 @@
 const express = require('express');
 const router = express.Router();
-const { body, param, query, validationResult } = require('express-validator');
+const { body, query, validationResult } = require('express-validator');
 const db = require('../config/database');
-const { authenticate, requireRole } = require('../middleware/auth');
+const { authenticate } = require('../middleware/auth');
 const { sanitizeBody } = require('../middleware/sanitize');
 
 // All calendar routes require authentication
@@ -283,7 +283,7 @@ router.put('/events/:id', sanitizeBody('notes'), [
     const { title, description, start_time, end_time, all_day,
             category_id, project_id, meeting_id, repeat_rule, reminders, notes, attendee_ids } = req.body;
 
-    const result = await db.query(
+    await db.query(
       `UPDATE calendar_events SET
         title = COALESCE($1, title),
         description = COALESCE($2, description),

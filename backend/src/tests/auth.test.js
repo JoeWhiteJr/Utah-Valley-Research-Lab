@@ -30,10 +30,10 @@ describe('Auth API', () => {
   });
 
   describe('POST /api/auth/login', () => {
-    let loginUser;
+    let _loginUser;
 
     beforeAll(async () => {
-      loginUser = await createTestUser({
+      _loginUser = await createTestUser({
         name: 'Auth Login User',
         email: 'authtest-login@example.com',
         password: 'password123'

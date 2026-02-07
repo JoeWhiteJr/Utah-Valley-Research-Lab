@@ -5,9 +5,9 @@ const fs = require('fs');
 const { v4: uuidv4 } = require('uuid');
 const { body, query, validationResult } = require('express-validator');
 const db = require('../config/database');
-const { authenticate, requireRole } = require('../middleware/auth');
+const { authenticate } = require('../middleware/auth');
 const socketService = require('../services/socketService');
-const { createNotification, createNotificationForUsers } = require('./notifications');
+const { createNotificationForUsers } = require('./notifications');
 
 const router = express.Router();
 
@@ -775,7 +775,7 @@ router.get('/:id', authenticate, async (req, res, next) => {
 });
 
 // Serve chat uploads with authentication
-router.get('/uploads/:filename', authenticate, (req, res, next) => {
+router.get('/uploads/:filename', authenticate, (req, res, _next) => {
   const pathModule = require('path');
   const uploadDir = process.env.UPLOAD_DIR || pathModule.join(__dirname, '../../uploads');
   const safeName = pathModule.basename(req.params.filename);
