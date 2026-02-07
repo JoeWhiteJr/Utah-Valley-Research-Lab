@@ -4,7 +4,7 @@ import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, us
 import { SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy, arrayMove } from '@dnd-kit/sortable'
 import { useAuthStore } from '../store/authStore'
 import { useProjectStore } from '../store/projectStore'
-import { usersApi, filesApi, getUploadUrl } from '../services/api'
+import { usersApi, filesApi, aiApi, getUploadUrl } from '../services/api'
 import Button from '../components/Button'
 import Modal from '../components/Modal'
 import Input from '../components/Input'
@@ -19,7 +19,7 @@ import AudioRecorder from '../components/AudioRecorder'
 import CategoryManager from '../components/CategoryManager'
 import {
   ArrowLeft, Edit3, Trash2, Plus, Upload, ListTodo, FileText,
-  StickyNote, Mic, Image, Settings, MoreVertical, Check
+  StickyNote, Mic, Image, Settings, MoreVertical, Check, Sparkles, Loader2
 } from 'lucide-react'
 
 const tabs = [
@@ -82,6 +82,12 @@ export default function ProjectDetail() {
 
   // Category filter state
   const [categoryFilter, setCategoryFilter] = useState(null)
+
+  // AI Summary state
+  const [showAiSummary, setShowAiSummary] = useState(false)
+  const [aiSummary, setAiSummary] = useState(null)
+  const [aiSummaryLoading, setAiSummaryLoading] = useState(false)
+  const [aiSummaryError, setAiSummaryError] = useState(null)
 
   const coverInputRef = useRef(null)
   const fileInputRef = useRef(null)
@@ -291,6 +297,21 @@ export default function ProjectDetail() {
     setShowRecorder(false)
   }
 
+  const handleGenerateAiSummary = async () => {
+    setAiSummaryLoading(true)
+    setAiSummaryError(null)
+    try {
+      const { data } = await aiApi.summarizeProject(id)
+      setAiSummary(data)
+      setShowAiSummary(true)
+    } catch (error) {
+      setAiSummaryError(error.response?.data?.error?.message || 'Failed to generate AI summary')
+      setShowAiSummary(true)
+    } finally {
+      setAiSummaryLoading(false)
+    }
+  }
+
   if (isLoading || !currentProject) {
     return (
       <div className="animate-pulse space-y-6">
@@ -398,6 +419,14 @@ export default function ProjectDetail() {
 
         {canEdit && (
           <div className="flex gap-2 items-center">
+            <Button
+              variant="outline"
+              onClick={handleGenerateAiSummary}
+              disabled={aiSummaryLoading}
+            >
+              {aiSummaryLoading ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
+              AI Summary
+            </Button>
             <Button variant="outline" onClick={() => setShowEditModal(true)}>
               <Edit3 size={16} />
               Edit
@@ -1027,6 +1056,53 @@ export default function ProjectDetail() {
           setPreviewFile(null)
         }}
       />
+
+      {/* AI Summary Modal */}
+      <Modal isOpen={showAiSummary} onClose={() => setShowAiSummary(false)} title="AI Project Summary" size="lg">
+        <div className="space-y-4">
+          {aiSummaryError ? (
+            <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm">
+              {aiSummaryError}
+            </div>
+          ) : aiSummary ? (
+            <>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <div className="p-3 bg-primary-50 rounded-lg text-center">
+                  <p className="text-xl font-bold text-primary-700">{aiSummary.stats?.totalActions ?? actions.length}</p>
+                  <p className="text-xs text-primary-600">Total Tasks</p>
+                </div>
+                <div className="p-3 bg-green-50 rounded-lg text-center">
+                  <p className="text-xl font-bold text-green-700">{aiSummary.stats?.completedActions ?? actions.filter(a => a.completed).length}</p>
+                  <p className="text-xs text-green-600">Completed</p>
+                </div>
+                <div className="p-3 bg-amber-50 rounded-lg text-center">
+                  <p className="text-xl font-bold text-amber-700">{aiSummary.stats?.pendingActions ?? actions.filter(a => !a.completed).length}</p>
+                  <p className="text-xs text-amber-600">Pending</p>
+                </div>
+                <div className="p-3 bg-blue-50 rounded-lg text-center">
+                  <p className="text-xl font-bold text-blue-700">{aiSummary.stats?.noteCount ?? notes.length}</p>
+                  <p className="text-xs text-blue-600">Notes</p>
+                </div>
+              </div>
+              <div className="prose prose-sm max-w-none">
+                <div className="whitespace-pre-wrap text-text-secondary leading-relaxed">
+                  {aiSummary.summary}
+                </div>
+              </div>
+              <div className="flex justify-end pt-2">
+                <Button variant="outline" size="sm" onClick={handleGenerateAiSummary} disabled={aiSummaryLoading}>
+                  {aiSummaryLoading ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
+                  Regenerate
+                </Button>
+              </div>
+            </>
+          ) : (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 size={24} className="animate-spin text-primary-500" />
+            </div>
+          )}
+        </div>
+      </Modal>
     </div>
   )
 }

@@ -222,7 +222,11 @@ export const aiApi = {
   reviewApplication: (applicationId) =>
     api.post('/ai/review-application', { applicationId }),
   summarizeChat: (roomId, messageCount) =>
-    api.post('/ai/summarize-chat', { roomId, messageCount })
+    api.post('/ai/summarize-chat', { roomId, messageCount }),
+  summarizeProject: (projectId) =>
+    api.post('/ai/summarize-project', { projectId }),
+  summarizeDashboard: () =>
+    api.post('/ai/summarize-dashboard')
 }
 
 export default api

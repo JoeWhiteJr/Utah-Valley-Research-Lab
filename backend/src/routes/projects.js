@@ -43,7 +43,7 @@ const coverUpload = multer({
 router.get('/', authenticate, async (req, res, next) => {
   try {
     const { status } = req.query;
-    const validStatuses = ['active', 'completed', 'archived'];
+    const validStatuses = ['active', 'completed', 'archived', 'inactive'];
     if (status && !validStatuses.includes(status)) {
       return res.status(400).json({ error: { message: 'Invalid status filter' } });
     }
@@ -181,10 +181,18 @@ router.post('/:id/cover', authenticate, requireRole('admin', 'project_lead'), co
     }
 
     const imageUrl = `/uploads/covers/${req.file.filename}`;
-    const result = await db.query(
-      'UPDATE projects SET header_image = $1 WHERE id = $2 RETURNING *',
+    await db.query(
+      'UPDATE projects SET header_image = $1 WHERE id = $2',
       [imageUrl, req.params.id]
     );
+
+    // Return full project with creator_name to match the shape expected by the frontend
+    const result = await db.query(`
+      SELECT p.*, u.name as creator_name
+      FROM projects p
+      JOIN users u ON p.created_by = u.id
+      WHERE p.id = $1
+    `, [req.params.id]);
 
     res.json({ project: result.rows[0] });
   } catch (error) {

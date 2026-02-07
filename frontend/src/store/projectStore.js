@@ -67,9 +67,18 @@ export const useProjectStore = create((set, get) => ({
       const formData = new FormData()
       formData.append('cover', file)
       const { data } = await projectsApi.uploadCover(id, formData)
+      // Add cache-busting timestamp so the browser fetches the new image immediately
+      const projectWithCacheBust = {
+        ...data.project,
+        header_image: data.project.header_image
+          ? data.project.header_image + '?t=' + Date.now()
+          : data.project.header_image
+      }
       set((state) => ({
-        projects: state.projects.map((p) => (p.id === id ? data.project : p)),
-        currentProject: state.currentProject?.id === id ? data.project : state.currentProject
+        projects: state.projects.map((p) => (p.id === id ? { ...p, ...projectWithCacheBust } : p)),
+        currentProject: state.currentProject?.id === id
+          ? { ...state.currentProject, ...projectWithCacheBust }
+          : state.currentProject
       }))
       return data.project
     } catch (error) {

@@ -146,6 +146,41 @@ describe('Projects API', () => {
       expect(res.body.project.status).toBe('completed');
     });
 
+    it('should set project status to inactive', async () => {
+      const res = await request(app)
+        .put(`/api/projects/${testProjectId}`)
+        .set('Authorization', `Bearer ${authToken}`)
+        .send({
+          status: 'inactive'
+        });
+
+      expect(res.status).toBe(200);
+      expect(res.body.project.status).toBe('inactive');
+    });
+
+    it('should filter projects by inactive status', async () => {
+      const res = await request(app)
+        .get('/api/projects?status=inactive')
+        .set('Authorization', `Bearer ${authToken}`);
+
+      expect(res.status).toBe(200);
+      res.body.projects.forEach(project => {
+        expect(project.status).toBe('inactive');
+      });
+    });
+
+    it('should set project status back to active from inactive', async () => {
+      const res = await request(app)
+        .put(`/api/projects/${testProjectId}`)
+        .set('Authorization', `Bearer ${authToken}`)
+        .send({
+          status: 'active'
+        });
+
+      expect(res.status).toBe(200);
+      expect(res.body.project.status).toBe('active');
+    });
+
     it('should reject invalid status', async () => {
       const res = await request(app)
         .put(`/api/projects/${testProjectId}`)
