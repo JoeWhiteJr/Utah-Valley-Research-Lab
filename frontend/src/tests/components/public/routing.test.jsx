@@ -174,7 +174,7 @@ describe('Public Site Routing', () => {
     it('renders footer on all pages', () => {
       renderWithRoute('/')
       expect(screen.getByText('Quick Links')).toBeInTheDocument()
-      expect(screen.getByText('Connect')).toBeInTheDocument()
+      expect(screen.getAllByText('Contact').length).toBeGreaterThanOrEqual(1)
     })
   })
 })
