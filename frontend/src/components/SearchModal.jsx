@@ -108,11 +108,11 @@ export default function SearchModal({ isOpen, onClose }) {
 
         <div className="max-h-80 overflow-y-auto">
           {isSearching && (
-            <div className="p-4 text-center text-sm text-text-secondary">Searching...</div>
+            <div className="p-4 text-center text-sm text-text-secondary dark:text-gray-400">Searching...</div>
           )}
 
           {!isSearching && query.length >= 2 && results.length === 0 && (
-            <div className="p-8 text-center text-sm text-text-secondary">
+            <div className="p-8 text-center text-sm text-text-secondary dark:text-gray-400">
               No results found for "{query}"
             </div>
           )}
@@ -140,10 +140,10 @@ export default function SearchModal({ isOpen, onClose }) {
         </div>
 
         {query.length < 2 && (
-          <div className="px-4 py-3 border-t border-gray-100 text-xs text-text-secondary flex items-center gap-4">
-            <span><kbd className="px-1.5 py-0.5 bg-gray-100 rounded border border-gray-200">↑↓</kbd> Navigate</span>
-            <span><kbd className="px-1.5 py-0.5 bg-gray-100 rounded border border-gray-200">↵</kbd> Select</span>
-            <span><kbd className="px-1.5 py-0.5 bg-gray-100 rounded border border-gray-200">Esc</kbd> Close</span>
+          <div className="px-4 py-3 border-t border-gray-100 dark:border-gray-700 text-xs text-text-secondary dark:text-gray-400 flex items-center gap-4">
+            <span><kbd className="px-1.5 py-0.5 bg-gray-100 dark:bg-gray-700 rounded border border-gray-200 dark:border-gray-600 text-text-secondary dark:text-gray-300">↑↓</kbd> Navigate</span>
+            <span><kbd className="px-1.5 py-0.5 bg-gray-100 dark:bg-gray-700 rounded border border-gray-200 dark:border-gray-600 text-text-secondary dark:text-gray-300">↵</kbd> Select</span>
+            <span><kbd className="px-1.5 py-0.5 bg-gray-100 dark:bg-gray-700 rounded border border-gray-200 dark:border-gray-600 text-text-secondary dark:text-gray-300">Esc</kbd> Close</span>
           </div>
         )}
       </div>

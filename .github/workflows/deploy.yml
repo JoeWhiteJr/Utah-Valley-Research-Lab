@@ -36,3 +36,6 @@ jobs:
             echo "=== Backend logs (last 50 lines) ==="
             docker logs statslab-backend --tail 50 2>&1 || true
             echo "=== Deployment complete! ==="
+            echo "=== Health check ==="
+            curl -sf http://localhost/api/health || (echo "Health check FAILED!" && exit 1)
+            echo "Health check passed!"

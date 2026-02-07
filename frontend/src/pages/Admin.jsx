@@ -57,8 +57,8 @@ export default function Admin() {
     try {
       const { data } = await usersApi.list()
       setTeamMembers(data.users)
-    } catch (error) {
-      console.error('Failed to load team:', error)
+    } catch {
+      /* error handled silently */
     }
     setIsLoadingTeam(false)
   }
@@ -69,8 +69,8 @@ export default function Admin() {
       setTeamMembers((members) =>
         members.map((m) => (m.id === userId ? { ...m, role: newRole } : m))
       )
-    } catch (error) {
-      console.error('Failed to update role:', error)
+    } catch {
+      /* error handled silently */
     }
   }
 
@@ -79,8 +79,8 @@ export default function Admin() {
       await usersApi.delete(userId)
       setTeamMembers((members) => members.filter((m) => m.id !== userId))
       setShowDeleteConfirm(null)
-    } catch (error) {
-      console.error('Failed to delete member:', error)
+    } catch {
+      /* error handled silently */
     }
   }
 

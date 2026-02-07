@@ -2,6 +2,7 @@ const express = require('express');
 const { body, validationResult } = require('express-validator');
 const db = require('../config/database');
 const { authenticate } = require('../middleware/auth');
+const { sanitizeBody } = require('../middleware/sanitize');
 
 const router = express.Router();
 
@@ -22,7 +23,7 @@ router.get('/actions/:actionId/comments', authenticate, async (req, res, next) =
 });
 
 // Add a comment
-router.post('/actions/:actionId/comments', authenticate, [
+router.post('/actions/:actionId/comments', authenticate, sanitizeBody('content'), [
   body('content').trim().notEmpty()
 ], async (req, res, next) => {
   try {

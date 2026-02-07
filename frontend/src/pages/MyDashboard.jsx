@@ -23,8 +23,8 @@ export default function MyDashboard() {
     try {
       const { data } = await actionsApi.my()
       setMyTasks(data.actions || [])
-    } catch (error) {
-      console.error('Failed to load tasks:', error)
+    } catch {
+      /* error handled silently */
     }
     setLoadingTasks(false)
   }, [])
@@ -66,7 +66,7 @@ export default function MyDashboard() {
       setMyTasks(prev => prev.map(t =>
         t.id === taskId ? { ...t, completed: currentCompleted } : t
       ))
-      console.error('Failed to toggle task:', error)
+      /* error handled silently */
     }
   }
 

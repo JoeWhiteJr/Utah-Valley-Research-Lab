@@ -197,8 +197,8 @@ export default function ProjectDetail() {
         category_id: editForm.category_id || null
       })
       setEditingAction(null)
-    } catch (error) {
-      console.error('Failed to update action:', error)
+    } catch {
+      /* error handled silently */
     }
   }
 

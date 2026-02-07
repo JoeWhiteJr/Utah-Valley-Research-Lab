@@ -32,7 +32,7 @@ export default function AudioPlayer({ src, className = '' }) {
     }
 
     const handleError = () => {
-      console.error('Error loading audio')
+      /* error handled silently */
       setIsLoaded(false)
     }
 

@@ -48,8 +48,7 @@ export default function AudioRecorder({ onRecordingComplete, disabled }) {
       timerRef.current = setInterval(() => {
         setRecordingTime(Math.round((Date.now() - startTimeRef.current) / 1000))
       }, 1000)
-    } catch (error) {
-      console.error('Failed to start recording:', error)
+    } catch {
       alert('Could not access microphone. Please check your browser permissions.')
     }
   }, [onRecordingComplete])

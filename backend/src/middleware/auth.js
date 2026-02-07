@@ -86,7 +86,10 @@ const requireProjectAccess = (paramName = 'projectId') => {
       // Also check if user is assigned to any action item in the project
       if (result.rows.length === 0) {
         const assignedResult = await db.query(
-          'SELECT id FROM action_items WHERE project_id = $1 AND assigned_to = $2 LIMIT 1',
+          `SELECT 1 FROM action_items ai
+           LEFT JOIN action_item_assignees aia ON ai.id = aia.action_item_id
+           WHERE ai.project_id = $1 AND (ai.assigned_to = $2 OR aia.user_id = $2)
+           LIMIT 1`,
           [projectId, req.user.id]
         );
         if (assignedResult.rows.length === 0) {

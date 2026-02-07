@@ -175,8 +175,8 @@ export default function Chat() {
     try {
       const { data } = await usersApi.team()
       setAllUsers(data.users.filter(u => u.id !== user.id))
-    } catch (error) {
-      console.error('Failed to load users:', error)
+    } catch {
+      /* error handled silently */
     }
     setShowCreateModal(true)
   }
@@ -287,8 +287,8 @@ export default function Chat() {
       await chatApi.editMessage(currentRoom.id, editingMessage.id, editText.trim())
       setEditingMessage(null)
       setEditText('')
-    } catch (error) {
-      console.error('Failed to edit message:', error)
+    } catch {
+      /* error handled silently */
     }
   }
 

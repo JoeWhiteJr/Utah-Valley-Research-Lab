@@ -278,12 +278,25 @@ export default function ActionItem({
           ) : (
             <>
               {comments.map(c => (
-                <div key={c.id} className="mb-2 last:mb-0">
+                <div key={c.id} className="mb-2 last:mb-0 group/comment">
                   <div className="flex items-baseline gap-2">
                     <span className="text-xs font-medium text-text-primary dark:text-gray-100">{c.user_name}</span>
                     <span className="text-[10px] text-text-secondary dark:text-gray-400">
                       {new Date(c.created_at).toLocaleDateString()}
                     </span>
+                    <button
+                      onClick={async () => {
+                        try {
+                          await commentsApi.delete(action.id, c.id)
+                          setComments(prev => prev.filter(x => x.id !== c.id))
+                          setCommentCount(prev => prev - 1)
+                        } catch { /* failed to delete */ }
+                      }}
+                      className="ml-auto opacity-0 group-hover/comment:opacity-100 p-0.5 text-gray-400 hover:text-red-500 dark:hover:text-red-400 transition-opacity"
+                      title="Delete comment"
+                    >
+                      <Trash2 size={10} />
+                    </button>
                   </div>
                   <p className="text-xs text-text-secondary dark:text-gray-400 mt-0.5">{c.content}</p>
                 </div>

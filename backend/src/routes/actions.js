@@ -2,6 +2,7 @@ const express = require('express');
 const { body, validationResult } = require('express-validator');
 const db = require('../config/database');
 const { authenticate, requireProjectAccess } = require('../middleware/auth');
+const { sanitizeBody } = require('../middleware/sanitize');
 const { logActivity } = require('./users');
 
 const router = express.Router();
@@ -124,7 +125,7 @@ router.get('/project/:projectId/progress', authenticate, requireProjectAccess(),
 });
 
 // Create action item
-router.post('/project/:projectId', authenticate, requireProjectAccess(), [
+router.post('/project/:projectId', authenticate, requireProjectAccess(), sanitizeBody('title'), [
   body('title').trim().notEmpty(),
   body('due_date').optional().isISO8601(),
   body('assigned_to').optional().isUUID(),
@@ -202,6 +203,27 @@ router.put('/reorder', authenticate, [
     }
 
     const { items } = req.body;
+
+    // Verify user has access to the project these items belong to
+    if (items.length > 0) {
+      const itemCheck = await db.query(
+        `SELECT DISTINCT ai.project_id FROM action_items ai WHERE ai.id = ANY($1)`,
+        [items.map(i => i.id)]
+      );
+      for (const row of itemCheck.rows) {
+        const projectAccess = await db.query(
+          `SELECT 1 FROM projects WHERE id = $1 AND (
+            created_by = $2 OR
+            EXISTS (SELECT 1 FROM action_items a LEFT JOIN action_item_assignees aia ON a.id = aia.action_item_id WHERE a.project_id = $1 AND (a.assigned_to = $2 OR aia.user_id = $2))
+          )`,
+          [row.project_id, req.user.id]
+        );
+        if (projectAccess.rows.length === 0 && req.user.role !== 'admin') {
+          return res.status(403).json({ error: { message: 'Access denied' } });
+        }
+      }
+    }
+
     const client = await db.getClient();
 
     try {
@@ -292,7 +314,7 @@ router.put('/:id/parent', authenticate, [
 });
 
 // Update action item
-router.put('/:id', authenticate, [
+router.put('/:id', authenticate, sanitizeBody('title'), [
   body('title').optional().trim().notEmpty(),
   body('completed').optional().isBoolean(),
   body('due_date').optional({ nullable: true }).isISO8601(),

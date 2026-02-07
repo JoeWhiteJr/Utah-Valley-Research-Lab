@@ -91,7 +91,6 @@ export default function AudioRecorder({ onSave, onCancel }) {
       }, 1000)
 
     } catch (err) {
-      console.error('Error accessing microphone:', err)
       if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
         setError('Microphone access denied. Please allow microphone permissions in your browser settings.')
       } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {

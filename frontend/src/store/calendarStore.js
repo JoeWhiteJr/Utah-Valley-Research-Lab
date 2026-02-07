@@ -154,8 +154,8 @@ export const useCalendarStore = create((set, get) => ({
     try {
       const { data } = await calendarApi.listCategories(scope)
       set({ categories: data.categories })
-    } catch (error) {
-      console.error('Failed to load categories:', error)
+    } catch {
+      /* error handled silently */
     }
   },
 
@@ -178,8 +178,8 @@ export const useCalendarStore = create((set, get) => ({
         end.toISOString()
       )
       set({ deadlines: data.deadlines })
-    } catch (error) {
-      console.error('Failed to load deadlines:', error)
+    } catch {
+      /* error handled silently */
     }
   },
 

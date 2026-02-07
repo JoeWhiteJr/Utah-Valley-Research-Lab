@@ -6,6 +6,7 @@ const { v4: uuidv4 } = require('uuid');
 const { body, query, validationResult } = require('express-validator');
 const db = require('../config/database');
 const { authenticate } = require('../middleware/auth');
+const { sanitizeBody } = require('../middleware/sanitize');
 const socketService = require('../services/socketService');
 const { createNotificationForUsers } = require('./notifications');
 
@@ -266,7 +267,7 @@ router.get('/:id/messages', authenticate, [
 });
 
 // Send message
-router.post('/:id/messages', authenticate, [
+router.post('/:id/messages', authenticate, sanitizeBody('content'), [
   body('content').trim().notEmpty(),
   body('type').optional().isIn(['text', 'file', 'ai'])
 ], async (req, res, next) => {
@@ -775,18 +776,35 @@ router.get('/:id', authenticate, async (req, res, next) => {
 });
 
 // Serve chat uploads with authentication
-router.get('/uploads/:filename', authenticate, (req, res, _next) => {
-  const pathModule = require('path');
-  const uploadDir = process.env.UPLOAD_DIR || pathModule.join(__dirname, '../../uploads');
-  const safeName = pathModule.basename(req.params.filename);
-  const filePath = pathModule.join(uploadDir, 'chat', safeName);
-  const fs = require('fs');
+router.get('/uploads/:filename', authenticate, async (req, res, next) => {
+  try {
+    const pathModule = require('path');
+    const uploadDir = process.env.UPLOAD_DIR || pathModule.join(__dirname, '../../uploads');
+    const safeName = pathModule.basename(req.params.filename);
 
-  if (!fs.existsSync(filePath)) {
-    return res.status(404).json({ error: { message: 'File not found' } });
+    // Verify the file belongs to a chat room the user is a member of
+    const messageCheck = await db.query(
+      `SELECT m.id FROM messages m
+       JOIN chat_members cm ON cm.room_id = m.room_id
+       WHERE m.file_url LIKE $1 AND cm.user_id = $2
+       LIMIT 1`,
+      [`%${safeName}`, req.user.id]
+    );
+
+    if (messageCheck.rows.length === 0 && req.user.role !== 'admin') {
+      return res.status(403).json({ error: { message: 'Access denied' } });
+    }
+
+    const filePath = pathModule.join(uploadDir, 'chat', safeName);
+    const fs = require('fs');
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({ error: { message: 'File not found' } });
+    }
+
+    res.sendFile(filePath);
+  } catch (error) {
+    next(error);
   }
-
-  res.sendFile(filePath);
 });
 
 // Edit a message (sender only)
