@@ -1,0 +1,37 @@
+name: Setup SSL
+
+on:
+  workflow_dispatch:
+    inputs:
+      email:
+        description: 'Email for Let''s Encrypt registration (optional)'
+        required: false
+        default: ''
+
+jobs:
+  setup-ssl:
+    name: Setup SSL Certificate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Setup SSL on EC2
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          script_stop: true
+          command_timeout: 5m
+          script: |
+            cd /opt/stats-lab-manager
+            git fetch origin main
+            git reset --hard origin/main
+            sudo CERTBOT_EMAIL="${{ github.event.inputs.email }}" bash deploy/setup-ssl.sh
+            docker compose -f docker-compose.ec2.yml restart nginx
+            sleep 5
+            echo "=== Nginx status ==="
+            docker inspect statslab-nginx --format='{{.State.Status}} (exit: {{.State.ExitCode}})' || true
+            docker logs statslab-nginx --tail 10 2>&1 || true
+            echo "=== HTTPS health check ==="
+            curl -sf --insecure https://localhost/api/health || echo "HTTPS check failed"
+            echo ""
+            echo "=== Done ==="

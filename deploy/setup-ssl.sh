@@ -74,10 +74,19 @@ server {
     # Max upload size
     client_max_body_size 50M;
 
+    # Static asset caching
+    location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+        set $frontend_upstream http://frontend:80;
+        proxy_pass $frontend_upstream;
+    }
+
     # Auth rate limiting
     location /api/auth/ {
         limit_req zone=auth burst=3 nodelay;
-        proxy_pass http://backend/api/auth/;
+        set $backend_upstream http://backend:3001;
+        proxy_pass $backend_upstream;
         proxy_http_version 1.1;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
@@ -85,55 +94,47 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
     }
 
-    # API requests - proxy to backend
+    # API requests
     location /api/ {
         limit_req zone=api burst=20 nodelay;
-        proxy_pass http://backend/api/;
+        add_header Cache-Control "no-store";
+        set $backend_upstream http://backend:3001;
+        proxy_pass $backend_upstream;
         proxy_http_version 1.1;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
-
-        # WebSocket support for Socket.io
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "upgrade";
-
-        # Timeouts
         proxy_connect_timeout 60s;
         proxy_send_timeout 60s;
         proxy_read_timeout 60s;
     }
 
-    # Socket.io endpoint
+    # WebSocket support
     location /socket.io/ {
-        proxy_pass http://backend/socket.io/;
+        set $backend_upstream http://backend:3001;
+        proxy_pass $backend_upstream;
         proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "upgrade";
     }
 
-    # Health check endpoint
-    location /health {
-        access_log off;
-        return 200 "OK";
-        add_header Content-Type text/plain;
-    }
-
-    # Uploaded files - proxy to backend
+    # Uploaded files
     location /uploads/ {
-        proxy_pass http://backend/uploads/;
+        set $backend_upstream http://backend:3001;
+        proxy_pass $backend_upstream;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
     }
 
-    # All other requests - proxy to frontend
+    # Frontend (catch-all)
     location / {
-        proxy_pass http://frontend/;
+        set $frontend_upstream http://frontend:80;
+        proxy_pass $frontend_upstream;
         proxy_http_version 1.1;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
