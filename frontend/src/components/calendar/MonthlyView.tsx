@@ -54,11 +54,11 @@ export function MonthlyView({
   };
 
   return (
-    <div className="flex flex-col bg-white">
+    <div className="flex flex-col bg-white dark:bg-gray-900">
       {/* Day Headers */}
-      <div className="grid grid-cols-7 border-b border-gray-200">
+      <div className="grid grid-cols-7 border-b border-gray-200 dark:border-gray-700">
         {DAYS_SHORT.map((dayName) => (
-          <div key={dayName} className="py-2 text-center text-[0.65rem] font-medium uppercase tracking-wide text-gray-400">
+          <div key={dayName} className="py-2 text-center text-[0.65rem] font-medium uppercase tracking-wide text-gray-400 dark:text-gray-500">
             {dayName}
           </div>
         ))}
@@ -67,7 +67,7 @@ export function MonthlyView({
       {/* Calendar Grid */}
       <div className="flex-1 grid grid-rows-6">
         {weeks.map((week, weekIndex) => (
-          <div key={weekIndex} className="grid grid-cols-7 border-b border-gray-100">
+          <div key={weekIndex} className="grid grid-cols-7 border-b border-gray-100 dark:border-gray-800">
             {week.map((day, dayIndex) => {
               const inCurrentMonth = isSameMonth(day, selectedDate);
               const selected = isSameDay(day, selectedDate);
@@ -80,16 +80,16 @@ export function MonthlyView({
                   key={dayIndex}
                   onClick={() => handleDayClick(day)}
                   className={`
-                    relative flex flex-col p-1.5 border-r border-gray-100 text-left transition-colors
-                    ${selected ? 'bg-indigo-50' : ''}
+                    relative flex flex-col p-1.5 border-r border-gray-100 dark:border-gray-800 text-left transition-colors
+                    ${selected ? 'bg-indigo-50 dark:bg-indigo-900/30' : ''}
                     ${!inCurrentMonth ? 'opacity-40' : ''}
-                    hover:bg-gray-50
+                    hover:bg-gray-50 dark:hover:bg-gray-800
                   `}
                   style={{ minHeight: '70px' }}
                 >
                   <div className={`
                     w-6 h-6 flex items-center justify-center rounded-full text-sm font-medium mb-1
-                    ${today ? 'bg-indigo-500 text-white' : selected ? 'text-indigo-600' : 'text-gray-900'}
+                    ${today ? 'bg-indigo-500 text-white' : selected ? 'text-indigo-600 dark:text-indigo-400' : 'text-gray-900 dark:text-gray-100'}
                   `}>
                     {format(day, 'd')}
                   </div>
@@ -98,10 +98,9 @@ export function MonthlyView({
                     {dayEvents.slice(0, 3).map((event) => (
                       <div
                         key={event.id}
-                        className="text-[0.55rem] truncate px-1 py-0.5 rounded"
+                        className="text-[0.55rem] truncate px-1 py-0.5 rounded text-gray-900 dark:text-gray-100"
                         style={{
                           backgroundColor: `${event.category_color || '#6366f1'}20`,
-                          color: '#1e293b',
                         }}
                         onClick={(e) => { e.stopPropagation(); onEditEvent(event); }}
                       >
@@ -109,14 +108,14 @@ export function MonthlyView({
                       </div>
                     ))}
                     {dayEvents.length > 3 && (
-                      <div className="text-[0.5rem] px-1 text-gray-400">
+                      <div className="text-[0.5rem] px-1 text-gray-400 dark:text-gray-500">
                         +{dayEvents.length - 3} more
                       </div>
                     )}
                     {dayDeadlines.map((dl) => (
                       <div
                         key={dl.id}
-                        className="text-[0.55rem] truncate px-1 py-0.5 rounded bg-amber-100 text-amber-700"
+                        className="text-[0.55rem] truncate px-1 py-0.5 rounded bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300"
                       >
                         {dl.title}
                       </div>

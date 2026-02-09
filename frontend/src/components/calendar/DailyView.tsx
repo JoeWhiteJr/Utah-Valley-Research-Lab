@@ -111,7 +111,7 @@ export function DailyView({
               className="absolute left-0 w-14 pr-2 text-right"
               style={{ top: (hour - TIME_CONFIG.START_HOUR) * hourHeight }}
             >
-              <span className="text-xs text-gray-400 -mt-2 block">
+              <span className="text-xs text-gray-400 dark:text-gray-500 -mt-2 block">
                 {hour === 0 ? '12a' : hour < 12 ? `${hour}a` : hour === 12 ? '12p' : `${hour - 12}p`}
               </span>
             </div>
@@ -125,7 +125,7 @@ export function DailyView({
               key={hour}
               onClick={(e) => handleTimeClick(e, hour)}
               onMouseDown={(e) => onMouseDown(e)}
-              className="absolute left-0 right-0 border-t border-gray-100 cursor-pointer hover:bg-indigo-50/30"
+              className="absolute left-0 right-0 border-t border-gray-100 dark:border-gray-800 cursor-pointer hover:bg-indigo-50/30 dark:hover:bg-indigo-900/20"
               style={{ top: (hour - TIME_CONFIG.START_HOUR) * hourHeight, height: hourHeight }}
             />
           ))}
@@ -133,7 +133,7 @@ export function DailyView({
           {/* Drag preview */}
           {previewStyle && (
             <div
-              className="absolute left-1 right-1 rounded-lg border-2 border-dashed border-indigo-400 bg-indigo-50/50 pointer-events-none z-30"
+              className="absolute left-1 right-1 rounded-lg border-2 border-dashed border-indigo-400 dark:border-indigo-500 bg-indigo-50/50 dark:bg-indigo-900/30 pointer-events-none z-30"
               style={{ top: previewStyle.top, height: previewStyle.height }}
             />
           )}
@@ -156,11 +156,11 @@ export function DailyView({
             return (
               <div
                 key={dl.id}
-                className="absolute left-0 right-0 flex items-center gap-1 px-2 py-0.5 text-[0.6rem] text-amber-700 bg-amber-50 border-l-2 border-amber-400 z-5"
+                className="absolute left-0 right-0 flex items-center gap-1 px-2 py-0.5 text-[0.6rem] text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-900/30 border-l-2 border-amber-400 z-5"
                 style={{ top: 0 }}
               >
                 <span className="font-medium truncate">{dl.title}</span>
-                <span className="text-amber-500 flex-shrink-0">deadline</span>
+                <span className="text-amber-500 dark:text-amber-400 flex-shrink-0">deadline</span>
               </div>
             );
           })}

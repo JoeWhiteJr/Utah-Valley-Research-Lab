@@ -116,40 +116,40 @@ export function CalendarView({ scope }: CalendarViewProps) {
   }, [setSelectedDate, setCurrentView]);
 
   return (
-    <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+    <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
       {/* Toolbar */}
-      <div className="flex items-center justify-between p-4 border-b border-gray-200">
+      <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-1">
-            <button onClick={navigatePrev} className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors">
-              <ChevronLeft size={18} className="text-gray-600" />
+            <button onClick={navigatePrev} className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+              <ChevronLeft size={18} className="text-gray-600 dark:text-gray-400" />
             </button>
-            <button onClick={navigateNext} className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors">
-              <ChevronRight size={18} className="text-gray-600" />
+            <button onClick={navigateNext} className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+              <ChevronRight size={18} className="text-gray-600 dark:text-gray-400" />
             </button>
           </div>
 
           <button
             onClick={goToToday}
-            className="px-3 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+            className="px-3 py-1.5 text-sm font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
           >
             Today
           </button>
 
-          <h3 className="font-semibold text-gray-900">{headerDate}</h3>
+          <h3 className="font-semibold text-gray-900 dark:text-gray-100">{headerDate}</h3>
         </div>
 
         <div className="flex items-center gap-2">
           {/* View Toggle */}
-          <div className="flex items-center bg-gray-100 rounded-lg p-0.5">
+          <div className="flex items-center bg-gray-100 dark:bg-gray-700 rounded-lg p-0.5">
             {(['daily', 'weekly', 'monthly'] as CalendarViewType[]).map((view) => (
               <button
                 key={view}
                 onClick={() => setCurrentView(view)}
                 className={`px-3 py-1 text-xs font-medium rounded-md transition-all ${
                   currentView === view
-                    ? 'bg-white text-gray-900 shadow-sm'
-                    : 'text-gray-500 hover:text-gray-700'
+                    ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-gray-100 shadow-sm'
+                    : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
                 }`}
               >
                 {view === 'daily' ? 'Day' : view === 'weekly' ? 'Week' : 'Month'}
@@ -159,15 +159,15 @@ export function CalendarView({ scope }: CalendarViewProps) {
 
           {/* Zoom (only for day/week) */}
           {currentView !== 'monthly' && (
-            <div className="flex items-center gap-0.5 border-l border-gray-200 pl-2 ml-1">
-              <button onClick={zoomOut} className="p-1 rounded hover:bg-gray-100" title="Zoom out">
-                <ZoomOut size={14} className="text-gray-400" />
+            <div className="flex items-center gap-0.5 border-l border-gray-200 dark:border-gray-700 pl-2 ml-1">
+              <button onClick={zoomOut} className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700" title="Zoom out">
+                <ZoomOut size={14} className="text-gray-400 dark:text-gray-500" />
               </button>
-              <button onClick={resetZoom} className="p-1 rounded hover:bg-gray-100" title="Reset zoom">
-                <RotateCcw size={14} className="text-gray-400" />
+              <button onClick={resetZoom} className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700" title="Reset zoom">
+                <RotateCcw size={14} className="text-gray-400 dark:text-gray-500" />
               </button>
-              <button onClick={zoomIn} className="p-1 rounded hover:bg-gray-100" title="Zoom in">
-                <ZoomIn size={14} className="text-gray-400" />
+              <button onClick={zoomIn} className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700" title="Zoom in">
+                <ZoomIn size={14} className="text-gray-400 dark:text-gray-500" />
               </button>
             </div>
           )}

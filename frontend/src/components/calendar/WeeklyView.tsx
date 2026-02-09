@@ -96,9 +96,9 @@ export function WeeklyView({
   const previewStyle = getPreviewStyle();
 
   return (
-    <div className="flex flex-col bg-white">
+    <div className="flex flex-col bg-white dark:bg-gray-900">
       {/* Week Header */}
-      <div className="flex border-b border-gray-200">
+      <div className="flex border-b border-gray-200 dark:border-gray-700">
         <div className="w-14 flex-shrink-0" />
         {weekDays.map((day, index) => {
           const selected = isSameDay(day, selectedDate);
@@ -109,14 +109,14 @@ export function WeeklyView({
               key={index}
               onClick={() => onSelectDate(day)}
               className={`flex-1 py-2 text-center transition-colors ${
-                selected ? 'bg-indigo-50' : ''
+                selected ? 'bg-indigo-50 dark:bg-indigo-900/30' : ''
               }`}
             >
-              <div className="text-[0.65rem] font-medium uppercase tracking-wide text-gray-400 mb-0.5">
+              <div className="text-[0.65rem] font-medium uppercase tracking-wide text-gray-400 dark:text-gray-500 mb-0.5">
                 {format(day, 'EEE')}
               </div>
               <div className={`text-lg font-medium relative ${
-                selected ? 'text-indigo-600' : 'text-gray-900'
+                selected ? 'text-indigo-600 dark:text-indigo-400' : 'text-gray-900 dark:text-gray-100'
               }`}>
                 {format(day, 'd')}
                 {today && !selected && (
@@ -139,7 +139,7 @@ export function WeeklyView({
                 className="absolute left-0 w-14 pr-2 text-right"
                 style={{ top: (hour - TIME_CONFIG.START_HOUR) * hourHeight }}
               >
-                <span className="text-xs text-gray-400 -mt-2 block">{formatHour(hour)}</span>
+                <span className="text-xs text-gray-400 dark:text-gray-500 -mt-2 block">{formatHour(hour)}</span>
               </div>
             ))}
           </div>
@@ -155,13 +155,13 @@ export function WeeklyView({
                 ref={(el) => { columnRefs.current[dayIndex] = el; }}
                 onClick={(e) => handleColumnClick(e, date)}
                 onMouseDown={(e) => onMouseDown(e, dayIndex)}
-                className={`flex-1 relative border-l border-gray-100 cursor-pointer ${selected ? 'bg-indigo-50/30' : ''}`}
+                className={`flex-1 relative border-l border-gray-100 dark:border-gray-800 cursor-pointer ${selected ? 'bg-indigo-50/30 dark:bg-indigo-900/20' : ''}`}
               >
                 {/* Hour lines */}
                 {hours.map((hour) => (
                   <div
                     key={hour}
-                    className="absolute left-0 right-0 border-t border-gray-100"
+                    className="absolute left-0 right-0 border-t border-gray-100 dark:border-gray-800"
                     style={{ top: (hour - TIME_CONFIG.START_HOUR) * hourHeight }}
                   />
                 ))}
@@ -169,7 +169,7 @@ export function WeeklyView({
                 {/* Drag preview for this column */}
                 {previewStyle && previewStyle.columnIndex === dayIndex && (
                   <div
-                    className="absolute left-0.5 right-0.5 rounded-lg border-2 border-dashed border-indigo-400 bg-indigo-50/50 pointer-events-none z-30"
+                    className="absolute left-0.5 right-0.5 rounded-lg border-2 border-dashed border-indigo-400 dark:border-indigo-500 bg-indigo-50/50 dark:bg-indigo-900/30 pointer-events-none z-30"
                     style={{ top: previewStyle.top, height: previewStyle.height }}
                   />
                 )}

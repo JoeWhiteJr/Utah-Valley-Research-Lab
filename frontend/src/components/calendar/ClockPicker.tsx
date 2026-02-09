@@ -132,30 +132,30 @@ export function ClockPicker({ value, onChange, label }: ClockPickerProps) {
 
   return (
     <div className="space-y-4">
-      {label && <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>}
+      {label && <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{label}</label>}
 
       {/* Time Display */}
       <div className="flex items-center justify-center gap-2 mb-4">
         <button
           onClick={() => setMode('hour')}
           className={`text-3xl font-bold transition-colors ${
-            mode === 'hour' ? 'text-indigo-600' : 'text-gray-400'
+            mode === 'hour' ? 'text-indigo-600 dark:text-indigo-400' : 'text-gray-400 dark:text-gray-500'
           }`}
         >
           {displayHour.toString().padStart(2, '0')}
         </button>
-        <span className="text-3xl font-bold text-gray-400">:</span>
+        <span className="text-3xl font-bold text-gray-400 dark:text-gray-500">:</span>
         <button
           onClick={() => setMode('minute')}
           className={`text-3xl font-bold transition-colors ${
-            mode === 'minute' ? 'text-indigo-600' : 'text-gray-400'
+            mode === 'minute' ? 'text-indigo-600 dark:text-indigo-400' : 'text-gray-400 dark:text-gray-500'
           }`}
         >
           {minutes.toString().padStart(2, '0')}
         </button>
         <button
           onClick={togglePeriod}
-          className="ml-2 px-3 py-1 rounded-lg text-sm font-medium bg-indigo-100 text-indigo-700 hover:bg-indigo-200 transition-colors"
+          className="ml-2 px-3 py-1 rounded-lg text-sm font-medium bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-200 dark:hover:bg-indigo-900/50 transition-colors"
         >
           {isPM ? 'PM' : 'AM'}
         </button>
@@ -167,7 +167,7 @@ export function ClockPicker({ value, onChange, label }: ClockPickerProps) {
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseLeave={handleMouseLeave}
-        className="relative w-56 h-56 mx-auto rounded-full cursor-pointer bg-gray-50"
+        className="relative w-56 h-56 mx-auto rounded-full cursor-pointer bg-gray-50 dark:bg-gray-800"
         style={{ boxShadow: 'inset 0 2px 8px rgba(0, 0, 0, 0.08)' }}
       >
         {/* Center Dot */}
@@ -225,7 +225,7 @@ export function ClockPicker({ value, onChange, label }: ClockPickerProps) {
                 <div
                   key={hour}
                   className={`absolute w-8 h-8 flex items-center justify-center rounded-full text-sm font-medium transition-all ${
-                    isSelected ? 'bg-indigo-500 text-white scale-110' : 'text-gray-900'
+                    isSelected ? 'bg-indigo-500 text-white scale-110' : 'text-gray-900 dark:text-gray-100'
                   }`}
                   style={{
                     left: `calc(50% + ${x}px - 16px)`,
@@ -247,7 +247,7 @@ export function ClockPicker({ value, onChange, label }: ClockPickerProps) {
                 <div
                   key={minute}
                   className={`absolute w-8 h-8 flex items-center justify-center rounded-full text-sm font-medium transition-all ${
-                    isSelected ? 'bg-indigo-500 text-white scale-110' : 'text-gray-900'
+                    isSelected ? 'bg-indigo-500 text-white scale-110' : 'text-gray-900 dark:text-gray-100'
                   }`}
                   style={{
                     left: `calc(50% + ${x}px - 16px)`,
@@ -260,7 +260,7 @@ export function ClockPicker({ value, onChange, label }: ClockPickerProps) {
             })}
       </div>
 
-      <p className="text-center text-xs text-gray-400">
+      <p className="text-center text-xs text-gray-400 dark:text-gray-500">
         {mode === 'hour' ? 'Click or drag to set hour' : 'Click or drag to set minutes'}
       </p>
     </div>

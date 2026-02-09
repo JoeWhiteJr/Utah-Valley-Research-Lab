@@ -129,21 +129,21 @@ export function EventModal({ scope, onClose }: EventModalProps) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onClose}>
       <div
-        className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto"
+        className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between p-5 border-b border-gray-200">
-          <h2 className="font-semibold text-lg text-gray-900">
+        <div className="flex items-center justify-between p-5 border-b border-gray-200 dark:border-gray-700">
+          <h2 className="font-semibold text-lg text-gray-900 dark:text-gray-100">
             {isEditing ? 'Edit Event' : 'New Event'}
           </h2>
           <div className="flex items-center gap-2">
             {isEditing && (
-              <button onClick={handleDelete} className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors">
+              <button onClick={handleDelete} className="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-colors">
                 <Trash2 size={18} />
               </button>
             )}
-            <button onClick={onClose} className="p-2 text-gray-400 hover:bg-gray-100 rounded-lg transition-colors">
+            <button onClick={onClose} className="p-2 text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors">
               <X size={18} />
             </button>
           </div>
@@ -153,13 +153,13 @@ export function EventModal({ scope, onClose }: EventModalProps) {
         <form onSubmit={handleSubmit} className="p-5 space-y-5">
           {/* Title */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Title</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Title</label>
             <input
               type="text"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="Event title"
-              className="w-full px-4 py-2.5 rounded-lg border border-gray-300 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300 focus:border-indigo-400"
+              className="w-full px-4 py-2.5 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-300 dark:focus:ring-indigo-500 focus:border-indigo-400"
               required
               autoFocus
             />
@@ -167,13 +167,13 @@ export function EventModal({ scope, onClose }: EventModalProps) {
 
           {/* Description */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Description</label>
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Event description..."
               rows={2}
-              className="w-full px-4 py-2.5 rounded-lg border border-gray-300 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300 focus:border-indigo-400 resize-none"
+              className="w-full px-4 py-2.5 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-300 dark:focus:ring-indigo-500 focus:border-indigo-400 resize-none"
             />
           </div>
 
@@ -183,15 +183,15 @@ export function EventModal({ scope, onClose }: EventModalProps) {
               type="checkbox"
               checked={allDay}
               onChange={(e) => setAllDay(e.target.checked)}
-              className="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
+              className="w-4 h-4 text-indigo-600 border-gray-300 dark:border-gray-600 rounded focus:ring-indigo-500"
             />
-            <span className="text-sm text-gray-700">All day event</span>
+            <span className="text-sm text-gray-700 dark:text-gray-300">All day event</span>
           </label>
 
           {/* Date/Time */}
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Start Date</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Start Date</label>
               <input
                 type="date"
                 value={format(startTime, 'yyyy-MM-dd')}
@@ -199,11 +199,11 @@ export function EventModal({ scope, onClose }: EventModalProps) {
                   const d = new Date(e.target.value + 'T' + format(startTime, 'HH:mm'));
                   setStartTime(d);
                 }}
-                className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
+                className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 dark:text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 dark:focus:ring-indigo-500"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">End Date</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">End Date</label>
               <input
                 type="date"
                 value={format(endTime, 'yyyy-MM-dd')}
@@ -211,7 +211,7 @@ export function EventModal({ scope, onClose }: EventModalProps) {
                   const d = new Date(e.target.value + 'T' + format(endTime, 'HH:mm'));
                   setEndTime(d);
                 }}
-                className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
+                className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 dark:text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 dark:focus:ring-indigo-500"
               />
             </div>
           </div>
@@ -226,13 +226,13 @@ export function EventModal({ scope, onClose }: EventModalProps) {
 
           {/* Category */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Category</label>
             <div className="flex flex-wrap gap-2">
               <button
                 type="button"
                 onClick={() => setCategoryId(null)}
                 className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                  !categoryId ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  !categoryId ? 'bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
                 }`}
               >
                 None
@@ -254,20 +254,20 @@ export function EventModal({ scope, onClose }: EventModalProps) {
               <button
                 type="button"
                 onClick={() => setShowNewCategory(!showNewCategory)}
-                className="px-3 py-1.5 rounded-lg text-xs font-medium bg-gray-100 text-gray-500 hover:bg-gray-200"
+                className="px-3 py-1.5 rounded-lg text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600"
               >
                 + New
               </button>
             </div>
 
             {showNewCategory && (
-              <div className="mt-3 p-3 bg-gray-50 rounded-lg space-y-2">
+              <div className="mt-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg space-y-2">
                 <input
                   type="text"
                   value={newCategoryName}
                   onChange={(e) => setNewCategoryName(e.target.value)}
                   placeholder="Category name"
-                  className="w-full px-3 py-1.5 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
+                  className="w-full px-3 py-1.5 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 dark:text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 dark:focus:ring-indigo-500"
                 />
                 <div className="flex flex-wrap gap-1">
                   {CATEGORY_COLORS.map((color) => (
@@ -295,14 +295,14 @@ export function EventModal({ scope, onClose }: EventModalProps) {
 
           {/* Project Link */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               <Link size={14} className="inline mr-1" />
               Link to Project
             </label>
             <select
               value={projectId || ''}
               onChange={(e) => setProjectId(e.target.value || null)}
-              className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300"
+              className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-300 dark:focus:ring-indigo-500"
             >
               <option value="">No project</option>
               {projects.map((p) => (
@@ -317,36 +317,36 @@ export function EventModal({ scope, onClose }: EventModalProps) {
           {/* Attendees (lab only) */}
           {scope === 'lab' && teamMembers.length > 0 && (
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 <Users size={14} className="inline mr-1" />
                 Invite Team Members
               </label>
               <div className="space-y-1 max-h-40 overflow-y-auto">
                 {teamMembers.filter((m) => m.id !== user?.id).map((member) => (
-                  <label key={member.id} className="flex items-center gap-2 p-2 rounded-lg hover:bg-gray-50 cursor-pointer">
+                  <label key={member.id} className="flex items-center gap-2 p-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer">
                     <input
                       type="checkbox"
                       checked={attendeeIds.includes(member.id)}
                       onChange={() => toggleAttendee(member.id)}
-                      className="w-4 h-4 text-indigo-600 border-gray-300 rounded"
+                      className="w-4 h-4 text-indigo-600 border-gray-300 dark:border-gray-600 rounded"
                     />
-                    <span className="text-sm text-gray-700">{member.name}</span>
-                    <span className="text-xs text-gray-400">{member.email}</span>
+                    <span className="text-sm text-gray-700 dark:text-gray-300">{member.name}</span>
+                    <span className="text-xs text-gray-400 dark:text-gray-500">{member.email}</span>
                   </label>
                 ))}
               </div>
 
               {/* Show current RSVP status for editing */}
               {isEditing && editingEvent?.attendees && editingEvent.attendees.length > 0 && (
-                <div className="mt-2 p-2 bg-gray-50 rounded-lg">
-                  <p className="text-xs font-medium text-gray-500 mb-1">RSVP Status:</p>
+                <div className="mt-2 p-2 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                  <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">RSVP Status:</p>
                   {editingEvent.attendees.map((att) => (
                     <div key={att.id} className="flex items-center gap-2 text-xs">
-                      <span className="text-gray-700">{att.user_name}</span>
+                      <span className="text-gray-700 dark:text-gray-300">{att.user_name}</span>
                       <span className={`px-1.5 py-0.5 rounded-full ${
-                        att.status === 'accepted' ? 'bg-green-100 text-green-700' :
-                        att.status === 'declined' ? 'bg-red-100 text-red-700' :
-                        'bg-gray-100 text-gray-500'
+                        att.status === 'accepted' ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300' :
+                        att.status === 'declined' ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300' :
+                        'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400'
                       }`}>
                         {att.status}
                       </span>
@@ -359,13 +359,13 @@ export function EventModal({ scope, onClose }: EventModalProps) {
 
           {/* Notes */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Notes</label>
             <textarea
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               placeholder="Additional notes..."
               rows={3}
-              className="w-full px-4 py-2.5 rounded-lg border border-gray-300 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300 focus:border-indigo-400 resize-none"
+              className="w-full px-4 py-2.5 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-300 dark:focus:ring-indigo-500 focus:border-indigo-400 resize-none"
             />
           </div>
 
@@ -374,7 +374,7 @@ export function EventModal({ scope, onClose }: EventModalProps) {
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+              className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors"
             >
               Cancel
             </button>

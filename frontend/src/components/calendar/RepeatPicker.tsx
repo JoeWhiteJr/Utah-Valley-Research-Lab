@@ -65,7 +65,7 @@ export function RepeatPicker({ value, onChange }: RepeatPickerProps) {
 
   return (
     <div className="space-y-3">
-      <label className="block text-sm font-medium text-gray-700">Repeat</label>
+      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Repeat</label>
 
       <div className="flex flex-wrap gap-2">
         {(['none', 'daily', 'weekly', 'custom'] as const).map((option) => {
@@ -81,7 +81,7 @@ export function RepeatPicker({ value, onChange }: RepeatPickerProps) {
               className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
                 isSelected
                   ? 'bg-indigo-500 text-white shadow-sm'
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
               }`}
             >
               {labels[option]}
@@ -91,22 +91,22 @@ export function RepeatPicker({ value, onChange }: RepeatPickerProps) {
       </div>
 
       {showCustom && value?.frequency === 'custom' && (
-        <div className="p-4 rounded-xl bg-gray-50 space-y-4">
+        <div className="p-4 rounded-xl bg-gray-50 dark:bg-gray-800 space-y-4">
           <div className="flex items-center gap-3">
-            <span className="text-sm text-gray-500">Every</span>
+            <span className="text-sm text-gray-500 dark:text-gray-400">Every</span>
             <input
               type="number"
               min="1"
               max="52"
               value={interval}
               onChange={(e) => handleIntervalChange(parseInt(e.target.value) || 1)}
-              className="w-16 text-center py-1 px-2 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
+              className="w-16 text-center py-1 px-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 dark:focus:ring-indigo-500"
             />
-            <span className="text-sm text-gray-500">week{interval !== 1 ? 's' : ''}</span>
+            <span className="text-sm text-gray-500 dark:text-gray-400">week{interval !== 1 ? 's' : ''}</span>
           </div>
 
           <div>
-            <p className="text-xs text-gray-400 mb-2">On these days:</p>
+            <p className="text-xs text-gray-400 dark:text-gray-500 mb-2">On these days:</p>
             <div className="flex gap-1">
               {DAYS_SHORT.map((dayName, index) => {
                 const isSelected = daysOfWeek.includes(index);
@@ -118,7 +118,7 @@ export function RepeatPicker({ value, onChange }: RepeatPickerProps) {
                     className={`w-9 h-9 rounded-full text-xs font-medium transition-all ${
                       isSelected
                         ? 'bg-indigo-500 text-white'
-                        : 'bg-white text-gray-500 border border-gray-200'
+                        : 'bg-white dark:bg-gray-700 text-gray-500 dark:text-gray-400 border border-gray-200 dark:border-gray-600'
                     }`}
                   >
                     {dayName.charAt(0)}
@@ -130,7 +130,7 @@ export function RepeatPicker({ value, onChange }: RepeatPickerProps) {
         </div>
       )}
 
-      <p className="text-sm text-gray-400">{getRepeatSummary()}</p>
+      <p className="text-sm text-gray-400 dark:text-gray-500">{getRepeatSummary()}</p>
     </div>
   );
 }

@@ -163,8 +163,8 @@ export const useChatStore = create((set, get) => ({
       set((state) => ({ messages: [...state.messages, message] }))
     }
 
-    set((state) => ({
-      rooms: state.rooms.map((r) =>
+    set((state) => {
+      const updatedRooms = state.rooms.map((r) =>
         r.id === message.room_id
           ? {
               ...r,
@@ -173,7 +173,14 @@ export const useChatStore = create((set, get) => ({
             }
           : r
       )
-    }))
+      // Re-sort rooms so the most recently active room appears first
+      updatedRooms.sort((a, b) => {
+        const aTime = new Date(a.last_message?.created_at || 0)
+        const bTime = new Date(b.last_message?.created_at || 0)
+        return bTime - aTime
+      })
+      return { rooms: updatedRooms }
+    })
   },
 
   onMessageDeleted: ({ messageId }) => {

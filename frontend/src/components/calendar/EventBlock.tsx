@@ -110,16 +110,16 @@ export function EventBlock({ event, hourHeight, onEdit, onResize }: EventBlockPr
       onClick={(e) => { e.stopPropagation(); onEdit(event); }}
       className="rounded-lg px-2 py-1 overflow-hidden hover:shadow-md transition-shadow group"
     >
-      <div className={`font-medium text-gray-900 truncate ${isCompact ? 'text-[0.6rem]' : 'text-xs'}`}>
+      <div className={`font-medium text-gray-900 dark:text-gray-100 truncate ${isCompact ? 'text-[0.6rem]' : 'text-xs'}`}>
         {event.title}
       </div>
       {!isCompact && (
         <>
-          <div className="text-[0.65rem] text-gray-500">
+          <div className="text-[0.65rem] text-gray-500 dark:text-gray-400">
             {formatTime(start)} - {formatTime(end)}
           </div>
           {event.project_title && (
-            <div className="text-[0.6rem] text-gray-400 truncate mt-0.5">
+            <div className="text-[0.6rem] text-gray-400 dark:text-gray-500 truncate mt-0.5">
               {event.project_title}
             </div>
           )}
