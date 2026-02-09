@@ -24,6 +24,7 @@ jobs:
             sudo swapon /swapfile 2>/dev/null || true
             cd /opt/stats-lab-manager
             git pull origin main
+            docker compose -f docker-compose.ec2.yml down --timeout 30 || true
             docker compose -f docker-compose.ec2.yml up -d --build --remove-orphans
             sleep 10
             for f in database/migrations/*.sql; do
