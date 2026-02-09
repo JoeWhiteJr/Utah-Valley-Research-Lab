@@ -1,0 +1,59 @@
+name: Setup Backups
+
+on:
+  workflow_dispatch:
+
+jobs:
+  setup:
+    name: Configure backup cron on EC2
+    runs-on: ubuntu-latest
+    steps:
+      - name: Setup backups on EC2
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          script_stop: true
+          script: |
+            # Install AWS CLI if not present
+            if ! command -v aws &>/dev/null; then
+              echo "Installing AWS CLI..."
+              curl -s "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o /tmp/awscliv2.zip
+              cd /tmp && unzip -qo awscliv2.zip && sudo ./aws/install
+              rm -rf /tmp/aws /tmp/awscliv2.zip
+            fi
+            echo "AWS CLI version: $(aws --version)"
+
+            # Verify AWS credentials are available (IAM role or configured creds)
+            aws sts get-caller-identity && echo "AWS credentials OK" || echo "WARNING: No AWS credentials found. S3 uploads will fail."
+
+            # Create S3 bucket if it doesn't exist
+            if ! aws s3 ls s3://uvrl-db-backups 2>/dev/null; then
+              echo "Creating S3 bucket..."
+              aws s3 mb s3://uvrl-db-backups --region us-east-2
+              # Block all public access
+              aws s3api put-public-access-block --bucket uvrl-db-backups --public-access-block-configuration BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true
+              # Add 30-day lifecycle rule
+              aws s3api put-bucket-lifecycle-configuration --bucket uvrl-db-backups --lifecycle-configuration '{
+                "Rules": [{
+                  "ID": "delete-after-30-days",
+                  "Status": "Enabled",
+                  "Filter": {"Prefix": ""},
+                  "Expiration": {"Days": 30}
+                }]
+              }'
+              echo "S3 bucket created with 30-day retention."
+            else
+              echo "S3 bucket already exists."
+            fi
+
+            # Make backup scripts executable
+            chmod +x /opt/stats-lab-manager/deploy/backup.sh
+            chmod +x /opt/stats-lab-manager/deploy/restore.sh
+            chmod +x /opt/stats-lab-manager/deploy/setup-backup-cron.sh
+
+            # Run the cron setup script
+            /opt/stats-lab-manager/deploy/setup-backup-cron.sh
+
+            echo "=== Backup setup complete ==="
