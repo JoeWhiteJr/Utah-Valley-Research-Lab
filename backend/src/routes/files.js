@@ -64,15 +64,25 @@ const upload = multer({
 // Get files for a project
 router.get('/project/:projectId', authenticate, requireProjectAccess(), async (req, res, next) => {
   try {
+    const limit = Math.min(parseInt(req.query.limit) || 50, 200);
+    const offset = parseInt(req.query.offset) || 0;
+
+    const countResult = await db.query(
+      'SELECT COUNT(*) FROM files WHERE project_id = $1',
+      [req.params.projectId]
+    );
+    const total = parseInt(countResult.rows[0].count);
+
     const result = await db.query(`
       SELECT f.*, u.name as uploader_name
       FROM files f
       JOIN users u ON f.uploaded_by = u.id
       WHERE f.project_id = $1
       ORDER BY f.uploaded_at DESC
-    `, [req.params.projectId]);
+      LIMIT $2 OFFSET $3
+    `, [req.params.projectId, limit, offset]);
 
-    res.json({ files: result.rows });
+    res.json({ files: result.rows, total, limit, offset });
   } catch (error) {
     next(error);
   }

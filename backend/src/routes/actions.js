@@ -126,7 +126,8 @@ router.get('/project/:projectId/progress', authenticate, requireProjectAccess(),
 
 // Create action item
 router.post('/project/:projectId', authenticate, requireProjectAccess(), sanitizeBody('title'), [
-  body('title').trim().notEmpty(),
+  body('title').trim().notEmpty().isLength({ max: 500 }),
+  body('description').optional().isLength({ max: 5000 }),
   body('due_date').optional().isISO8601(),
   body('assigned_to').optional().isUUID(),
   body('assignee_ids').optional().isArray(),
@@ -315,7 +316,8 @@ router.put('/:id/parent', authenticate, [
 
 // Update action item
 router.put('/:id', authenticate, sanitizeBody('title'), [
-  body('title').optional().trim().notEmpty(),
+  body('title').optional().trim().notEmpty().isLength({ max: 500 }),
+  body('description').optional().isLength({ max: 5000 }),
   body('completed').optional().isBoolean(),
   body('due_date').optional({ nullable: true }).isISO8601(),
   body('assigned_to').optional({ nullable: true }).isUUID(),

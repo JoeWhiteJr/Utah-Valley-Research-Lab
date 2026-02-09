@@ -37,5 +37,5 @@ jobs:
             docker logs statslab-backend --tail 50 2>&1 || true
             echo "=== Deployment complete! ==="
             echo "=== Health check ==="
-            curl -sf http://localhost/api/health || (echo "Health check FAILED!" && exit 1)
+            curl -sf --insecure https://localhost/api/health 2>/dev/null || curl -sf http://localhost/api/health || (echo "Health check FAILED!" && exit 1)
             echo "Health check passed!"

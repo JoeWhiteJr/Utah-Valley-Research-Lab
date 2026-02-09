@@ -23,10 +23,19 @@ async function logActivity(userId, type) {
 // Get all users (admin only)
 router.get('/', authenticate, requireRole('admin'), async (req, res, next) => {
   try {
-    const result = await db.query(
-      'SELECT id, email, name, role, created_at FROM users WHERE deleted_at IS NULL ORDER BY created_at DESC'
+    const limit = Math.min(parseInt(req.query.limit) || 50, 200);
+    const offset = parseInt(req.query.offset) || 0;
+
+    const countResult = await db.query(
+      'SELECT COUNT(*) FROM users WHERE deleted_at IS NULL'
     );
-    res.json({ users: result.rows });
+    const total = parseInt(countResult.rows[0].count);
+
+    const result = await db.query(
+      'SELECT id, email, name, role, created_at FROM users WHERE deleted_at IS NULL ORDER BY created_at DESC LIMIT $1 OFFSET $2',
+      [limit, offset]
+    );
+    res.json({ users: result.rows, total, limit, offset });
   } catch (error) {
     next(error);
   }
@@ -35,10 +44,19 @@ router.get('/', authenticate, requireRole('admin'), async (req, res, next) => {
 // Get all team members (for assignment dropdowns)
 router.get('/team', authenticate, async (req, res, next) => {
   try {
-    const result = await db.query(
-      'SELECT id, name, role, avatar_url FROM users WHERE deleted_at IS NULL ORDER BY name ASC'
+    const limit = Math.min(parseInt(req.query.limit) || 50, 200);
+    const offset = parseInt(req.query.offset) || 0;
+
+    const countResult = await db.query(
+      'SELECT COUNT(*) FROM users WHERE deleted_at IS NULL'
     );
-    res.json({ users: result.rows });
+    const total = parseInt(countResult.rows[0].count);
+
+    const result = await db.query(
+      'SELECT id, name, role, avatar_url FROM users WHERE deleted_at IS NULL ORDER BY name ASC LIMIT $1 OFFSET $2',
+      [limit, offset]
+    );
+    res.json({ users: result.rows, total, limit, offset });
   } catch (error) {
     next(error);
   }

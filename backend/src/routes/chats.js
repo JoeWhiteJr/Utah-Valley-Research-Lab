@@ -268,7 +268,7 @@ router.get('/:id/messages', authenticate, [
 
 // Send message
 router.post('/:id/messages', authenticate, sanitizeBody('content'), [
-  body('content').trim().notEmpty(),
+  body('content').trim().notEmpty().isLength({ max: 5000 }),
   body('type').optional().isIn(['text', 'file', 'ai'])
 ], async (req, res, next) => {
   try {

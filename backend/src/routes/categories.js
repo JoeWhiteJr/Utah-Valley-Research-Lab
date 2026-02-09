@@ -8,15 +8,25 @@ const router = express.Router();
 // Get all categories for a project
 router.get('/project/:projectId', authenticate, async (req, res, next) => {
   try {
+    const limit = Math.min(parseInt(req.query.limit) || 50, 200);
+    const offset = parseInt(req.query.offset) || 0;
+
+    const countResult = await db.query(
+      'SELECT COUNT(*) FROM categories WHERE project_id = $1',
+      [req.params.projectId]
+    );
+    const total = parseInt(countResult.rows[0].count);
+
     const result = await db.query(`
       SELECT c.*,
         (SELECT COUNT(*) FROM action_items WHERE category_id = c.id) as action_count
       FROM categories c
       WHERE c.project_id = $1
       ORDER BY c.name ASC
-    `, [req.params.projectId]);
+      LIMIT $2 OFFSET $3
+    `, [req.params.projectId, limit, offset]);
 
-    res.json({ categories: result.rows });
+    res.json({ categories: result.rows, total, limit, offset });
   } catch (error) {
     next(error);
   }

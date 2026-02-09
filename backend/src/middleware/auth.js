@@ -7,6 +7,20 @@ if (!jwtSecret) {
   throw new Error('JWT_SECRET environment variable is required. Set it in your .env file.');
 }
 
+// In-memory token blocklist cache: Map<tokenHash, timestamp>
+const blockedTokenCache = new Map();
+const CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
+
+// Periodic cleanup of expired cache entries every 10 minutes
+setInterval(() => {
+  const now = Date.now();
+  for (const [hash, addedAt] of blockedTokenCache) {
+    if (now - addedAt > CACHE_TTL_MS) {
+      blockedTokenCache.delete(hash);
+    }
+  }
+}, 10 * 60 * 1000).unref();
+
 const authenticate = async (req, res, next) => {
   try {
     const authHeader = req.headers.authorization;
@@ -17,10 +31,17 @@ const authenticate = async (req, res, next) => {
     const token = authHeader.split(' ')[1];
     const decoded = jwt.verify(token, jwtSecret);
 
-    // Check token blocklist
+    // Check token blocklist (cache-first, then DB)
     const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+
+    const cachedAt = blockedTokenCache.get(tokenHash);
+    if (cachedAt && (Date.now() - cachedAt < CACHE_TTL_MS)) {
+      return res.status(401).json({ error: { message: 'Token has been revoked' } });
+    }
+
     const blocked = await db.query('SELECT 1 FROM token_blocklist WHERE token_hash = $1', [tokenHash]);
     if (blocked.rows.length > 0) {
+      blockedTokenCache.set(tokenHash, Date.now());
       return res.status(401).json({ error: { message: 'Token has been revoked' } });
     }
 

@@ -2,8 +2,9 @@ import { Outlet, NavLink, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../store/authStore'
 import { getUploadUrl } from '../services/api'
 import { useThemeStore } from '../store/themeStore'
-import { LayoutDashboard, User, FolderKanban, Settings, LogOut, Menu, X, MessageCircle, Shield, ExternalLink, Search, Sun, Moon } from 'lucide-react'
+import { LayoutDashboard, User, FolderKanban, Settings, LogOut, Menu, X, MessageCircle, Shield, ExternalLink, Search, Sun, Moon, WifiOff } from 'lucide-react'
 import { useState, useEffect } from 'react'
+import socket from '../services/socket'
 import NotificationBell from './NotificationBell'
 import SearchModal from './SearchModal'
 import ShortcutsHelpModal from './ShortcutsHelpModal'
@@ -17,6 +18,14 @@ export default function Layout() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [searchOpen, setSearchOpen] = useState(false)
   const [shortcutsOpen, setShortcutsOpen] = useState(false)
+  const [socketStatus, setSocketStatus] = useState(socket.getConnectionStatus())
+
+  useEffect(() => {
+    const unsub = socket.subscribeToConnectionStatus((status) => {
+      setSocketStatus(status)
+    })
+    return unsub
+  }, [])
 
   useKeyboardShortcuts({
     onSearch: () => setSearchOpen(true),
@@ -172,8 +181,16 @@ export default function Layout() {
         />
       )}
 
+      {/* Socket disconnection banner */}
+      {socketStatus === 'reconnecting' && (
+        <div className="fixed top-16 left-0 lg:left-64 right-0 z-50 bg-amber-500 text-amber-950 text-sm text-center py-1.5 px-4 flex items-center justify-center gap-2">
+          <WifiOff size={14} />
+          Connection lost. Reconnecting...
+        </div>
+      )}
+
       {/* Main content */}
-      <main className="lg:ml-64 pt-16 min-h-screen">
+      <main className={`lg:ml-64 pt-16 min-h-screen ${socketStatus === 'reconnecting' ? 'mt-8' : ''}`}>
         <div className="p-6 lg:p-8">
           <Breadcrumbs />
           <Outlet />

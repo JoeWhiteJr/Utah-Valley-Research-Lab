@@ -25,7 +25,7 @@ const Input = forwardRef(({
         {...props}
       />
       {error && (
-        <p className="mt-1.5 text-sm text-red-600">{error}</p>
+        <p className="mt-1.5 text-sm text-red-600 dark:text-red-400">{error}</p>
       )}
     </div>
   )

@@ -112,6 +112,15 @@ export default function PublicFooter() {
         {/* Bottom Bar */}
         <div className="border-t border-gray-800 mt-8 pt-8 text-center text-gray-500 text-sm">
           <p>&copy; {currentYear} {siteInfo.name}. All rights reserved.</p>
+          <div className="mt-3 flex justify-center gap-4">
+            <Link to="/privacy" className="hover:text-pub-blue-400 transition-colors">
+              Privacy Policy
+            </Link>
+            <span className="text-gray-700">|</span>
+            <Link to="/terms" className="hover:text-pub-blue-400 transition-colors">
+              Terms of Service
+            </Link>
+          </div>
         </div>
       </div>
     </footer>

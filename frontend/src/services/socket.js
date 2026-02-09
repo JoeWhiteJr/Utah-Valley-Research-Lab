@@ -2,7 +2,7 @@ import { io } from 'socket.io-client'
 import { useChatStore } from '../store/chatStore'
 import { useNotificationStore } from '../store/notificationStore'
 
-const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || 'http://localhost:3001'
+const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || ''
 
 let socket = null
 
@@ -10,6 +10,22 @@ let onlineUsers = new Set()
 let onlineStatusListeners = []
 let typingUsers = new Map()
 let typingListeners = []
+
+let connectionStatus = 'disconnected' // 'connected' | 'disconnected' | 'reconnecting'
+let connectionStatusListeners = []
+
+const notifyConnectionStatusListeners = () => {
+  connectionStatusListeners.forEach((cb) => cb(connectionStatus))
+}
+
+export const getConnectionStatus = () => connectionStatus
+
+export const subscribeToConnectionStatus = (callback) => {
+  connectionStatusListeners.push(callback)
+  return () => {
+    connectionStatusListeners = connectionStatusListeners.filter((cb) => cb !== callback)
+  }
+}
 
 export const connect = (token) => {
   if (socket?.connected) return socket
@@ -23,15 +39,19 @@ export const connect = (token) => {
   })
 
   socket.on('connect', () => {
-    /* connected */
+    connectionStatus = 'connected'
+    notifyConnectionStatusListeners()
   })
 
   socket.on('disconnect', () => {
-    /* disconnected */
+    connectionStatus = 'reconnecting'
+    notifyConnectionStatusListeners()
   })
 
-  socket.on('connect_error', () => {
-    /* error handled silently */
+  socket.on('connect_error', (err) => {
+    console.error('[socket] Connection error:', err.message)
+    connectionStatus = 'reconnecting'
+    notifyConnectionStatusListeners()
   })
 
   socket.on('new_message', (message) => {
@@ -119,6 +139,8 @@ export const disconnect = () => {
     socket = null
     onlineUsers.clear()
     typingUsers.clear()
+    connectionStatus = 'disconnected'
+    notifyConnectionStatusListeners()
   }
 }
 
@@ -174,5 +196,7 @@ export default {
   getOnlineUsers,
   subscribeToOnlineStatus,
   getTypingUsers,
-  subscribeToTyping
+  subscribeToTyping,
+  getConnectionStatus,
+  subscribeToConnectionStatus
 }

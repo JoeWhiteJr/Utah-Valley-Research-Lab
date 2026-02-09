@@ -5,6 +5,7 @@ import { GripVertical, Trash2, Pencil, Calendar, User, Users, Tag, ChevronDown, 
 import { format } from 'date-fns'
 import CategoryBadge from './CategoryBadge'
 import { commentsApi } from '../services/api'
+import { toast } from '../store/toastStore'
 
 export default function ActionItem({
   action,
@@ -59,7 +60,7 @@ export default function ActionItem({
     setLoadingComments(true)
     commentsApi.list(action.id)
       .then(({ data }) => setComments(data.comments || []))
-      .catch(() => { /* failed to load comments */ })
+      .catch(() => toast.error('Failed to load comments'))
       .finally(() => setLoadingComments(false))
   }, [action.id])
 
@@ -286,11 +287,12 @@ export default function ActionItem({
                     </span>
                     <button
                       onClick={async () => {
+                        if (!window.confirm('Delete this comment?')) return
                         try {
                           await commentsApi.delete(action.id, c.id)
                           setComments(prev => prev.filter(x => x.id !== c.id))
                           setCommentCount(prev => prev - 1)
-                        } catch { /* failed to delete */ }
+                        } catch { toast.error('Failed to delete comment') }
                       }}
                       className="ml-auto opacity-0 group-hover/comment:opacity-100 p-0.5 text-gray-400 hover:text-red-500 dark:hover:text-red-400 transition-opacity"
                       title="Delete comment"
@@ -311,7 +313,7 @@ export default function ActionItem({
                     setCommentCount(prev => prev + 1)
                     setNewComment('')
                   } catch {
-                    // failed to post comment
+                    toast.error('Failed to post comment')
                   }
                 }}
                 className="flex gap-2 mt-2"

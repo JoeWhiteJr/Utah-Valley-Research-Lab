@@ -33,6 +33,10 @@ import BlogPage from './components/public/pages/BlogPage'
 import ContactPage from './components/public/pages/ContactPage'
 import DonatePage from './components/public/pages/DonatePage'
 
+// Legal pages
+const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy'))
+const TermsOfService = lazy(() => import('./pages/TermsOfService'))
+
 function LoadingFallback() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-background">
@@ -104,6 +108,8 @@ function App() {
               <Route path="/blog" element={<BlogPage />} />
               <Route path="/contact" element={<ContactPage />} />
               <Route path="/donate" element={<DonatePage />} />
+              <Route path="/privacy" element={<PrivacyPolicy />} />
+              <Route path="/terms" element={<TermsOfService />} />
             </Route>
 
             {/* Auth Routes */}

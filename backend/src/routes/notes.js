@@ -9,15 +9,25 @@ const router = express.Router();
 // Get notes for a project
 router.get('/project/:projectId', authenticate, requireProjectAccess(), async (req, res, next) => {
   try {
+    const limit = Math.min(parseInt(req.query.limit) || 50, 200);
+    const offset = parseInt(req.query.offset) || 0;
+
+    const countResult = await db.query(
+      'SELECT COUNT(*) FROM notes WHERE project_id = $1',
+      [req.params.projectId]
+    );
+    const total = parseInt(countResult.rows[0].count);
+
     const result = await db.query(`
       SELECT n.*, u.name as creator_name
       FROM notes n
       JOIN users u ON n.created_by = u.id
       WHERE n.project_id = $1
       ORDER BY n.updated_at DESC
-    `, [req.params.projectId]);
+      LIMIT $2 OFFSET $3
+    `, [req.params.projectId, limit, offset]);
 
-    res.json({ notes: result.rows });
+    res.json({ notes: result.rows, total, limit, offset });
   } catch (error) {
     next(error);
   }
@@ -46,7 +56,7 @@ router.get('/:id', authenticate, async (req, res, next) => {
 // Create note
 router.post('/project/:projectId', authenticate, requireProjectAccess(), sanitizeBody('content'), [
   body('title').trim().notEmpty(),
-  body('content').optional()
+  body('content').optional().isLength({ max: 50000 })
 ], async (req, res, next) => {
   try {
     const errors = validationResult(req);

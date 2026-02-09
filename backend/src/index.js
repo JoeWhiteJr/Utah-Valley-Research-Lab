@@ -6,6 +6,7 @@ const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const pinoHttp = require('pino-http');
 const logger = require('./config/logger');
+const db = require('./config/database');
 const socketService = require('./services/socketService');
 
 const authRoutes = require('./routes/auth');
@@ -109,9 +110,17 @@ app.use('/api/search', searchRoutes);
 app.use('/api/comments', commentRoutes);
 app.use('/api/activity', activityRoutes);
 
-// Health check
-app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+// Health check with DB connectivity verification
+app.get('/api/health', async (req, res) => {
+  try {
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('DB health check timeout')), 2000)
+    );
+    await Promise.race([db.query('SELECT 1'), timeoutPromise]);
+    res.json({ status: 'ok', db: 'ok', timestamp: new Date().toISOString() });
+  } catch (err) {
+    res.status(503).json({ status: 'degraded', db: 'error', timestamp: new Date().toISOString() });
+  }
 });
 
 // Error handling middleware

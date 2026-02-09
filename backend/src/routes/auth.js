@@ -7,6 +7,7 @@ const db = require('../config/database');
 const { authenticate, generateToken } = require('../middleware/auth');
 const { logActivity } = require('./users');
 const logger = require('../config/logger');
+const { sendPasswordResetEmail } = require('../services/email');
 
 const router = express.Router();
 
@@ -111,9 +112,10 @@ router.post('/forgot-password', [
       [user.rows[0].id, hashedToken, expiresAt]
     );
 
-    // TODO: Send password reset email to the user
-    // For now, log the raw token (since there is no email system yet)
-    logger.info({ userId: user.rows[0].id, token: rawToken }, 'Password reset token generated');
+    // Send password reset email (falls back to logging if SMTP not configured)
+    const baseUrl = process.env.APP_URL || `${req.protocol}://${req.get('host')}`;
+    await sendPasswordResetEmail(email, rawToken, baseUrl);
+    logger.info({ userId: user.rows[0].id }, 'Password reset token generated');
 
     res.json({ message: 'If an account exists with that email, a reset link has been generated.' });
   } catch (error) {

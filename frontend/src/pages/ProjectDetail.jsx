@@ -21,6 +21,7 @@ import {
   ArrowLeft, Edit3, Trash2, Plus, Upload, ListTodo, FileText,
   StickyNote, Mic, Image, MoreVertical, Check, Users, Sparkles, Loader2
 } from 'lucide-react'
+import { toast } from '../store/toastStore'
 
 const tabs = [
   { id: 'overview', label: 'Overview', icon: FileText },
@@ -198,7 +199,7 @@ export default function ProjectDetail() {
       })
       setEditingAction(null)
     } catch {
-      /* error handled silently */
+      toast.error('Failed to save task changes')
     }
   }
 

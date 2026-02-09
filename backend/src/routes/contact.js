@@ -1,6 +1,7 @@
 const express = require('express');
 const { body, validationResult } = require('express-validator');
 const logger = require('../config/logger');
+const { sendContactNotification } = require('../services/email');
 
 const router = express.Router();
 
@@ -19,8 +20,11 @@ router.post('/', [
 
     const { name, email, message, subject, organization } = req.body;
 
-    // Log the contact form submission (email integration can be added later)
+    // Log the contact form submission
     logger.info({ name, email, subject, organization, messageLength: message.length }, 'Contact form submission received');
+
+    // Send email notification (falls back to logging if SMTP not configured)
+    await sendContactNotification({ name, email, subject, organization, message });
 
     res.json({ message: 'Thank you for your message. We will get back to you soon.' });
   } catch (error) {

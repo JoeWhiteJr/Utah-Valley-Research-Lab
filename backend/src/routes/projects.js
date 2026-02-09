@@ -43,11 +43,14 @@ const coverUpload = multer({
 router.get('/', authenticate, async (req, res, next) => {
   try {
     const { status } = req.query;
+    const limit = Math.min(parseInt(req.query.limit) || 50, 200);
+    const offset = parseInt(req.query.offset) || 0;
     const validStatuses = ['active', 'completed', 'archived', 'inactive'];
     if (status && !validStatuses.includes(status)) {
       return res.status(400).json({ error: { message: 'Invalid status filter' } });
     }
 
+    let countQuery = 'SELECT COUNT(*) FROM projects p';
     let query = `
       SELECT p.*, u.name as creator_name,
         COALESCE(ai_stats.total_actions, 0) as total_actions,
@@ -66,13 +69,23 @@ router.get('/', authenticate, async (req, res, next) => {
       ) ai_stats ON ai_stats.project_id = p.id
     `;
     const params = [];
+    const countParams = [];
 
     if (status) {
       query += ' WHERE p.status = $1';
+      countQuery += ' WHERE p.status = $1';
       params.push(status);
+      countParams.push(status);
     }
 
+    const countResult = await db.query(countQuery, countParams);
+    const total = parseInt(countResult.rows[0].count);
+
     query += ' ORDER BY p.updated_at DESC';
+    params.push(limit);
+    query += ` LIMIT $${params.length}`;
+    params.push(offset);
+    query += ` OFFSET $${params.length}`;
 
     const result = await db.query(query, params);
     // Override progress with auto-calculated value from tasks
@@ -80,7 +93,7 @@ router.get('/', authenticate, async (req, res, next) => {
       ...p,
       progress: parseInt(p.calculated_progress) || 0
     }));
-    res.json({ projects });
+    res.json({ projects, total, limit, offset });
   } catch (error) {
     next(error);
   }
@@ -124,8 +137,8 @@ router.get('/:id', authenticate, async (req, res, next) => {
 
 // Create project
 router.post('/', authenticate, requireRole('admin', 'project_lead'), [
-  body('title').trim().notEmpty(),
-  body('description').optional().trim()
+  body('title').trim().notEmpty().isLength({ max: 200 }),
+  body('description').optional().trim().isLength({ max: 10000 })
 ], async (req, res, next) => {
   try {
     const errors = validationResult(req);
@@ -148,8 +161,8 @@ router.post('/', authenticate, requireRole('admin', 'project_lead'), [
 
 // Update project
 router.put('/:id', authenticate, requireRole('admin', 'project_lead'), [
-  body('title').optional().trim().notEmpty(),
-  body('description').optional().trim(),
+  body('title').optional().trim().notEmpty().isLength({ max: 200 }),
+  body('description').optional().trim().isLength({ max: 10000 }),
   body('status').optional().isIn(['active', 'completed', 'archived', 'inactive']),
   body('progress').optional().isInt({ min: 0, max: 100 })
 ], async (req, res, next) => {

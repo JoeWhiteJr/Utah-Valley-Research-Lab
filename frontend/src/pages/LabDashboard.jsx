@@ -13,6 +13,7 @@ import {
   FileText, ArrowUpRight, Sparkles, Calendar, LayoutGrid, Brain, Loader2
 } from 'lucide-react'
 import { format } from 'date-fns'
+import { toast } from '../store/toastStore'
 
 export default function LabDashboard() {
   const { user } = useAuthStore()
@@ -49,7 +50,7 @@ export default function LabDashboard() {
   useEffect(() => {
     activityApi.list({ limit: 10 })
       .then(({ data }) => setActivities(data.activities || []))
-      .catch(() => {})
+      .catch(() => toast.error('Failed to load recent activity'))
       .finally(() => setLoadingActivities(false))
   }, [])
 
