@@ -75,6 +75,7 @@ services:
       - ./deploy/nginx.conf:/etc/nginx/nginx.conf:ro
       - /etc/letsencrypt:/etc/letsencrypt:ro
       - /var/www/certbot:/var/www/certbot:ro
+      - /etc/nginx/conf.d:/etc/nginx/conf.d:ro
     depends_on:
       frontend:
         condition: service_healthy
