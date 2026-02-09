@@ -174,7 +174,7 @@ export default function LabDashboard() {
 
       {/* Stats Grid */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="group relative overflow-hidden bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5 hover:border-primary-300 hover:shadow-lg hover:shadow-primary-100/50 transition-all duration-300">
+        <div className="group relative overflow-hidden bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5 hover:border-primary-300 dark:hover:border-primary-600 hover:shadow-lg hover:shadow-primary-100/50 dark:hover:shadow-primary-900/30 transition-all duration-300">
           <div className="absolute top-0 right-0 w-20 h-20 bg-gradient-to-br from-primary-100 dark:from-primary-900/30 to-transparent rounded-bl-full opacity-50 group-hover:opacity-100 transition-opacity"></div>
           <div className="relative">
             <div className="w-10 h-10 rounded-xl bg-primary-100 dark:bg-primary-900/30 flex items-center justify-center mb-3">
@@ -185,7 +185,7 @@ export default function LabDashboard() {
           </div>
         </div>
 
-        <div className="group relative overflow-hidden bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5 hover:border-secondary-300 hover:shadow-lg hover:shadow-secondary-100/50 transition-all duration-300">
+        <div className="group relative overflow-hidden bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5 hover:border-secondary-300 dark:hover:border-secondary-600 hover:shadow-lg hover:shadow-secondary-100/50 dark:hover:shadow-secondary-900/30 transition-all duration-300">
           <div className="absolute top-0 right-0 w-20 h-20 bg-gradient-to-br from-secondary-100 dark:from-secondary-900/30 to-transparent rounded-bl-full opacity-50 group-hover:opacity-100 transition-opacity"></div>
           <div className="relative">
             <div className="w-10 h-10 rounded-xl bg-secondary-100 dark:bg-secondary-900/30 flex items-center justify-center mb-3">
@@ -198,7 +198,7 @@ export default function LabDashboard() {
           </div>
         </div>
 
-        <div className="group relative overflow-hidden bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5 hover:border-accent-300 hover:shadow-lg hover:shadow-accent-100/50 transition-all duration-300">
+        <div className="group relative overflow-hidden bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5 hover:border-accent-300 dark:hover:border-accent-600 hover:shadow-lg hover:shadow-accent-100/50 dark:hover:shadow-accent-900/30 transition-all duration-300">
           <div className="absolute top-0 right-0 w-20 h-20 bg-gradient-to-br from-accent-100 dark:from-accent-900/30 to-transparent rounded-bl-full opacity-50 group-hover:opacity-100 transition-opacity"></div>
           <div className="relative">
             <div className="w-10 h-10 rounded-xl bg-accent-100 dark:bg-accent-900/30 flex items-center justify-center mb-3">
@@ -209,7 +209,7 @@ export default function LabDashboard() {
           </div>
         </div>
 
-        <div className="group relative overflow-hidden bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5 hover:border-green-300 hover:shadow-lg hover:shadow-green-100/50 transition-all duration-300">
+        <div className="group relative overflow-hidden bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5 hover:border-green-300 dark:hover:border-green-600 hover:shadow-lg hover:shadow-green-100/50 dark:hover:shadow-green-900/30 transition-all duration-300">
           <div className="absolute top-0 right-0 w-20 h-20 bg-gradient-to-br from-green-100 dark:from-green-900/30 to-transparent rounded-bl-full opacity-50 group-hover:opacity-100 transition-opacity"></div>
           <div className="relative">
             <div className="w-10 h-10 rounded-xl bg-green-100 dark:bg-green-900/30 flex items-center justify-center mb-3">

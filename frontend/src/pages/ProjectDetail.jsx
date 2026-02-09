@@ -98,6 +98,9 @@ export default function ProjectDetail() {
   // Category filter state
   const [categoryFilter, setCategoryFilter] = useState(null)
 
+  // Task completion status filter state
+  const [taskStatusFilter, setTaskStatusFilter] = useState('current')
+
   const coverInputRef = useRef(null)
   const fileInputRef = useRef(null)
 
@@ -247,10 +250,16 @@ export default function ProjectDetail() {
     return await createCategory(id, categoryData)
   }
 
-  // Filter actions by category
-  const filteredActions = categoryFilter
-    ? actions.filter(a => a.category_id === categoryFilter)
-    : actions
+  // Filter actions by category and completion status
+  const filteredActions = actions.filter(a => {
+    // Category filter
+    if (categoryFilter && categoryFilter !== 'uncategorized' && a.category_id !== categoryFilter) return false
+    if (categoryFilter === 'uncategorized' && a.category_id) return false
+    // Status filter
+    if (taskStatusFilter === 'current' && a.completed) return false
+    if (taskStatusFilter === 'completed' && !a.completed) return false
+    return true
+  })
 
   const handleFileUpload = async (e) => {
     const file = e.target.files?.[0]
@@ -608,6 +617,27 @@ export default function ProjectDetail() {
               </Button>
             </div>
 
+            {/* Task status filter tabs */}
+            <div className="flex items-center gap-1 bg-gray-100 dark:bg-gray-700 rounded-lg p-0.5 w-fit">
+              {[
+                { id: 'current', label: 'Current' },
+                { id: 'all', label: 'All' },
+                { id: 'completed', label: 'Completed' },
+              ].map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => setTaskStatusFilter(tab.id)}
+                  className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
+                    taskStatusFilter === tab.id
+                      ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-gray-100 shadow-sm'
+                      : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+
             {/* Category Manager and Filter Section */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
               {/* Category filter buttons */}
@@ -622,7 +652,11 @@ export default function ProjectDetail() {
                           : 'bg-gray-100 dark:bg-gray-700 text-text-secondary dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'
                       }`}
                     >
-                      All ({actions.length})
+                      All ({actions.filter(a => {
+                        if (taskStatusFilter === 'current' && a.completed) return false
+                        if (taskStatusFilter === 'completed' && !a.completed) return false
+                        return true
+                      }).length})
                     </button>
                     {categories.map((cat) => (
                       <button
@@ -638,7 +672,12 @@ export default function ProjectDetail() {
                           color: cat.color
                         }}
                       >
-                        {cat.name} ({actions.filter(a => a.category_id === cat.id).length})
+                        {cat.name} ({actions.filter(a => {
+                          if (a.category_id !== cat.id) return false
+                          if (taskStatusFilter === 'current' && a.completed) return false
+                          if (taskStatusFilter === 'completed' && !a.completed) return false
+                          return true
+                        }).length})
                       </button>
                     ))}
                     <button
@@ -649,26 +688,25 @@ export default function ProjectDetail() {
                           : 'bg-gray-100 dark:bg-gray-700 text-text-secondary dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'
                       }`}
                     >
-                      Uncategorized ({actions.filter(a => !a.category_id).length})
+                      Uncategorized ({actions.filter(a => {
+                        if (a.category_id) return false
+                        if (taskStatusFilter === 'current' && a.completed) return false
+                        if (taskStatusFilter === 'completed' && !a.completed) return false
+                        return true
+                      }).length})
                     </button>
                   </div>
                 )}
 
                 {/* Action items list */}
-                {filteredActions.length > 0 || (categoryFilter === 'uncategorized' && actions.filter(a => !a.category_id).length > 0) ? (
+                {filteredActions.length > 0 ? (
                   <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
                     <SortableContext
-                      items={(categoryFilter === 'uncategorized'
-                        ? actions.filter(a => !a.category_id)
-                        : filteredActions
-                      ).filter(a => !a.parent_task_id).map(a => a.id)}
+                      items={filteredActions.filter(a => !a.parent_task_id).map(a => a.id)}
                       strategy={verticalListSortingStrategy}
                     >
                       <div className="space-y-2">
-                        {(categoryFilter === 'uncategorized'
-                          ? actions.filter(a => !a.category_id)
-                          : filteredActions
-                        ).filter(a => !a.parent_task_id).map((action) => (
+                        {filteredActions.filter(a => !a.parent_task_id).map((action) => (
                           <ActionItem
                             key={action.id}
                             action={action}
@@ -690,7 +728,11 @@ export default function ProjectDetail() {
                 ) : actions.length > 0 ? (
                   <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-8 text-center">
                     <ListTodo size={40} className="mx-auto text-gray-300 dark:text-gray-600 mb-3" />
-                    <p className="text-text-secondary dark:text-gray-400">No tasks in this category.</p>
+                    <p className="text-text-secondary dark:text-gray-400">
+                      {taskStatusFilter === 'completed' ? 'No completed tasks.' :
+                       taskStatusFilter === 'current' ? 'All tasks are completed!' :
+                       'No tasks match the current filters.'}
+                    </p>
                   </div>
                 ) : (
                   <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-8 text-center">

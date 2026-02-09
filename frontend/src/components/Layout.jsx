@@ -84,7 +84,6 @@ export default function Layout() {
         >
           <Search size={16} />
           <span>Search...</span>
-          <kbd className="ml-4 text-xs bg-white dark:bg-gray-600 px-1.5 py-0.5 rounded border border-gray-200 dark:border-gray-500">⌘K</kbd>
         </button>
         <div className="flex items-center gap-2">
           <button

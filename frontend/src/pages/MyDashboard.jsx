@@ -163,8 +163,8 @@ export default function MyDashboard() {
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500 mx-auto"></div>
               <p className="text-text-secondary dark:text-gray-400 mt-3">Loading your tasks...</p>
             </div>
-          ) : myTasks.length > 0 ? (
-            myTasks.map((task) => (
+          ) : myTasks.filter(t => !t.completed).length > 0 ? (
+            myTasks.filter(t => !t.completed).map((task) => (
               <div
                 key={task.id}
                 className="flex items-center gap-4 p-4 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
@@ -195,6 +195,13 @@ export default function MyDashboard() {
                     {format(parseISO(task.due_date), 'MMM d')}
                   </span>
                 )}
+                <Link
+                  to={`/dashboard/projects/${task.project_id}`}
+                  className="flex-shrink-0 text-xs text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 font-medium"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  View Project
+                </Link>
               </div>
             ))
           ) : (
@@ -206,7 +213,7 @@ export default function MyDashboard() {
                 All caught up!
               </h3>
               <p className="text-text-secondary dark:text-gray-400 max-w-sm mx-auto">
-                You don&apos;t have any pending tasks assigned to you. Check out your projects to add new tasks.
+                You&apos;re all caught up! No pending tasks.
               </p>
             </div>
           )}
