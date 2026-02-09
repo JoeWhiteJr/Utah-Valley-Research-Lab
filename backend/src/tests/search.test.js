@@ -5,9 +5,9 @@ const { createTestUser } = require('./testHelper');
 
 describe('Search API', () => {
   let adminToken;
-  let adminUserId;
+  let _adminUserId;
   let researcherToken;
-  let researcherUserId;
+  let _researcherUserId;
   let testProjectId;
 
   beforeAll(async () => {
@@ -21,7 +21,7 @@ describe('Search API', () => {
       role: 'admin'
     });
     adminToken = admin.token;
-    adminUserId = admin.id;
+    _adminUserId = admin.id;
 
     // Create researcher user
     const researcher = await createTestUser({
@@ -30,7 +30,7 @@ describe('Search API', () => {
       role: 'project_lead'
     });
     researcherToken = researcher.token;
-    researcherUserId = researcher.id;
+    _researcherUserId = researcher.id;
 
     // Create a project with a searchable name
     const projectRes = await request(app)

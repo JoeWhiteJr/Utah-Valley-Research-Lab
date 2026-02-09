@@ -5,9 +5,9 @@ const { createTestUser } = require('./testHelper');
 
 describe('Calendar API', () => {
   let adminToken;
-  let adminUserId;
+  let _adminUserId;
   let researcherToken;
-  let researcherUserId;
+  let _researcherUserId;
   let viewerToken;
   let viewerUserId;
   let testEventId;
@@ -23,7 +23,7 @@ describe('Calendar API', () => {
       role: 'admin'
     });
     adminToken = admin.token;
-    adminUserId = admin.id;
+    _adminUserId = admin.id;
 
     // Create project_lead user (can create lab events)
     const researcher = await createTestUser({
@@ -32,7 +32,7 @@ describe('Calendar API', () => {
       role: 'project_lead'
     });
     researcherToken = researcher.token;
-    researcherUserId = researcher.id;
+    _researcherUserId = researcher.id;
 
     // Create viewer user (cannot create lab events)
     const viewer = await createTestUser({
