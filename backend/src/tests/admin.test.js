@@ -167,7 +167,7 @@ describe('Admin API', () => {
           project_id: testProjectId,
           title: 'Published Admin Test Project',
           description: 'A publicly visible project',
-          status: 'active'
+          status: 'ongoing'
         });
 
       expect(res.status).toBe(201);

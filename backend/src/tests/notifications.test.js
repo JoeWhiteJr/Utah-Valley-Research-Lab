@@ -37,7 +37,7 @@ describe('Notifications API', () => {
     // Seed some notifications for the test user
     const n1 = await db.query(
       `INSERT INTO notifications (user_id, type, title, body)
-       VALUES ($1, 'info', 'Test Notification 1', 'First notification body')
+       VALUES ($1, 'system', 'Test Notification 1', 'First notification body')
        RETURNING id`,
       [userId]
     );
@@ -45,7 +45,7 @@ describe('Notifications API', () => {
 
     const n2 = await db.query(
       `INSERT INTO notifications (user_id, type, title, body)
-       VALUES ($1, 'info', 'Test Notification 2', 'Second notification body')
+       VALUES ($1, 'system', 'Test Notification 2', 'Second notification body')
        RETURNING id`,
       [userId]
     );
@@ -53,7 +53,7 @@ describe('Notifications API', () => {
 
     const n3 = await db.query(
       `INSERT INTO notifications (user_id, type, title, body)
-       VALUES ($1, 'info', 'Test Notification 3', 'Third notification body')
+       VALUES ($1, 'system', 'Test Notification 3', 'Third notification body')
        RETURNING id`,
       [userId]
     );
@@ -62,7 +62,7 @@ describe('Notifications API', () => {
     // Seed a notification for the other user
     await db.query(
       `INSERT INTO notifications (user_id, type, title, body)
-       VALUES ($1, 'info', 'Other User Notification', 'Should not be visible to test user')`,
+       VALUES ($1, 'system', 'Other User Notification', 'Should not be visible to test user')`,
       [otherUserId]
     );
   });
