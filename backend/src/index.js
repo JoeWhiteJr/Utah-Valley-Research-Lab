@@ -144,7 +144,7 @@ const server = http.createServer(app);
 
 // Initialize Socket.io
 const SOCKET_CORS = process.env.CORS_ORIGIN && process.env.CORS_ORIGIN !== '*'
-  ? process.env.CORS_ORIGIN
+  ? process.env.CORS_ORIGIN.split(',').map(o => o.trim())
   : '*';
 socketService.initialize(server, SOCKET_CORS);
 

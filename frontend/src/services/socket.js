@@ -33,9 +33,9 @@ export const connect = (token) => {
   socket = io(SOCKET_URL, {
     auth: { token },
     reconnection: true,
-    reconnectionAttempts: 5,
+    reconnectionAttempts: Infinity,
     reconnectionDelay: 1000,
-    reconnectionDelayMax: 5000
+    reconnectionDelayMax: 10000
   })
 
   socket.on('connect', () => {
