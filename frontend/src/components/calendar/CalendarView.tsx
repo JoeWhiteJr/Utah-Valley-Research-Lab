@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   ChevronLeft, ChevronRight, Plus, ZoomIn, ZoomOut, RotateCcw,
 } from 'lucide-react';
@@ -10,8 +10,9 @@ import { DailyView } from './DailyView';
 import { WeeklyView } from './WeeklyView';
 import { MonthlyView } from './MonthlyView';
 import { EventModal } from './EventModal';
+import { EventDetailModal } from './EventDetailModal';
 import { DeadlineOverlay } from './DeadlineOverlay';
-import type { CalendarScope, CalendarViewType } from './types';
+import type { CalendarEvent, CalendarScope, CalendarViewType } from './types';
 
 interface CalendarViewProps {
   scope: CalendarScope;
@@ -108,8 +109,13 @@ export function CalendarView({ scope, compact = false, projectId }: CalendarView
     if (canCreate) openCreateModal(time);
   }, [canCreate, openCreateModal]);
 
+  const [viewingEvent, setViewingEvent] = useState<CalendarEvent | null>(null);
+
   const handleEditEvent = useCallback((event: any) => {
-    if (scope === 'dashboard' && event.scope === 'project') return;
+    if (scope === 'dashboard' && event.scope === 'project') {
+      setViewingEvent(event);
+      return;
+    }
     setEditingEvent(event);
   }, [scope, setEditingEvent]);
 
@@ -254,6 +260,11 @@ export function CalendarView({ scope, compact = false, projectId }: CalendarView
           scope={scope}
           onClose={closeCreateModal}
         />
+      )}
+
+      {/* Read-only detail modal for project events on dashboard */}
+      {viewingEvent && (
+        <EventDetailModal event={viewingEvent} onClose={() => setViewingEvent(null)} />
       )}
     </div>
   );

@@ -2,7 +2,7 @@ import { useCallback, useMemo, useRef } from 'react';
 import { DndContext, MouseSensor, TouchSensor, useSensor, useSensors } from '@dnd-kit/core';
 import type { DragEndEvent } from '@dnd-kit/core';
 import { EventBlock } from './EventBlock';
-import type { CalendarEvent, DeadlineEvent } from './types';
+import type { CalendarEvent, CalendarScope, DeadlineEvent } from './types';
 import { TIME_CONFIG } from './types';
 import { useGridDragToCreate } from '../../hooks/useGridDragToCreate';
 
@@ -15,12 +15,12 @@ interface DailyViewProps {
   onEditEvent: (event: CalendarEvent) => void;
   onMoveEvent: (id: string, start_time: string, end_time: string) => void;
   onTimeRangeSelect?: (startTime: Date, endTime: Date) => void;
-  scope: 'lab' | 'personal';
+  scope: CalendarScope;
 }
 
 export function DailyView({
   selectedDate, events, deadlines, hourHeight,
-  onTimeClick, onEditEvent, onMoveEvent, onTimeRangeSelect,
+  onTimeClick, onEditEvent, onMoveEvent, onTimeRangeSelect, scope,
 }: DailyViewProps) {
   const mouseSensor = useSensor(MouseSensor, { activationConstraint: { distance: 5 } });
   const touchSensor = useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 5 } });
@@ -146,6 +146,7 @@ export function DailyView({
               hourHeight={hourHeight}
               onEdit={onEditEvent}
               onResize={onMoveEvent}
+              readOnly={scope === 'dashboard' && event.scope === 'project'}
             />
           ))}
 

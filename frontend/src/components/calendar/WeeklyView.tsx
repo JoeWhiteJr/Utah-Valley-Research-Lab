@@ -1,7 +1,7 @@
 import { useMemo, useCallback, useRef } from 'react';
 import { startOfWeek, addDays, isSameDay, isToday, format } from 'date-fns';
 import { EventBlock } from './EventBlock';
-import type { CalendarEvent, DeadlineEvent } from './types';
+import type { CalendarEvent, CalendarScope, DeadlineEvent } from './types';
 import { TIME_CONFIG } from './types';
 import { useGridDragToCreate } from '../../hooks/useGridDragToCreate';
 
@@ -15,12 +15,12 @@ interface WeeklyViewProps {
   onMoveEvent: (id: string, start_time: string, end_time: string) => void;
   onTimeRangeSelect?: (startTime: Date, endTime: Date) => void;
   onSelectDate: (date: Date) => void;
-  scope: 'lab' | 'personal';
+  scope: CalendarScope;
 }
 
 export function WeeklyView({
   selectedDate, events, deadlines, hourHeight,
-  onTimeClick, onEditEvent, onMoveEvent, onTimeRangeSelect, onSelectDate,
+  onTimeClick, onEditEvent, onMoveEvent, onTimeRangeSelect, onSelectDate, scope,
 }: WeeklyViewProps) {
   const weekStart = useMemo(() => startOfWeek(selectedDate, { weekStartsOn: 0 }), [selectedDate]);
   const weekDays = useMemo(() => {
@@ -182,6 +182,7 @@ export function WeeklyView({
                     hourHeight={hourHeight}
                     onEdit={onEditEvent}
                     onResize={onMoveEvent}
+                    readOnly={scope === 'dashboard' && block.scope === 'project'}
                   />
                 ))}
 

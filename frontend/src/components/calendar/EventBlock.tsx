@@ -8,12 +8,14 @@ interface EventBlockProps {
   hourHeight: number;
   onEdit: (event: CalendarEvent) => void;
   onResize?: (id: string, start_time: string, end_time: string) => void;
+  readOnly?: boolean;
 }
 
-export function EventBlock({ event, hourHeight, onEdit, onResize }: EventBlockProps) {
+export function EventBlock({ event, hourHeight, onEdit, onResize, readOnly }: EventBlockProps) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: event.id,
     data: { startTime: event.start_time, endTime: event.end_time },
+    disabled: readOnly,
   });
 
   const [isResizing, setIsResizing] = useState(false);
@@ -97,7 +99,7 @@ export function EventBlock({ event, hourHeight, onEdit, onResize }: EventBlockPr
     zIndex: isDragging || isResizing ? 50 : 10,
     opacity: isDragging ? 0.8 : 1,
     transform: transform ? `translate(0, ${transform.y}px)` : undefined,
-    cursor: isResizing ? 's-resize' : 'grab',
+    cursor: readOnly ? 'pointer' : isResizing ? 's-resize' : 'grab',
   };
 
   return (
@@ -126,7 +128,7 @@ export function EventBlock({ event, hourHeight, onEdit, onResize }: EventBlockPr
         </>
       )}
       {/* Resize handle */}
-      {onResize && (
+      {onResize && !readOnly && (
         <div
           onMouseDown={handleResizeStart}
           className="absolute bottom-0 left-0 right-0 h-2 cursor-s-resize opacity-0 group-hover:opacity-100 transition-opacity"
