@@ -17,7 +17,8 @@ import PageHero from '../shared/PageHero';
 import SectionHeader from '../shared/SectionHeader';
 import ScrollAnimateWrapper from '../shared/ScrollAnimateWrapper';
 import DonationAmountSelector from '../shared/DonationAmountSelector';
-import { donatePageData } from '../../../data/publicSiteData';
+import { donatePageData as staticDonateData } from '../../../data/publicSiteData';
+import { useSiteContentStore } from '../../../store/siteContentStore';
 
 // Icon mapping - maps data file icon names to lucide-react components
 const iconMap = {
@@ -32,13 +33,18 @@ const iconMap = {
 };
 
 export default function DonatePage() {
+  const { fetchSection, getDonateData } = useSiteContentStore();
+
   useEffect(() => {
     document.title = 'Donate | Utah Valley Research Lab';
-  }, []);
+    fetchSection('donate');
+  }, [fetchSection]);
 
   const [, setOneTimeAmount] = useState(100);
   const [, setMonthlyAmount] = useState(25);
 
+  const donateFromStore = getDonateData();
+  const donatePageData = { ...staticDonateData, hero: donateFromStore.hero || staticDonateData.hero, intro: donateFromStore.intro || staticDonateData.intro };
   const { hero, intro, impactCards, oneTime, monthly, corporate, otherWays, transparency } = donatePageData;
 
   return (

@@ -192,7 +192,7 @@ export default function AudioRecorder({ onSave, onCancel }) {
   return (
     <div className="space-y-4">
       {error && (
-        <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm">
+        <div className="p-3 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-700 rounded-lg text-red-600 dark:text-red-400 text-sm">
           {error}
         </div>
       )}
@@ -203,21 +203,21 @@ export default function AudioRecorder({ onSave, onCancel }) {
           {/* Recording indicator */}
           <div className={`
             relative w-24 h-24 rounded-full flex items-center justify-center
-            ${isRecording ? 'bg-red-100' : 'bg-gray-100'}
+            ${isRecording ? 'bg-red-100 dark:bg-red-900/30' : 'bg-gray-100 dark:bg-gray-700'}
           `}>
             {isRecording && (
               <div className="absolute inset-0 rounded-full bg-red-200 animate-ping opacity-50" />
             )}
             <div className={`
               relative w-16 h-16 rounded-full flex items-center justify-center
-              ${isRecording ? 'bg-red-500' : 'bg-gray-300'}
+              ${isRecording ? 'bg-red-500' : 'bg-gray-300 dark:bg-gray-600'}
             `}>
               <Mic size={28} className="text-white" />
             </div>
           </div>
 
           {/* Timer */}
-          <div className="text-2xl font-mono text-text-primary">
+          <div className="text-2xl font-mono text-text-primary dark:text-gray-100">
             {formatTime(recordingTime)}
           </div>
 
@@ -267,7 +267,7 @@ export default function AudioRecorder({ onSave, onCancel }) {
               {isPlaying ? <Pause size={24} /> : <Play size={24} className="ml-1" />}
             </button>
 
-            <div className="text-lg font-mono text-text-primary">
+            <div className="text-lg font-mono text-text-primary dark:text-gray-100">
               {formatTime(recordingTime)}
             </div>
           </div>

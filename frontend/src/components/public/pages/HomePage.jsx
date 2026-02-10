@@ -16,15 +16,16 @@ import ServiceCard from '../shared/ServiceCard';
 import FeaturedProjectCard from '../shared/FeaturedProjectCard';
 import ScrollAnimateWrapper from '../shared/ScrollAnimateWrapper';
 import {
-  heroData,
-  statsData,
+  heroData as staticHeroData,
+  statsData as staticStatsData,
   partnersData,
-  aboutSummaryData,
-  servicesData,
+  aboutSummaryData as staticAboutSummary,
+  servicesData as staticServicesData,
   featuredProjectsData,
   teamHighlightsData,
   ctaData,
 } from '../../../data/publicSiteData';
+import { useSiteContentStore } from '../../../store/siteContentStore';
 
 // Icon mapping for partners
 const partnerIconMap = {
@@ -36,9 +37,20 @@ const partnerIconMap = {
 };
 
 export default function HomePage() {
+  const { fetchSection, getHeroData, getStatsData, getAboutSummary, getServicesData } = useSiteContentStore();
+
   useEffect(() => {
     document.title = 'Utah Valley Research Lab | UVRL';
-  }, []);
+    fetchSection('hero');
+    fetchSection('stats');
+    fetchSection('about');
+    fetchSection('services');
+  }, [fetchSection]);
+
+  const heroData = getHeroData();
+  const statsData = getStatsData();
+  const aboutSummaryData = getAboutSummary();
+  const servicesData = getServicesData();
 
   return (
     <div className="min-h-screen">

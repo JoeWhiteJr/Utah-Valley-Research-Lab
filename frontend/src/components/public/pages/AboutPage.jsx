@@ -17,7 +17,8 @@ import {
 import PageHero from '../shared/PageHero';
 import SectionHeader from '../shared/SectionHeader';
 import ScrollAnimateWrapper from '../shared/ScrollAnimateWrapper';
-import { aboutPageData, partnersData } from '../../../data/publicSiteData';
+import { aboutPageData as staticAboutPageData, partnersData } from '../../../data/publicSiteData';
+import { useSiteContentStore } from '../../../store/siteContentStore';
 
 // Icon mapping
 const iconMap = {
@@ -36,11 +37,15 @@ const partnerIconMap = {
 };
 
 export default function AboutPage() {
+  const { fetchSection, getAboutPage } = useSiteContentStore();
+
   useEffect(() => {
     document.title = 'About Us | Utah Valley Research Lab';
-  }, []);
+    fetchSection('about');
+  }, [fetchSection]);
 
-  const { hero, mission, cards, cta } = aboutPageData;
+  const aboutPage = getAboutPage();
+  const { hero, mission, cards, cta } = { ...staticAboutPageData, ...aboutPage };
 
   return (
     <div className="min-h-screen">

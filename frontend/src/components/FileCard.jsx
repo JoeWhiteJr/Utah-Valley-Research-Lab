@@ -39,11 +39,11 @@ export default function FileCard({ file, onDownload, onDelete, onPreview }) {
 
   return (
     <div
-      className="group bg-white rounded-lg border border-gray-200 overflow-hidden hover:border-primary-300 hover:shadow-sm transition-all cursor-pointer"
+      className="group bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden hover:border-primary-300 hover:shadow-sm transition-all cursor-pointer"
       onClick={handleClick}
     >
       {/* Preview area */}
-      <div className="h-32 bg-gray-50 flex items-center justify-center relative">
+      <div className="h-32 bg-gray-50 dark:bg-gray-900 flex items-center justify-center relative">
         {isImage ? (
           <img
             src={getUploadUrl(`/uploads/${file.filename}`)}
@@ -51,7 +51,7 @@ export default function FileCard({ file, onDownload, onDelete, onPreview }) {
             className="w-full h-full object-cover"
           />
         ) : (
-          <Icon size={40} className="text-gray-400" />
+          <Icon size={40} className="text-gray-400 dark:text-gray-500" />
         )}
 
         {/* Hover actions */}
@@ -84,10 +84,10 @@ export default function FileCard({ file, onDownload, onDelete, onPreview }) {
 
       {/* Info */}
       <div className="p-3">
-        <p className="text-sm font-medium text-text-primary truncate" title={file.original_filename}>
+        <p className="text-sm font-medium text-text-primary dark:text-gray-100 truncate" title={file.original_filename}>
           {file.original_filename}
         </p>
-        <div className="flex items-center justify-between mt-1 text-xs text-text-secondary">
+        <div className="flex items-center justify-between mt-1 text-xs text-text-secondary dark:text-gray-400">
           <span>{formatFileSize(file.file_size)}</span>
           <span>{format(new Date(file.uploaded_at), 'MMM d')}</span>
         </div>

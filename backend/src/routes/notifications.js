@@ -2,6 +2,9 @@ const express = require('express');
 const { query, validationResult } = require('express-validator');
 const db = require('../config/database');
 const { authenticate } = require('../middleware/auth');
+const { sendEmail } = require('../services/email');
+const emailTemplates = require('../services/emailTemplates');
+const logger = require('../config/logger');
 
 const router = express.Router();
 
@@ -167,6 +170,71 @@ const createNotification = async (userId, type, title, body = null, referenceId 
   }
 };
 
+// Map notification type to user preference column
+const typeToEmailPref = {
+  chat_message: 'email_chat',
+  mention: 'email_mentions',
+  application_received: 'email_applications',
+  application_status: 'email_applications',
+};
+
+// Send email notifications to users who have opted in
+const sendNotificationEmails = async (userIds, type, title, body, referenceId) => {
+  if (!userIds || userIds.length === 0) return;
+
+  const prefColumn = typeToEmailPref[type] || 'email_system';
+  const appUrl = process.env.APP_URL || 'http://localhost:5173';
+
+  try {
+    const result = await db.query(
+      `SELECT u.id, u.name, u.email, up.${prefColumn} AS email_enabled
+       FROM users u
+       JOIN user_preferences up ON up.user_id = u.id
+       WHERE u.id = ANY($1) AND up.${prefColumn} = true`,
+      [userIds]
+    );
+
+    for (const user of result.rows) {
+      let template;
+      if (type === 'chat_message') {
+        template = emailTemplates.chatMessageEmail({
+          senderName: title.replace(/^New message from /, '').replace(/ in .*$/, '') || 'Someone',
+          roomName: title.replace(/^.*in /, '') || 'a chat room',
+          messagePreview: body || '',
+          appUrl,
+        });
+      } else if (type === 'mention') {
+        template = emailTemplates.mentionEmail({
+          senderName: title.replace(/ mentioned you.*$/, '') || 'Someone',
+          context: body || '',
+          appUrl,
+        });
+      } else if (type === 'application_status') {
+        template = emailTemplates.applicationStatusEmail({
+          applicantName: user.name,
+          status: body || 'updated',
+          appUrl,
+        });
+      } else {
+        template = emailTemplates.systemNotificationEmail({
+          title,
+          body: body || '',
+          appUrl,
+        });
+      }
+
+      sendEmail({
+        to: user.email,
+        subject: template.subject,
+        html: template.html,
+        text: template.text,
+      }).catch(err => logger.error({ err, userId: user.id, type }, 'Failed to send notification email'));
+    }
+  } catch (error) {
+    logger.error({ err: error, type }, 'Failed to query email preferences for notifications');
+  }
+};
+
 // Create notification for multiple users
 const createNotificationForUsers = async (userIds, type, title, body, referenceId, referenceType) => {
   if (!userIds || userIds.length === 0) return [];
@@ -181,6 +249,10 @@ const createNotificationForUsers = async (userIds, type, title, body, referenceI
     `INSERT INTO notifications (user_id, type, title, body, reference_id, reference_type) VALUES ${placeholders.join(', ')} RETURNING *`,
     values
   );
+
+  // Fire-and-forget email notifications
+  sendNotificationEmails(userIds, type, title, body, referenceId);
+
   return result.rows;
 };
 

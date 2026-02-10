@@ -65,15 +65,15 @@ export default function FilePreviewModal({ file, onClose, onDownload, onDelete }
           <iframe
             src={fileUrl}
             title={file.original_filename}
-            className="w-full h-[70vh] rounded-lg bg-white"
+            className="w-full h-[70vh] rounded-lg bg-white dark:bg-gray-800"
           />
         )
 
       case 'audio':
         return (
-          <div className="bg-white rounded-lg p-8 flex flex-col items-center gap-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-8 flex flex-col items-center gap-4">
             <Music size={64} className="text-primary-500" />
-            <p className="text-lg font-medium text-text-primary">{file.original_filename}</p>
+            <p className="text-lg font-medium text-text-primary dark:text-gray-100">{file.original_filename}</p>
             <audio controls className="w-full max-w-md" src={fileUrl}>
               Your browser does not support the audio element.
             </audio>
@@ -93,31 +93,31 @@ export default function FilePreviewModal({ file, onClose, onDownload, onDelete }
 
       case 'spreadsheet':
         return (
-          <div className="bg-white rounded-lg p-8 flex flex-col items-center gap-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-8 flex flex-col items-center gap-4">
             <FileSpreadsheet size={64} className="text-green-600" />
-            <p className="text-lg font-medium text-text-primary">{file.original_filename}</p>
-            <p className="text-text-secondary">Spreadsheet preview not available</p>
-            <p className="text-sm text-text-secondary">Download the file to view it</p>
+            <p className="text-lg font-medium text-text-primary dark:text-gray-100">{file.original_filename}</p>
+            <p className="text-text-secondary dark:text-gray-400">Spreadsheet preview not available</p>
+            <p className="text-sm text-text-secondary dark:text-gray-400">Download the file to view it</p>
           </div>
         )
 
       case 'document':
         return (
-          <div className="bg-white rounded-lg p-8 flex flex-col items-center gap-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-8 flex flex-col items-center gap-4">
             <FileText size={64} className="text-blue-600" />
-            <p className="text-lg font-medium text-text-primary">{file.original_filename}</p>
-            <p className="text-text-secondary">Document preview not available</p>
-            <p className="text-sm text-text-secondary">Download the file to view it</p>
+            <p className="text-lg font-medium text-text-primary dark:text-gray-100">{file.original_filename}</p>
+            <p className="text-text-secondary dark:text-gray-400">Document preview not available</p>
+            <p className="text-sm text-text-secondary dark:text-gray-400">Download the file to view it</p>
           </div>
         )
 
       default:
         return (
-          <div className="bg-white rounded-lg p-8 flex flex-col items-center gap-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-8 flex flex-col items-center gap-4">
             <File size={64} className="text-gray-500" />
-            <p className="text-lg font-medium text-text-primary">{file.original_filename}</p>
-            <p className="text-text-secondary">Preview not available for this file type</p>
-            <p className="text-sm text-text-secondary">Download the file to view it</p>
+            <p className="text-lg font-medium text-text-primary dark:text-gray-100">{file.original_filename}</p>
+            <p className="text-text-secondary dark:text-gray-400">Preview not available for this file type</p>
+            <p className="text-sm text-text-secondary dark:text-gray-400">Download the file to view it</p>
           </div>
         )
     }
@@ -130,12 +130,12 @@ export default function FilePreviewModal({ file, onClose, onDownload, onDelete }
     >
       <div className="relative w-full max-w-4xl max-h-[90vh] flex flex-col">
         {/* Header */}
-        <div className="flex items-center justify-between bg-white rounded-t-xl px-4 py-3 border-b border-gray-200">
+        <div className="flex items-center justify-between bg-white dark:bg-gray-800 rounded-t-xl px-4 py-3 border-b border-gray-200 dark:border-gray-700">
           <div className="flex-1 min-w-0 mr-4">
-            <h3 className="font-medium text-text-primary truncate" title={file.original_filename}>
+            <h3 className="font-medium text-text-primary dark:text-gray-100 truncate" title={file.original_filename}>
               {file.original_filename}
             </h3>
-            <div className="flex items-center gap-3 text-sm text-text-secondary">
+            <div className="flex items-center gap-3 text-sm text-text-secondary dark:text-gray-400">
               <span>{formatFileSize(file.file_size)}</span>
               <span>Uploaded {format(new Date(file.uploaded_at), 'MMM d, yyyy')}</span>
             </div>
@@ -163,7 +163,7 @@ export default function FilePreviewModal({ file, onClose, onDownload, onDelete }
             )}
             <button
               onClick={onClose}
-              className="p-2 text-text-secondary hover:text-text-primary hover:bg-gray-100 rounded-lg transition-colors"
+              className="p-2 text-text-secondary dark:text-gray-400 hover:text-text-primary dark:hover:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
               title="Close"
             >
               <X size={20} />
@@ -172,7 +172,7 @@ export default function FilePreviewModal({ file, onClose, onDownload, onDelete }
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-auto bg-gray-100 rounded-b-xl p-4 flex items-center justify-center">
+        <div className="flex-1 overflow-auto bg-gray-100 dark:bg-gray-900 rounded-b-xl p-4 flex items-center justify-center">
           {renderPreview()}
         </div>
       </div>

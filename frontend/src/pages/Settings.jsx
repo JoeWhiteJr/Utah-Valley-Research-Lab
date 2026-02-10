@@ -316,20 +316,22 @@ export default function Settings() {
                   {/* Email Notifications */}
                   <div className="border-t border-gray-200 dark:border-gray-700 pt-6">
                     <h3 className="text-sm font-semibold text-text-primary dark:text-gray-100 mb-1">Email Notifications</h3>
-                    <p className="text-xs text-text-secondary dark:text-gray-400 mb-3">Email notifications are coming soon.</p>
-                    <div className="space-y-3 opacity-60 pointer-events-none">
+                    <p className="text-xs text-text-secondary dark:text-gray-400 mb-3">Get notified via email when important things happen.</p>
+                    <div className="space-y-3">
                       {[
-                        { key: 'email_chat', label: 'Chat Messages' },
-                        { key: 'email_mentions', label: 'Mentions' },
-                        { key: 'email_applications', label: 'Applications' },
-                        { key: 'email_system', label: 'System' },
-                      ].map(({ key, label }) => (
+                        { key: 'email_chat', label: 'Chat Messages', desc: 'New messages in your chat rooms' },
+                        { key: 'email_mentions', label: 'Mentions', desc: 'When someone mentions you' },
+                        { key: 'email_applications', label: 'Applications', desc: 'New application submissions' },
+                        { key: 'email_system', label: 'System', desc: 'System announcements and updates' },
+                      ].map(({ key, label, desc }) => (
                         <div key={key} className="flex items-center justify-between py-2">
-                          <p className="text-sm font-medium text-text-primary dark:text-gray-100">{label}</p>
+                          <div>
+                            <p className="text-sm font-medium text-text-primary dark:text-gray-100">{label}</p>
+                            <p className="text-xs text-text-secondary dark:text-gray-400">{desc}</p>
+                          </div>
                           <button
-                            disabled
-                            aria-disabled="true"
-                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors cursor-not-allowed ${
+                            onClick={() => handleTogglePref(key)}
+                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
                               preferences[key] ? 'bg-primary-500' : 'bg-gray-300 dark:bg-gray-600'
                             }`}
                           >

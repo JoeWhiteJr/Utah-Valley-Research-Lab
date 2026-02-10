@@ -269,12 +269,20 @@ export const adminApi = {
   getPublishedProjects: () => api.get('/admin/published-projects'),
   publishProject: (data) => api.post('/admin/publish-project', data),
   updatePublishedProject: (id, data) => api.put(`/admin/published-projects/${id}`, data),
-  unpublishProject: (id) => api.delete(`/admin/published-projects/${id}`)
+  unpublishProject: (id) => api.delete(`/admin/published-projects/${id}`),
+  getAllSiteContent: () => api.get('/admin/site-content'),
+  updateSiteContent: (section, key, value) => api.put(`/admin/site-content/${section}`, { key, value }),
+  getTeamMembers: () => api.get('/admin/team-members'),
+  createTeamMember: (data) => api.post('/admin/team-members', data),
+  updateTeamMember: (id, data) => api.put(`/admin/team-members/${id}`, data),
+  deleteTeamMember: (id) => api.delete(`/admin/team-members/${id}`),
 }
 
 // Public (no auth)
 export const publicApi = {
-  getProjects: () => api.get('/public/projects')
+  getProjects: () => api.get('/public/projects'),
+  getSiteContent: (section) => api.get(`/public/site-content/${section}`),
+  getTeam: () => api.get('/public/team'),
 }
 
 // Notifications

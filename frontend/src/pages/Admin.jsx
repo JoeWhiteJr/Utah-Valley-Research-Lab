@@ -7,7 +7,9 @@ import { usePublishStore } from '../store/publishStore'
 import { usersApi, projectsApi } from '../services/api'
 import Button from '../components/Button'
 import Modal from '../components/Modal'
-import { LayoutDashboard, Users, Trash2, Sparkles, Globe, Pencil, XCircle, BrainCircuit, Calendar, FolderKanban } from 'lucide-react'
+import { LayoutDashboard, Users, Trash2, Sparkles, Globe, Pencil, XCircle, BrainCircuit, Calendar, FolderKanban, FileEdit, UserCircle } from 'lucide-react'
+import SiteContentTab from '../components/admin/SiteContentTab'
+import PublicTeamTab from '../components/admin/PublicTeamTab'
 
 export default function Admin() {
   const [activeTab, setActiveTab] = useState('dashboard')
@@ -181,7 +183,7 @@ export default function Admin() {
     <div>
       <h1 className="font-display font-bold text-2xl mb-6 text-text-primary dark:text-gray-100">Admin Dashboard</h1>
       <div className="flex gap-2 border-b border-gray-200 dark:border-gray-700 mb-6">
-        {[['dashboard', 'Dashboard', LayoutDashboard], ['applications', 'Applications', Users], ['team', 'Team', Users], ['projects', 'Projects', FolderKanban], ['publish', 'Publish', Globe]].map(([id, label, Icon]) => (
+        {[['dashboard', 'Dashboard', LayoutDashboard], ['applications', 'Applications', Users], ['team', 'Team', Users], ['projects', 'Projects', FolderKanban], ['publish', 'Publish', Globe], ['site-content', 'Site Content', FileEdit], ['public-team', 'Public Team', UserCircle]].map(([id, label, Icon]) => (
           <button key={id} onClick={() => setActiveTab(id)} className={`flex items-center gap-2 px-4 py-3 border-b-2 text-text-secondary dark:text-gray-400 ${activeTab === id ? 'border-primary-500 text-primary-600 dark:text-primary-400' : 'border-transparent'}`}>
             <Icon size={18} />{label}
           </button>
@@ -497,6 +499,9 @@ export default function Admin() {
           )}
         </div>
       )}
+
+      {activeTab === 'site-content' && <SiteContentTab />}
+      {activeTab === 'public-team' && <PublicTeamTab />}
 
       {/* Delete Member Confirmation */}
       <Modal

@@ -3,7 +3,7 @@ import { startOfWeek, addDays, isSameDay, isToday, format } from 'date-fns';
 import { EventBlock } from './EventBlock';
 import type { CalendarEvent, CalendarScope, DeadlineEvent } from './types';
 import { TIME_CONFIG } from './types';
-import { useGridDragToCreate } from '../../hooks/useGridDragToCreate';
+import { useGridDragToCreate, type DragPreview } from '../../hooks/useGridDragToCreate';
 
 interface WeeklyViewProps {
   selectedDate: Date;
@@ -70,6 +70,8 @@ export function WeeklyView({
     onRangeSelected: onTimeRangeSelect || (() => {}),
     getDateForColumn,
     baseDate: selectedDate,
+    columnCount: 7,
+    gutterWidth: 56,
   });
 
   const handleColumnClick = useCallback(
@@ -167,12 +169,22 @@ export function WeeklyView({
                 ))}
 
                 {/* Drag preview for this column */}
-                {previewStyle && previewStyle.columnIndex === dayIndex && (
+                {previewStyle && previewStyle.type === 'single' && previewStyle.columnIndex === dayIndex && (
                   <div
                     className="absolute left-0.5 right-0.5 rounded-lg border-2 border-dashed border-indigo-400 dark:border-indigo-500 bg-indigo-50/50 dark:bg-indigo-900/30 pointer-events-none z-30"
                     style={{ top: previewStyle.top, height: previewStyle.height }}
                   />
                 )}
+                {previewStyle && previewStyle.type === 'multi' && (() => {
+                  const col = previewStyle.columns.find(c => c.columnIndex === dayIndex);
+                  if (!col) return null;
+                  return (
+                    <div
+                      className="absolute left-0.5 right-0.5 rounded-lg border-2 border-dashed border-indigo-400 dark:border-indigo-500 bg-indigo-50/50 dark:bg-indigo-900/30 pointer-events-none z-30"
+                      style={{ top: col.top, height: col.height }}
+                    />
+                  );
+                })()}
 
                 {/* Events */}
                 {blocks.map((block) => (

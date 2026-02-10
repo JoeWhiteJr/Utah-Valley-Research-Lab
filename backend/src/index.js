@@ -28,6 +28,7 @@ const contactRoutes = require('./routes/contact');
 const searchRoutes = require('./routes/search');
 const commentRoutes = require('./routes/comments');
 const activityRoutes = require('./routes/activity');
+const { publicRouter: siteContentPublicRoutes, adminRouter: siteContentAdminRoutes } = require('./routes/siteContent');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -109,6 +110,8 @@ app.use('/api/contact', contactRoutes);
 app.use('/api/search', searchRoutes);
 app.use('/api/comments', commentRoutes);
 app.use('/api/activity', activityRoutes);
+app.use('/api/public', siteContentPublicRoutes);
+app.use('/api/admin', siteContentAdminRoutes);
 
 // Health check with DB connectivity verification
 app.get('/api/health', async (req, res) => {

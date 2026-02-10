@@ -6,17 +6,25 @@ import SectionHeader from '../shared/SectionHeader';
 import ScrollAnimateWrapper from '../shared/ScrollAnimateWrapper';
 import FaqAccordion from '../shared/FaqAccordion';
 import { useContactForm } from '../../../hooks/useContactForm';
-import { contactPageData, faqData, siteInfo } from '../../../data/publicSiteData';
+import { contactPageData, faqData as staticFaqData, siteInfo } from '../../../data/publicSiteData';
+import { useSiteContentStore } from '../../../store/siteContentStore';
 
 export default function ContactPage() {
+  const { fetchSection, getContactData, getFaqData } = useSiteContentStore();
+
   useEffect(() => {
     document.title = 'Contact Us | Utah Valley Research Lab';
-  }, []);
+    fetchSection('contact');
+    fetchSection('faq');
+  }, [fetchSection]);
+
+  const contactFromStore = getContactData();
+  const faqData = getFaqData();
 
   const { values, errors, isSubmitting, isSubmitted, handleChange, handleSubmit, reset } = useContactForm();
 
   const { hero, intro, form } = contactPageData;
-  const { contact } = siteInfo;
+  const contact = { ...siteInfo.contact, ...contactFromStore };
 
   const onSubmit = async (formData) => {
     const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';

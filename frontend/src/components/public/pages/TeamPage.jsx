@@ -5,13 +5,18 @@ import { ArrowRight } from 'lucide-react';
 import PageHero from '../shared/PageHero';
 import TeamCard from '../shared/TeamCard';
 import ScrollAnimateWrapper from '../shared/ScrollAnimateWrapper';
-import { teamData, ctaData } from '../../../data/publicSiteData';
+import { teamData as staticTeamData, ctaData } from '../../../data/publicSiteData';
+import { useSiteContentStore } from '../../../store/siteContentStore';
 
 export default function TeamPage() {
+  const { fetchTeam, getTeamData } = useSiteContentStore();
+
   useEffect(() => {
     document.title = 'Our Team | Utah Valley Research Lab';
-  }, []);
+    fetchTeam();
+  }, [fetchTeam]);
 
+  const teamData = getTeamData();
   const { leadership, labLeads, members, partners } = teamData;
   const teamCta = ctaData.team;
 
@@ -36,7 +41,7 @@ export default function TeamPage() {
                     role={member.role}
                     bio={member.bio}
                     email={member.email}
-                    linkedin={member.linkedin}
+                    linkedin={member.linkedin || member.linkedin_url}
                   />
                 </ScrollAnimateWrapper>
               ))}
@@ -56,7 +61,7 @@ export default function TeamPage() {
                     role={member.role}
                     bio={member.bio}
                     email={member.email}
-                    linkedin={member.linkedin}
+                    linkedin={member.linkedin || member.linkedin_url}
                   />
                 </ScrollAnimateWrapper>
               ))}
