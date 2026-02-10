@@ -104,17 +104,25 @@ const requireProjectAccess = (paramName = 'projectId') => {
         [projectId, req.user.id]
       );
 
-      // Also check if user is assigned to any action item in the project
       if (result.rows.length === 0) {
-        const assignedResult = await db.query(
-          `SELECT 1 FROM action_items ai
-           LEFT JOIN action_item_assignees aia ON ai.id = aia.action_item_id
-           WHERE ai.project_id = $1 AND (ai.assigned_to = $2 OR aia.user_id = $2)
-           LIMIT 1`,
+        // Check project_members table
+        const memberResult = await db.query(
+          'SELECT 1 FROM project_members WHERE project_id = $1 AND user_id = $2 LIMIT 1',
           [projectId, req.user.id]
         );
-        if (assignedResult.rows.length === 0) {
-          return res.status(403).json({ error: { message: 'Access denied to this project' } });
+
+        if (memberResult.rows.length === 0) {
+          // Also check if user is assigned to any action item in the project
+          const assignedResult = await db.query(
+            `SELECT 1 FROM action_items ai
+             LEFT JOIN action_item_assignees aia ON ai.id = aia.action_item_id
+             WHERE ai.project_id = $1 AND (ai.assigned_to = $2 OR aia.user_id = $2)
+             LIMIT 1`,
+            [projectId, req.user.id]
+          );
+          if (assignedResult.rows.length === 0) {
+            return res.status(403).json({ error: { message: 'Access denied to this project' } });
+          }
         }
       }
 

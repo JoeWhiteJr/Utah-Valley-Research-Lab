@@ -225,7 +225,7 @@ export default function MyDashboard() {
         <div className="flex items-center justify-between mb-5">
           <h2 className="font-display font-bold text-xl text-text-primary dark:text-gray-100">My Calendar</h2>
         </div>
-        <CalendarView scope="personal" compact />
+        <CalendarView scope="dashboard" compact />
       </section>
 
       {/* My Projects */}

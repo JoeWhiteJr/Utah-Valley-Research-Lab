@@ -77,7 +77,7 @@ export interface CreateEventData {
   attendee_ids?: string[];
 }
 
-export type CalendarScope = 'lab' | 'personal';
+export type CalendarScope = 'lab' | 'personal' | 'project' | 'dashboard';
 export type CalendarViewType = 'daily' | 'weekly' | 'monthly';
 export type RSVPStatus = 'pending' | 'accepted' | 'declined';
 export type RepeatFrequency = 'daily' | 'weekly' | 'custom';

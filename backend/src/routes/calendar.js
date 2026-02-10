@@ -94,9 +94,24 @@ router.get('/events', [
       whereClause += ` AND ce.scope = 'personal' AND ce.created_by = $${paramIndex}`;
       params.push(userId);
       paramIndex++;
+    } else if (scope === 'project') {
+      whereClause += ` AND ce.scope = 'project'`;
+    } else if (scope === 'dashboard') {
+      // Dashboard: personal events + project events from joined projects
+      whereClause += ` AND (
+        (ce.scope = 'personal' AND ce.created_by = $${paramIndex})
+        OR (ce.scope = 'project' AND ce.project_id IN (
+          SELECT project_id FROM project_members WHERE user_id = $${paramIndex}
+        ))
+      )`;
+      params.push(userId);
+      paramIndex++;
     } else {
-      // 'all' or default: lab events + own personal events
-      whereClause += ` AND (ce.scope = 'lab' OR (ce.scope = 'personal' AND ce.created_by = $${paramIndex}))`;
+      // 'all' or default: lab events + own personal events + project events from joined projects
+      whereClause += ` AND (ce.scope = 'lab' OR (ce.scope = 'personal' AND ce.created_by = $${paramIndex})
+        OR (ce.scope = 'project' AND ce.project_id IN (
+          SELECT project_id FROM project_members WHERE user_id = $${paramIndex}
+        )))`;
       params.push(userId);
       paramIndex++;
     }
@@ -180,6 +195,17 @@ router.get('/events/:id', async (req, res, next) => {
       return res.status(403).json({ error: { message: 'Access denied' } });
     }
 
+    // Privacy check: project events only visible to members and admins
+    if (event.scope === 'project' && req.user.role !== 'admin') {
+      const memberCheck = await db.query(
+        'SELECT 1 FROM project_members WHERE project_id = $1 AND user_id = $2',
+        [event.project_id, req.user.id]
+      );
+      if (memberCheck.rows.length === 0) {
+        return res.status(403).json({ error: { message: 'Access denied' } });
+      }
+    }
+
     res.json({ event });
   } catch (error) {
     next(error);
@@ -191,7 +217,7 @@ router.post('/events', sanitizeBody('notes'), [
   body('title').trim().notEmpty().withMessage('Title is required'),
   body('start_time').isISO8601().withMessage('Valid start time required'),
   body('end_time').isISO8601().withMessage('Valid end time required'),
-  body('scope').isIn(['lab', 'personal']).withMessage('Scope must be lab or personal'),
+  body('scope').isIn(['lab', 'personal', 'project']).withMessage('Scope must be lab, personal, or project'),
 ], async (req, res, next) => {
   const err = validate(req, res);
   if (err) return;
@@ -203,6 +229,20 @@ router.post('/events', sanitizeBody('notes'), [
     // Permission check: only admin/project_lead can create lab events
     if (scope === 'lab' && !canManageLab(req.user)) {
       return res.status(403).json({ error: { message: 'Only admins and project leads can create lab events' } });
+    }
+
+    // Permission check: project events require membership and project_id
+    if (scope === 'project') {
+      if (!project_id) {
+        return res.status(400).json({ error: { message: 'project_id is required for project events' } });
+      }
+      const memberCheck = await db.query(
+        'SELECT 1 FROM project_members WHERE project_id = $1 AND user_id = $2',
+        [project_id, req.user.id]
+      );
+      if (memberCheck.rows.length === 0 && req.user.role !== 'admin') {
+        return res.status(403).json({ error: { message: 'You must be a project member to create project events' } });
+      }
     }
 
     const result = await db.query(
@@ -278,6 +318,15 @@ router.put('/events/:id', sanitizeBody('notes'), [
     }
     if (event.scope === 'personal' && event.created_by !== req.user.id) {
       return res.status(403).json({ error: { message: 'You can only edit your own personal events' } });
+    }
+    if (event.scope === 'project') {
+      const memberCheck = await db.query(
+        'SELECT 1 FROM project_members WHERE project_id = $1 AND user_id = $2',
+        [event.project_id, req.user.id]
+      );
+      if (memberCheck.rows.length === 0 && req.user.role !== 'admin') {
+        return res.status(403).json({ error: { message: 'You must be a project member to edit project events' } });
+      }
     }
 
     const { title, description, start_time, end_time, all_day,
@@ -364,6 +413,15 @@ router.delete('/events/:id', async (req, res, next) => {
     if (event.scope === 'personal' && event.created_by !== req.user.id) {
       return res.status(403).json({ error: { message: 'You can only delete your own personal events' } });
     }
+    if (event.scope === 'project') {
+      const memberCheck = await db.query(
+        'SELECT 1 FROM project_members WHERE project_id = $1 AND user_id = $2',
+        [event.project_id, req.user.id]
+      );
+      if (memberCheck.rows.length === 0 && req.user.role !== 'admin') {
+        return res.status(403).json({ error: { message: 'You must be a project member to delete project events' } });
+      }
+    }
 
     await db.query('DELETE FROM calendar_events WHERE id = $1', [req.params.id]);
     res.json({ message: 'Event deleted' });
@@ -393,6 +451,15 @@ router.patch('/events/:id/move', [
     }
     if (event.scope === 'personal' && event.created_by !== req.user.id) {
       return res.status(403).json({ error: { message: 'Access denied' } });
+    }
+    if (event.scope === 'project') {
+      const memberCheck = await db.query(
+        'SELECT 1 FROM project_members WHERE project_id = $1 AND user_id = $2',
+        [event.project_id, req.user.id]
+      );
+      if (memberCheck.rows.length === 0 && req.user.role !== 'admin') {
+        return res.status(403).json({ error: { message: 'Access denied' } });
+      }
     }
 
     const { start_time, end_time } = req.body;

@@ -92,7 +92,14 @@ export const projectsApi = {
   delete: (id) => api.delete(`/projects/${id}`),
   uploadCover: (id, formData) => api.post(`/projects/${id}/cover`, formData, {
     headers: { 'Content-Type': 'multipart/form-data' }
-  })
+  }),
+  getMembers: (id) => api.get(`/projects/${id}/members`),
+  getMembershipStatus: (id) => api.get(`/projects/${id}/membership-status`),
+  requestJoin: (id, message) => api.post(`/projects/${id}/join-request`, { message }),
+  getJoinRequests: (id) => api.get(`/projects/${id}/join-requests`),
+  reviewJoinRequest: (id, reqId, action) => api.put(`/projects/${id}/join-requests/${reqId}`, { action }),
+  leaveProject: (id) => api.delete(`/projects/${id}/leave`),
+  setLead: (id, userId) => api.put(`/projects/${id}/lead`, { user_id: userId })
 }
 
 // Actions

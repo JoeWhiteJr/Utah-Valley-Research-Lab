@@ -9,6 +9,9 @@ export const useProjectStore = create((set, get) => ({
   files: [],
   notes: [],
   meetings: [],
+  members: [],
+  membershipStatus: null, // { status: 'member'|'pending'|'none', role?: 'lead'|'member' }
+  joinRequests: [],
   isLoading: false,
   error: null,
   uploadProgress: null, // Track file upload progress (0-100 or null when not uploading)
@@ -374,6 +377,71 @@ export const useProjectStore = create((set, get) => ({
     }
   },
 
+  // Members
+  fetchMembers: async (projectId) => {
+    try {
+      const { data } = await projectsApi.getMembers(projectId)
+      set({ members: data.members })
+    } catch (error) {
+      set({ error: error.response?.data?.error?.message || 'Failed to fetch members' })
+    }
+  },
+
+  fetchMembershipStatus: async (projectId) => {
+    try {
+      const { data } = await projectsApi.getMembershipStatus(projectId)
+      set({ membershipStatus: data })
+    } catch (error) {
+      set({ error: error.response?.data?.error?.message || 'Failed to fetch membership status' })
+    }
+  },
+
+  requestJoin: async (projectId, message) => {
+    try {
+      await projectsApi.requestJoin(projectId, message)
+      set({ membershipStatus: { status: 'pending' } })
+      return true
+    } catch (error) {
+      set({ error: error.response?.data?.error?.message || 'Failed to submit join request' })
+      return false
+    }
+  },
+
+  leaveProject: async (projectId) => {
+    try {
+      await projectsApi.leaveProject(projectId)
+      set({ membershipStatus: { status: 'none' } })
+      // Re-fetch members
+      get().fetchMembers(projectId)
+      return true
+    } catch (error) {
+      set({ error: error.response?.data?.error?.message || 'Failed to leave project' })
+      return false
+    }
+  },
+
+  fetchJoinRequests: async (projectId) => {
+    try {
+      const { data } = await projectsApi.getJoinRequests(projectId)
+      set({ joinRequests: data.requests })
+    } catch {
+      // Silently fail - user may not have permission
+    }
+  },
+
+  reviewJoinRequest: async (projectId, reqId, action) => {
+    try {
+      await projectsApi.reviewJoinRequest(projectId, reqId, action)
+      // Re-fetch requests and members
+      get().fetchJoinRequests(projectId)
+      get().fetchMembers(projectId)
+      return true
+    } catch (error) {
+      set({ error: error.response?.data?.error?.message || 'Failed to review join request' })
+      return false
+    }
+  },
+
   clearError: () => set({ error: null }),
-  clearCurrentProject: () => set({ currentProject: null, actions: [], categories: [], files: [], notes: [], meetings: [] })
+  clearCurrentProject: () => set({ currentProject: null, actions: [], categories: [], files: [], notes: [], meetings: [], members: [], membershipStatus: null, joinRequests: [] })
 }))

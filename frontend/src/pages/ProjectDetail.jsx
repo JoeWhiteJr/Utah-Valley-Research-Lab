@@ -19,13 +19,16 @@ import AudioRecorder from '../components/AudioRecorder'
 import CategoryManager from '../components/CategoryManager'
 import {
   ArrowLeft, Edit3, Trash2, Plus, Upload, ListTodo, FileText,
-  StickyNote, Mic, Image, MoreVertical, Check, Users, Sparkles, Loader2
+  StickyNote, Mic, Image, MoreVertical, Check, Users, Sparkles, Loader2,
+  Calendar, UserPlus, UserMinus, Crown, Clock, Mail, Shield
 } from 'lucide-react'
+import { CalendarView } from '../components/calendar/CalendarView'
 import { toast } from '../store/toastStore'
 
 const tabs = [
   { id: 'overview', label: 'Overview', icon: FileText },
   { id: 'actions', label: 'Action Items', icon: ListTodo },
+  { id: 'schedule', label: 'Schedule', icon: Calendar },
   { id: 'files', label: 'Files', icon: Upload },
   { id: 'notes', label: 'Notes', icon: StickyNote },
   { id: 'meetings', label: 'Meetings', icon: Mic }
@@ -44,7 +47,10 @@ export default function ProjectDetail() {
     meetings, fetchMeetings, createMeeting, updateMeeting, deleteMeeting,
     clearCurrentProject, isLoading,
     uploadProgress, isUploading,
-    setParentTask, calculateProgress
+    setParentTask, calculateProgress,
+    members, membershipStatus, joinRequests,
+    fetchMembers, fetchMembershipStatus, requestJoin, leaveProject,
+    fetchJoinRequests, reviewJoinRequest
   } = useProjectStore()
 
   const [activeTab, setActiveTab] = useState('overview')
@@ -104,7 +110,7 @@ export default function ProjectDetail() {
   const coverInputRef = useRef(null)
   const fileInputRef = useRef(null)
 
-  const canEdit = user?.role === 'admin' || user?.role === 'project_lead'
+  const canEdit = user?.role === 'admin' || user?.role === 'project_lead' || membershipStatus?.role === 'lead'
   const canEditMeta = user?.role === 'admin'
   const canDelete = user?.role === 'admin'
 
@@ -125,10 +131,13 @@ export default function ProjectDetail() {
     fetchFiles(id)
     fetchNotes(id)
     fetchMeetings(id)
+    fetchMembers(id)
+    fetchMembershipStatus(id)
+    fetchJoinRequests(id)
     usersApi.team().then(({ data }) => setTeamMembers(data.users))
 
     return () => clearCurrentProject()
-  }, [id, fetchProject, fetchActions, fetchCategories, fetchFiles, fetchNotes, fetchMeetings, clearCurrentProject])
+  }, [id, fetchProject, fetchActions, fetchCategories, fetchFiles, fetchNotes, fetchMeetings, fetchMembers, fetchMembershipStatus, fetchJoinRequests, clearCurrentProject])
 
   useEffect(() => {
     if (currentProject) {
@@ -578,31 +587,155 @@ export default function ProjectDetail() {
       <div className="min-h-[400px]">
         {/* Overview */}
         {activeTab === 'overview' && (
-          <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
-            <h3 className="font-display font-semibold text-lg dark:text-gray-100 mb-4">Project Overview</h3>
-            <p className="text-text-secondary dark:text-gray-400">
-              {currentProject.description || 'No description provided.'}
-            </p>
-            <div className="mt-6 grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div className="p-4 bg-gray-50 dark:bg-gray-900 rounded-lg">
-                <p className="text-2xl font-bold text-text-primary dark:text-gray-100">{actions.length}</p>
-                <p className="text-sm text-text-secondary dark:text-gray-400">Total tasks</p>
-              </div>
-              <div className="p-4 bg-gray-50 dark:bg-gray-900 rounded-lg">
-                <p className="text-2xl font-bold text-text-primary dark:text-gray-100">
-                  {actions.filter(a => a.completed).length}
-                </p>
-                <p className="text-sm text-text-secondary dark:text-gray-400">Completed</p>
-              </div>
-              <div className="p-4 bg-gray-50 dark:bg-gray-900 rounded-lg">
-                <p className="text-2xl font-bold text-text-primary dark:text-gray-100">{files.length}</p>
-                <p className="text-sm text-text-secondary dark:text-gray-400">Files</p>
-              </div>
-              <div className="p-4 bg-gray-50 dark:bg-gray-900 rounded-lg">
-                <p className="text-2xl font-bold text-text-primary dark:text-gray-100">{notes.length}</p>
-                <p className="text-sm text-text-secondary dark:text-gray-400">Notes</p>
+          <div className="space-y-6">
+            <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
+              <h3 className="font-display font-semibold text-lg dark:text-gray-100 mb-4">Project Overview</h3>
+              <p className="text-text-secondary dark:text-gray-400">
+                {currentProject.description || 'No description provided.'}
+              </p>
+              <div className="mt-6 grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="p-4 bg-gray-50 dark:bg-gray-900 rounded-lg">
+                  <p className="text-2xl font-bold text-text-primary dark:text-gray-100">{actions.length}</p>
+                  <p className="text-sm text-text-secondary dark:text-gray-400">Total tasks</p>
+                </div>
+                <div className="p-4 bg-gray-50 dark:bg-gray-900 rounded-lg">
+                  <p className="text-2xl font-bold text-text-primary dark:text-gray-100">
+                    {actions.filter(a => a.completed).length}
+                  </p>
+                  <p className="text-sm text-text-secondary dark:text-gray-400">Completed</p>
+                </div>
+                <div className="p-4 bg-gray-50 dark:bg-gray-900 rounded-lg">
+                  <p className="text-2xl font-bold text-text-primary dark:text-gray-100">{files.length}</p>
+                  <p className="text-sm text-text-secondary dark:text-gray-400">Files</p>
+                </div>
+                <div className="p-4 bg-gray-50 dark:bg-gray-900 rounded-lg">
+                  <p className="text-2xl font-bold text-text-primary dark:text-gray-100">{notes.length}</p>
+                  <p className="text-sm text-text-secondary dark:text-gray-400">Notes</p>
+                </div>
               </div>
             </div>
+
+            {/* Team Members Section */}
+            <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-display font-semibold text-lg dark:text-gray-100 flex items-center gap-2">
+                  <Users size={20} />
+                  Team Members ({members.length})
+                </h3>
+                {/* Join/Leave buttons */}
+                {membershipStatus?.status === 'none' && (
+                  <button
+                    onClick={() => requestJoin(id)}
+                    className="flex items-center gap-1.5 px-4 py-2 bg-primary-500 text-white text-sm font-medium rounded-lg hover:bg-primary-600 transition-colors"
+                  >
+                    <UserPlus size={16} />
+                    Request to Join
+                  </button>
+                )}
+                {membershipStatus?.status === 'pending' && (
+                  <span className="flex items-center gap-1.5 px-4 py-2 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 text-sm font-medium rounded-lg">
+                    <Clock size={16} />
+                    Request Pending
+                  </span>
+                )}
+                {membershipStatus?.status === 'member' && membershipStatus?.role !== 'lead' && (
+                  <button
+                    onClick={() => { if (window.confirm('Are you sure you want to leave this project?')) leaveProject(id) }}
+                    className="flex items-center gap-1.5 px-4 py-2 bg-gray-100 dark:bg-gray-700 text-text-secondary dark:text-gray-400 text-sm font-medium rounded-lg hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/30 dark:hover:text-red-400 transition-colors"
+                  >
+                    <UserMinus size={16} />
+                    Leave Project
+                  </button>
+                )}
+              </div>
+              {members.length > 0 ? (
+                <div className="space-y-3">
+                  {members.map((member) => (
+                    <div key={member.id} className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-900 transition-colors">
+                      {member.avatar_url ? (
+                        <img src={member.avatar_url} alt="" className="w-10 h-10 rounded-full object-cover" />
+                      ) : (
+                        <div className="w-10 h-10 rounded-full bg-primary-100 dark:bg-primary-900/30 flex items-center justify-center">
+                          <span className="text-sm font-medium text-primary-600 dark:text-primary-300">
+                            {member.name?.charAt(0)?.toUpperCase() || '?'}
+                          </span>
+                        </div>
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium text-text-primary dark:text-gray-100 truncate">{member.name}</span>
+                          {member.role === 'lead' && (
+                            <span className="flex items-center gap-1 px-2 py-0.5 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 text-xs font-medium rounded-full">
+                              <Crown size={12} />
+                              Lead
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1 text-sm text-text-secondary dark:text-gray-400">
+                          <Mail size={12} />
+                          <span className="truncate">{member.email}</span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-text-secondary dark:text-gray-400">No members yet.</p>
+              )}
+            </div>
+
+            {/* Join Requests Panel (lead/admin only) */}
+            {(membershipStatus?.role === 'lead' || user?.role === 'admin') && joinRequests.length > 0 && (
+              <div className="bg-white dark:bg-gray-800 rounded-xl border border-amber-200 dark:border-amber-700 p-6">
+                <h3 className="font-display font-semibold text-lg dark:text-gray-100 flex items-center gap-2 mb-4">
+                  <Shield size={20} className="text-amber-500" />
+                  Join Requests ({joinRequests.length})
+                </h3>
+                <div className="space-y-3">
+                  {joinRequests.map((req) => (
+                    <div key={req.id} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-900 rounded-lg">
+                      <div className="flex items-center gap-3">
+                        {req.user_avatar ? (
+                          <img src={req.user_avatar} alt="" className="w-9 h-9 rounded-full object-cover" />
+                        ) : (
+                          <div className="w-9 h-9 rounded-full bg-primary-100 dark:bg-primary-900/30 flex items-center justify-center">
+                            <span className="text-sm font-medium text-primary-600 dark:text-primary-300">
+                              {req.user_name?.charAt(0)?.toUpperCase() || '?'}
+                            </span>
+                          </div>
+                        )}
+                        <div>
+                          <p className="font-medium text-text-primary dark:text-gray-100 text-sm">{req.user_name}</p>
+                          <p className="text-xs text-text-secondary dark:text-gray-400">{req.user_email}</p>
+                          {req.message && <p className="text-xs text-text-secondary dark:text-gray-400 mt-1 italic">&ldquo;{req.message}&rdquo;</p>}
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => reviewJoinRequest(id, req.id, 'approve')}
+                          className="px-3 py-1.5 bg-green-500 text-white text-xs font-medium rounded-lg hover:bg-green-600 transition-colors"
+                        >
+                          Approve
+                        </button>
+                        <button
+                          onClick={() => reviewJoinRequest(id, req.id, 'reject')}
+                          className="px-3 py-1.5 bg-gray-200 dark:bg-gray-700 text-text-secondary dark:text-gray-400 text-xs font-medium rounded-lg hover:bg-red-100 hover:text-red-600 dark:hover:bg-red-900/30 dark:hover:text-red-400 transition-colors"
+                        >
+                          Reject
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Schedule */}
+        {activeTab === 'schedule' && (
+          <div>
+            <CalendarView scope="project" projectId={id} />
           </div>
         )}
 

@@ -4,10 +4,10 @@ import { useApplicationStore } from '../store/applicationStore'
 import { useAuthStore } from '../store/authStore'
 import { useProjectStore } from '../store/projectStore'
 import { usePublishStore } from '../store/publishStore'
-import { usersApi } from '../services/api'
+import { usersApi, projectsApi } from '../services/api'
 import Button from '../components/Button'
 import Modal from '../components/Modal'
-import { LayoutDashboard, Users, Trash2, Sparkles, Globe, Pencil, XCircle, BrainCircuit, Calendar } from 'lucide-react'
+import { LayoutDashboard, Users, Trash2, Sparkles, Globe, Pencil, XCircle, BrainCircuit, Calendar, FolderKanban } from 'lucide-react'
 
 export default function Admin() {
   const [activeTab, setActiveTab] = useState('dashboard')
@@ -57,9 +57,10 @@ export default function Admin() {
     if (activeTab === 'team') {
       loadTeam()
     }
-    if (activeTab === 'publish') {
+    if (activeTab === 'publish' || activeTab === 'projects') {
       fetchProjects()
-      fetchPublishedProjects()
+      if (activeTab === 'publish') fetchPublishedProjects()
+      if (activeTab === 'projects') loadTeam()
     }
   }, [activeTab, fetchProjects, fetchPublishedProjects, loadTeam])
 
@@ -180,7 +181,7 @@ export default function Admin() {
     <div>
       <h1 className="font-display font-bold text-2xl mb-6 text-text-primary dark:text-gray-100">Admin Dashboard</h1>
       <div className="flex gap-2 border-b border-gray-200 dark:border-gray-700 mb-6">
-        {[['dashboard', 'Dashboard', LayoutDashboard], ['applications', 'Applications', Users], ['team', 'Team', Users], ['publish', 'Publish', Globe]].map(([id, label, Icon]) => (
+        {[['dashboard', 'Dashboard', LayoutDashboard], ['applications', 'Applications', Users], ['team', 'Team', Users], ['projects', 'Projects', FolderKanban], ['publish', 'Publish', Globe]].map(([id, label, Icon]) => (
           <button key={id} onClick={() => setActiveTab(id)} className={`flex items-center gap-2 px-4 py-3 border-b-2 text-text-secondary dark:text-gray-400 ${activeTab === id ? 'border-primary-500 text-primary-600 dark:text-primary-400' : 'border-transparent'}`}>
             <Icon size={18} />{label}
           </button>
@@ -366,6 +367,64 @@ export default function Admin() {
       )}
 
       {/* Publish Tab */}
+      {activeTab === 'projects' && (
+        <div className="space-y-4">
+          <h2 className="font-display font-semibold text-lg text-text-primary dark:text-gray-100">Project Lead Assignment</h2>
+          <p className="text-sm text-text-secondary dark:text-gray-400">Assign or change the lead for each project. Only admins can perform this action.</p>
+          <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-text-secondary dark:text-gray-400 uppercase">Project</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-text-secondary dark:text-gray-400 uppercase">Status</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-text-secondary dark:text-gray-400 uppercase">Current Lead</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-text-secondary dark:text-gray-400 uppercase">Assign Lead</th>
+                </tr>
+              </thead>
+              <tbody>
+                {projects.map((project) => (
+                  <tr key={project.id} className="border-b border-gray-100 dark:border-gray-700 last:border-0">
+                    <td className="px-4 py-3">
+                      <span className="font-medium text-text-primary dark:text-gray-100">{project.title}</span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium capitalize ${
+                        project.status === 'active' ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300' :
+                        project.status === 'completed' ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300' :
+                        'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'
+                      }`}>{project.status}</span>
+                    </td>
+                    <td className="px-4 py-3 text-sm text-text-secondary dark:text-gray-400">
+                      {project.lead_name || project.creator_name || 'None'}
+                    </td>
+                    <td className="px-4 py-3">
+                      <select
+                        value={project.lead_id || ''}
+                        onChange={async (e) => {
+                          if (e.target.value) {
+                            await projectsApi.setLead(project.id, e.target.value)
+                            fetchProjects()
+                          }
+                        }}
+                        className="px-3 py-1.5 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-text-primary dark:text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-primary-300"
+                      >
+                        <option value="">Select lead...</option>
+                        {teamMembers.map((m) => (
+                          <option key={m.id} value={m.id}>{m.name}</option>
+                        ))}
+                      </select>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {projects.length === 0 && (
+              <div className="p-8 text-center text-text-secondary dark:text-gray-400">No projects found.</div>
+            )}
+          </div>
+        </div>
+      )}
+
       {activeTab === 'publish' && (
         <div>
           <h2 className="font-display font-semibold text-lg mb-6 text-text-primary dark:text-gray-100">Publish Team Projects</h2>

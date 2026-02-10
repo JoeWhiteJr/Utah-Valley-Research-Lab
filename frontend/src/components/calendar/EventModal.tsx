@@ -72,20 +72,26 @@ export function EventModal({ scope, onClose }: EventModalProps) {
     }
   }, [scope]);
 
+  // Get the projectId filter from calendarStore for project scope
+  const calendarFilters = useCalendarStore((s: any) => s.filters);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim()) return;
 
     setIsSaving(true);
+    // For project scope, auto-set scope and project_id from calendar filter
+    const effectiveScope = scope === 'project' ? 'project' : (scope === 'dashboard' ? 'personal' : scope);
+    const effectiveProjectId = scope === 'project' ? (calendarFilters?.projectId || projectId) : projectId;
     const eventData: CreateEventData = {
       title: title.trim(),
       description,
       start_time: startTime.toISOString(),
       end_time: endTime.toISOString(),
       all_day: allDay,
-      scope,
+      scope: effectiveScope as any,
       category_id: categoryId,
-      project_id: projectId,
+      project_id: effectiveProjectId,
       repeat_rule: repeatRule,
       notes,
       attendee_ids: scope === 'lab' ? attendeeIds : undefined,
@@ -293,23 +299,25 @@ export function EventModal({ scope, onClose }: EventModalProps) {
             )}
           </div>
 
-          {/* Project Link */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              <Link size={14} className="inline mr-1" />
-              Link to Project
-            </label>
-            <select
-              value={projectId || ''}
-              onChange={(e) => setProjectId(e.target.value || null)}
-              className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-300 dark:focus:ring-indigo-500"
-            >
-              <option value="">No project</option>
-              {projects.map((p) => (
-                <option key={p.id} value={p.id}>{p.title}</option>
-              ))}
-            </select>
-          </div>
+          {/* Project Link (hidden when scope is 'project' since it's auto-set) */}
+          {scope !== 'project' && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                <Link size={14} className="inline mr-1" />
+                Link to Project
+              </label>
+              <select
+                value={projectId || ''}
+                onChange={(e) => setProjectId(e.target.value || null)}
+                className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-300 dark:focus:ring-indigo-500"
+              >
+                <option value="">No project</option>
+                {projects.map((p) => (
+                  <option key={p.id} value={p.id}>{p.title}</option>
+                ))}
+              </select>
+            </div>
+          )}
 
           {/* Repeat */}
           <RepeatPicker value={repeatRule} onChange={setRepeatRule} />

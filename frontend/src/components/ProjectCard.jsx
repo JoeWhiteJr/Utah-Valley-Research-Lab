@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import { CheckCircle2, Calendar } from 'lucide-react'
+import { CheckCircle2, Calendar, Users } from 'lucide-react'
 import { format } from 'date-fns'
 import { getUploadUrl } from '../services/api'
 
@@ -88,9 +88,18 @@ export default function ProjectCard({ project, showActions = true }) {
           </div>
         )}
 
-        <div className="mt-3 flex items-center gap-2 text-xs text-text-secondary dark:text-gray-400">
-          <Calendar size={14} />
-          <span>Updated {format(new Date(project.updated_at), 'MMM d, yyyy')}</span>
+        <div className="mt-3 flex items-center gap-4 text-xs text-text-secondary dark:text-gray-400">
+          {(project.member_count > 0 || project.lead_name) && (
+            <span className="flex items-center gap-1">
+              <Users size={14} />
+              {project.member_count || 0} member{project.member_count !== 1 ? 's' : ''}
+              {project.lead_name && <span className="ml-1">· Lead: {project.lead_name}</span>}
+            </span>
+          )}
+          <span className="flex items-center gap-1">
+            <Calendar size={14} />
+            Updated {format(new Date(project.updated_at), 'MMM d, yyyy')}
+          </span>
         </div>
       </div>
     </Link>
