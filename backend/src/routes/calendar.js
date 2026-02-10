@@ -95,7 +95,12 @@ router.get('/events', [
       params.push(userId);
       paramIndex++;
     } else if (scope === 'project') {
-      whereClause += ` AND ce.scope = 'project'`;
+      if (!project_id) {
+        return res.status(400).json({ error: { message: 'project_id is required for project scope' } });
+      }
+      whereClause += ` AND ce.scope = 'project' AND ce.project_id = $${paramIndex}`;
+      params.push(project_id);
+      paramIndex++;
     } else if (scope === 'dashboard') {
       // Dashboard: personal events + project events from joined projects
       whereClause += ` AND (
@@ -116,8 +121,8 @@ router.get('/events', [
       paramIndex++;
     }
 
-    // Optional project filter
-    if (project_id) {
+    // Optional project filter (skip for scope='project' where it's already handled)
+    if (project_id && scope !== 'project') {
       whereClause += ` AND ce.project_id = $${paramIndex}`;
       params.push(project_id);
       paramIndex++;

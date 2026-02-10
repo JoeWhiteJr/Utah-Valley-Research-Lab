@@ -30,7 +30,7 @@ export const useCalendarStore = create((set, get) => ({
   // === View actions ===
   setSelectedDate: (date) => set({ selectedDate: date }),
   setCurrentView: (view) => set({ currentView: view }),
-  setScope: (scope) => set({ scope }),
+  setScope: (scope) => set({ scope, events: [] }),
 
   zoomIn: () => set((state) => ({
     hourHeight: Math.min(120, state.hourHeight + 15)
@@ -69,8 +69,8 @@ export const useCalendarStore = create((set, get) => ({
     set({ isLoading: true, error: null })
     try {
       const { data } = await calendarApi.listEvents({
-        start: start.toISOString(),
-        end: end.toISOString(),
+        start: start,
+        end: end,
         scope: scope || get().scope,
         project_id: get().filters.projectId,
         category_id: get().filters.categoryId,
@@ -174,8 +174,8 @@ export const useCalendarStore = create((set, get) => ({
   fetchDeadlines: async (start, end) => {
     try {
       const { data } = await calendarApi.getDeadlines(
-        start.toISOString(),
-        end.toISOString()
+        start,
+        end
       )
       set({ deadlines: data.deadlines })
     } catch {
