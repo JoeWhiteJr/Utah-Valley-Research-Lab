@@ -109,12 +109,15 @@ export function CalendarView({ scope, compact = false, projectId }: CalendarView
   }, [canCreate, openCreateModal]);
 
   const handleEditEvent = useCallback((event: any) => {
+    if (scope === 'dashboard' && event.scope === 'project') return;
     setEditingEvent(event);
-  }, [setEditingEvent]);
+  }, [scope, setEditingEvent]);
 
   const handleMoveEvent = useCallback((id: string, start_time: string, end_time: string) => {
+    const event = events.find((e: any) => e.id === id);
+    if (scope === 'dashboard' && event?.scope === 'project') return;
     moveEvent(id, start_time, end_time);
-  }, [moveEvent]);
+  }, [scope, events, moveEvent]);
 
   const handleTimeRangeSelect = useCallback((startTime: Date, endTime: Date) => {
     if (canCreate) openCreateModal(startTime, endTime);

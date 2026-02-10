@@ -82,7 +82,9 @@ export function EventModal({ scope, onClose }: EventModalProps) {
     setIsSaving(true);
     // For project scope, auto-set scope and project_id from calendar filter
     const effectiveScope = scope === 'project' ? 'project' : (scope === 'dashboard' ? 'personal' : scope);
-    const effectiveProjectId = scope === 'project' ? (calendarFilters?.projectId || projectId) : projectId;
+    const effectiveProjectId = scope === 'project'
+      ? (calendarFilters?.projectId || projectId)
+      : scope === 'dashboard' ? null : projectId;
     const eventData: CreateEventData = {
       title: title.trim(),
       description,
@@ -300,7 +302,7 @@ export function EventModal({ scope, onClose }: EventModalProps) {
           </div>
 
           {/* Project Link (hidden when scope is 'project' since it's auto-set) */}
-          {scope !== 'project' && (
+          {scope !== 'project' && scope !== 'dashboard' && (
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 <Link size={14} className="inline mr-1" />
