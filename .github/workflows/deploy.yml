@@ -25,6 +25,10 @@ jobs:
             cd /opt/stats-lab-manager
             git fetch origin main
             git reset --hard origin/main
+            # Sync SSL nginx config from repo to host (if SSL is set up)
+            if [ -f /etc/letsencrypt/live/utahvalleyresearchlab.com/fullchain.pem ]; then
+              sudo cp deploy/ssl.conf /etc/nginx/conf.d/ssl.conf
+            fi
             docker compose -f docker-compose.ec2.yml down --timeout 30 || true
             docker compose -f docker-compose.ec2.yml up -d --build --remove-orphans --wait --wait-timeout 120
             for f in database/migrations/*.sql; do
