@@ -55,8 +55,8 @@ function ProtectedRoute({ children }) {
   const { token, user, isLoading } = useAuthStore()
 
   useEffect(() => {
-    if (user?.id) {
-      socket.connect(user.id)
+    if (user?.id && token) {
+      socket.connect(token)
     }
     // Don't disconnect on cleanup - only disconnect on logout
   }, [user?.id])
