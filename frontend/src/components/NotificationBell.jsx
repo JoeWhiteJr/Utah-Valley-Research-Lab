@@ -36,13 +36,13 @@ export default function NotificationBell() {
     setIsOpen(false)
 
     // Navigate based on notification type
-    if (n.related_type === 'project' && n.related_id) {
-      navigate(`/dashboard/projects/${n.related_id}`)
-    } else if ((n.related_type === 'message' || n.related_type === 'chat') && n.related_id) {
+    if (n.reference_type === 'project' && n.reference_id) {
+      navigate(`/dashboard/projects/${n.reference_id}`)
+    } else if ((n.reference_type === 'message' || n.reference_type === 'chat') && n.reference_id) {
       navigate('/dashboard/chat')
-    } else if (n.related_id) {
-      // Default: try to navigate to project if we have a related_id
-      navigate(`/dashboard/projects/${n.related_id}`)
+    } else if (n.reference_id) {
+      // Default: try to navigate to project if we have a reference_id
+      navigate(`/dashboard/projects/${n.reference_id}`)
     }
   }
 

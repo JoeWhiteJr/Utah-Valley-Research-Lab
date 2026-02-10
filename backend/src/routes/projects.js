@@ -6,6 +6,8 @@ const { v4: uuidv4 } = require('uuid');
 const { body, validationResult } = require('express-validator');
 const db = require('../config/database');
 const { authenticate, requireRole } = require('../middleware/auth');
+const { createNotificationForUsers } = require('./notifications');
+const socketService = require('../services/socketService');
 
 const router = express.Router();
 
@@ -382,6 +384,37 @@ router.post('/:id/join-request', authenticate, [
       'INSERT INTO project_join_requests (project_id, user_id, message) VALUES ($1, $2, $3) RETURNING *',
       [req.params.id, req.user.id, message || null]
     );
+
+    // Notify admins and project lead about the join request
+    try {
+      const project = await db.query('SELECT title, lead_id FROM projects WHERE id = $1', [req.params.id]);
+      const admins = await db.query(
+        "SELECT id FROM users WHERE role = 'admin' AND id != $1 AND deleted_at IS NULL",
+        [req.user.id]
+      );
+
+      const recipientIds = [...new Set([
+        ...admins.rows.map(a => a.id),
+        ...(project.rows[0]?.lead_id && project.rows[0].lead_id !== req.user.id ? [project.rows[0].lead_id] : [])
+      ])];
+
+      if (recipientIds.length > 0) {
+        const notifications = await createNotificationForUsers(
+          recipientIds,
+          'system',
+          `Join request: ${project.rows[0].title}`,
+          `${req.user.name} has requested to join this project.`,
+          req.params.id,
+          'project'
+        );
+
+        for (const notification of notifications) {
+          socketService.emitToUser(notification.user_id, 'notification', notification);
+        }
+      }
+    } catch (notifError) {
+      console.error('Failed to send join request notifications:', notifError);
+    }
 
     res.status(201).json({ request: result.rows[0] });
   } catch (error) {
