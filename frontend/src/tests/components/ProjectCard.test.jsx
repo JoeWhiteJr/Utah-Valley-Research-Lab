@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { describe, it, expect, vi } from 'vitest'
+import { render, screen, fireEvent } from '@testing-library/react'
 import { BrowserRouter } from 'react-router-dom'
 import ProjectCard from '../../components/ProjectCard'
 
@@ -52,10 +52,12 @@ describe('ProjectCard', () => {
     expect(screen.getByText('5 of 10 tasks done')).toBeInTheDocument()
   })
 
-  it('links to project detail page', () => {
-    renderWithRouter(<ProjectCard project={mockProject} />)
-    const link = screen.getByRole('link')
-    expect(link).toHaveAttribute('href', '/dashboard/projects/123e4567-e89b-12d3-a456-426614174000')
+  it('calls onClick when clicked', () => {
+    const handleClick = vi.fn()
+    renderWithRouter(<ProjectCard project={mockProject} onClick={handleClick} />)
+    const card = screen.getByRole('button')
+    fireEvent.click(card)
+    expect(handleClick).toHaveBeenCalledTimes(1)
   })
 
   it('renders updated date', () => {

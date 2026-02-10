@@ -1,13 +1,16 @@
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../store/authStore'
 import { useProjectStore } from '../store/projectStore'
 import ProjectCard from '../components/ProjectCard'
+import ProjectPreviewModal from '../components/ProjectPreviewModal'
 import Button from '../components/Button'
 import Modal from '../components/Modal'
 import Input from '../components/Input'
 import { Plus, Search, FolderKanban, ChevronDown, ChevronUp } from 'lucide-react'
 
 export default function Projects() {
+  const navigate = useNavigate()
   const { user } = useAuthStore()
   const { projects, fetchProjects, createProject, isLoading } = useProjectStore()
   const [filter, setFilter] = useState('active')
@@ -18,8 +21,17 @@ export default function Projects() {
   const [newProject, setNewProject] = useState({ title: '', description: '' })
   const [isCreating, setIsCreating] = useState(false)
   const [createError, setCreateError] = useState('')
+  const [previewProject, setPreviewProject] = useState(null)
 
   const canCreate = user?.role === 'admin' || user?.role === 'project_lead'
+
+  const handleProjectClick = (project) => {
+    if (user?.role === 'admin' || project.membership_status === 'member') {
+      navigate(`/dashboard/projects/${project.id}`)
+    } else {
+      setPreviewProject(project)
+    }
+  }
 
   useEffect(() => {
     document.title = 'Projects - Stats Lab'
@@ -139,7 +151,7 @@ export default function Projects() {
         return displayProjects.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
             {displayProjects.map((project) => (
-              <ProjectCard key={project.id} project={project} />
+              <ProjectCard key={project.id} project={project} onClick={() => handleProjectClick(project)} />
             ))}
           </div>
         ) : (
@@ -180,7 +192,7 @@ export default function Projects() {
           {showInactive && (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
               {inactiveProjects.map((project) => (
-                <ProjectCard key={project.id} project={project} />
+                <ProjectCard key={project.id} project={project} onClick={() => handleProjectClick(project)} />
               ))}
             </div>
           )}
@@ -200,7 +212,7 @@ export default function Projects() {
           {showArchived && (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
               {archivedProjects.map((project) => (
-                <ProjectCard key={project.id} project={project} />
+                <ProjectCard key={project.id} project={project} onClick={() => handleProjectClick(project)} />
               ))}
             </div>
           )}
@@ -252,6 +264,12 @@ export default function Projects() {
           </div>
         </form>
       </Modal>
+
+      {/* Project preview modal for non-members */}
+      <ProjectPreviewModal
+        project={previewProject}
+        onClose={() => setPreviewProject(null)}
+      />
     </div>
   )
 }

@@ -1,9 +1,8 @@
-import { Link } from 'react-router-dom'
 import { CheckCircle2, Calendar, Users } from 'lucide-react'
 import { format } from 'date-fns'
 import { getUploadUrl } from '../services/api'
 
-export default function ProjectCard({ project, showActions = true }) {
+export default function ProjectCard({ project, showActions = true, onClick }) {
   const statusColors = {
     active: 'bg-secondary-100 dark:bg-secondary-900/30 text-secondary-700 dark:text-secondary-300',
     completed: 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300',
@@ -19,9 +18,12 @@ export default function ProjectCard({ project, showActions = true }) {
   const calculatedProgress = totalActions === 0 ? 0 : Math.round((completedActions / totalActions) * 100)
 
   return (
-    <Link
-      to={`/dashboard/projects/${project.id}`}
-      className={`block rounded-xl border transition-all overflow-hidden group ${
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={onClick}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick?.() } }}
+      className={`block rounded-xl border transition-all overflow-hidden group cursor-pointer ${
         isInactive
           ? 'bg-gray-50 dark:bg-gray-900 border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 opacity-75'
           : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:border-primary-300 dark:hover:border-primary-600 hover:shadow-md'
@@ -102,6 +104,6 @@ export default function ProjectCard({ project, showActions = true }) {
           </span>
         </div>
       </div>
-    </Link>
+    </div>
   )
 }

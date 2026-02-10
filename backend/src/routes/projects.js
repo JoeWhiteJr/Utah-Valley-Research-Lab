@@ -59,7 +59,13 @@ router.get('/', authenticate, async (req, res, next) => {
           ELSE ROUND(COALESCE(ai_stats.completed_actions, 0)::numeric / ai_stats.total_actions::numeric * 100)
         END as calculated_progress,
         COALESCE(mem_stats.member_count, 0) as member_count,
-        lead_u.name as lead_name
+        lead_u.name as lead_name,
+        lead_u.email as lead_email,
+        CASE
+          WHEN my_mem.user_id IS NOT NULL THEN 'member'
+          WHEN my_req.id IS NOT NULL THEN 'pending'
+          ELSE 'none'
+        END as membership_status
       FROM projects p
       JOIN users u ON p.created_by = u.id
       LEFT JOIN users lead_u ON p.lead_id = lead_u.id
@@ -75,12 +81,16 @@ router.get('/', authenticate, async (req, res, next) => {
         FROM project_members
         GROUP BY project_id
       ) mem_stats ON mem_stats.project_id = p.id
+      LEFT JOIN project_members my_mem
+        ON my_mem.project_id = p.id AND my_mem.user_id = $1
+      LEFT JOIN project_join_requests my_req
+        ON my_req.project_id = p.id AND my_req.user_id = $1 AND my_req.status = 'pending'
     `;
-    const params = [];
+    const params = [req.user.id];
     const countParams = [];
 
     if (status) {
-      query += ' WHERE p.status = $1';
+      query += ' WHERE p.status = $2';
       countQuery += ' WHERE p.status = $1';
       params.push(status);
       countParams.push(status);
@@ -97,9 +107,11 @@ router.get('/', authenticate, async (req, res, next) => {
 
     const result = await db.query(query, params);
     // Override progress with auto-calculated value from tasks
+    const isAdmin = req.user.role === 'admin';
     const projects = result.rows.map(p => ({
       ...p,
-      progress: parseInt(p.calculated_progress) || 0
+      progress: parseInt(p.calculated_progress) || 0,
+      membership_status: isAdmin ? 'member' : p.membership_status
     }));
     res.json({ projects, total, limit, offset });
   } catch (error) {
