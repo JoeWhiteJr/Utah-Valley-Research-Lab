@@ -7,7 +7,7 @@ import { actionsApi, usersApi, notificationsApi } from '../services/api'
 import { CalendarView } from '../components/calendar/CalendarView'
 import {
   CheckCircle2, Circle, Calendar, ArrowUpRight,
-  FolderKanban, Zap, Target, Award
+  FolderKanban, Zap, Target, Award, ChevronDown, ChevronRight
 } from 'lucide-react'
 import { format, isToday, isPast, parseISO } from 'date-fns'
 
@@ -18,7 +18,9 @@ export default function MyDashboard() {
   const [myTasks, setMyTasks] = useState([])
   const [loadingTasks, setLoadingTasks] = useState(true)
   const [streak, setStreak] = useState(0)
+  const [expandedTaskId, setExpandedTaskId] = useState(null)
   const [highlightedTaskIds, setHighlightedTaskIds] = useState(new Map()) // taskId -> notificationId
+  const [taskNotifications, setTaskNotifications] = useState([]) // raw unread task_assigned notifications
 
   const loadMyTasks = useCallback(async () => {
     setLoadingTasks(true)
@@ -44,16 +46,33 @@ export default function MyDashboard() {
     }).catch(() => setStreak(0))
     // Fetch unread task_assigned notifications to highlight new tasks
     notificationsApi.list({ limit: 50, unread_only: true }).then(({ data }) => {
-      const taskNotifs = (data.notifications || []).filter(n => n.reference_type === 'task_assigned' && n.reference_id && !n.read_at)
-      if (taskNotifs.length > 0) {
-        const map = new Map()
-        for (const n of taskNotifs) {
-          map.set(n.reference_id, n.id)
-        }
-        setHighlightedTaskIds(map)
-      }
+      const taskNotifs = (data.notifications || []).filter(n => n.reference_type === 'task_assigned' && !n.read_at)
+      setTaskNotifications(taskNotifs)
     }).catch(() => {})
   }, [fetchProjects, loadMyTasks])
+
+  // Build highlighted task map when both tasks and notifications are loaded
+  useEffect(() => {
+    if (taskNotifications.length === 0 || myTasks.length === 0) return
+    const map = new Map()
+    for (const n of taskNotifications) {
+      // New format: reference_id is the action item ID
+      const directMatch = myTasks.find(t => t.id === n.reference_id)
+      if (directMatch) {
+        map.set(directMatch.id, n.id)
+        continue
+      }
+      // Old format: reference_id is the project ID, match by task title from notification
+      const taskTitle = n.title?.replace(/^New task:\s*/, '')
+      if (taskTitle) {
+        const titleMatch = myTasks.find(t => t.title === taskTitle && t.project_id === n.reference_id)
+        if (titleMatch && !map.has(titleMatch.id)) {
+          map.set(titleMatch.id, n.id)
+        }
+      }
+    }
+    if (map.size > 0) setHighlightedTaskIds(map)
+  }, [taskNotifications, myTasks])
 
   // Filter projects where user is creator or has assigned tasks
   const myProjects = projects.filter(
@@ -193,52 +212,79 @@ export default function MyDashboard() {
           ) : myTasks.filter(t => !t.completed).length > 0 ? (
             myTasks.filter(t => !t.completed).map((task) => {
               const isNew = highlightedTaskIds.has(task.id)
+              const isExpanded = expandedTaskId === task.id
               return (
-              <div
-                key={task.id}
-                className={`flex items-center gap-4 p-4 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors ${isNew ? 'bg-primary-50 dark:bg-primary-900/20 border-l-4 border-l-primary-500' : ''}`}
-                onMouseEnter={isNew ? () => handleTaskHover(task.id) : undefined}
-              >
-                <button
-                  onClick={() => handleToggleTask(task.id, task.completed)}
-                  className="flex-shrink-0"
+              <div key={task.id}>
+                <div
+                  className={`flex items-center gap-4 p-4 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors cursor-pointer ${isNew ? 'bg-primary-50 dark:bg-primary-900/20 border-l-4 border-l-primary-500' : ''}`}
+                  onMouseEnter={isNew ? () => handleTaskHover(task.id) : undefined}
+                  onClick={() => setExpandedTaskId(isExpanded ? null : task.id)}
                 >
-                  {task.completed ? (
-                    <CheckCircle2 size={22} className="text-green-500" />
-                  ) : (
-                    <Circle size={22} className="text-gray-300 dark:text-gray-600 hover:text-primary-400" />
-                  )}
-                </button>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center">
-                    <p className={`font-medium truncate ${task.completed ? 'line-through text-text-secondary dark:text-gray-400' : 'text-text-primary dark:text-gray-100'}`}>{task.title}</p>
-                    {isNew && (
-                      <span className="text-xs font-medium text-primary-600 dark:text-primary-400 bg-primary-100 dark:bg-primary-900/30 px-2 py-0.5 rounded-full ml-2 flex-shrink-0">
-                        New
-                      </span>
-                    )}
+                  <div className="flex-shrink-0 text-gray-400 dark:text-gray-500">
+                    {isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
                   </div>
-                  <p className="text-sm text-text-secondary dark:text-gray-400">{task.project_title}</p>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); handleToggleTask(task.id, task.completed) }}
+                    className="flex-shrink-0"
+                  >
+                    {task.completed ? (
+                      <CheckCircle2 size={22} className="text-green-500" />
+                    ) : (
+                      <Circle size={22} className="text-gray-300 dark:text-gray-600 hover:text-primary-400" />
+                    )}
+                  </button>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center">
+                      <p className={`font-medium truncate ${task.completed ? 'line-through text-text-secondary dark:text-gray-400' : 'text-text-primary dark:text-gray-100'}`}>{task.title}</p>
+                      {isNew && (
+                        <span className="text-xs font-medium text-primary-600 dark:text-primary-400 bg-primary-100 dark:bg-primary-900/30 px-2 py-0.5 rounded-full ml-2 flex-shrink-0">
+                          New
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-sm text-text-secondary dark:text-gray-400">{task.project_title}</p>
+                  </div>
+                  {task.due_date && (
+                    <span className={`flex items-center gap-1 text-xs px-2 py-1 rounded-full ${
+                      isPast(parseISO(task.due_date))
+                        ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300'
+                        : isToday(parseISO(task.due_date))
+                        ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300'
+                        : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'
+                    }`}>
+                      <Calendar size={12} />
+                      {format(parseISO(task.due_date), 'MMM d')}
+                    </span>
+                  )}
+                  <Link
+                    to={`/dashboard/projects/${task.project_id}`}
+                    className="flex-shrink-0 text-xs text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 font-medium"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    View Project
+                  </Link>
                 </div>
-                {task.due_date && (
-                  <span className={`flex items-center gap-1 text-xs px-2 py-1 rounded-full ${
-                    isPast(parseISO(task.due_date))
-                      ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300'
-                      : isToday(parseISO(task.due_date))
-                      ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300'
-                      : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'
-                  }`}>
-                    <Calendar size={12} />
-                    {format(parseISO(task.due_date), 'MMM d')}
-                  </span>
+                {isExpanded && (
+                  <div className="px-6 py-4 bg-gray-50 dark:bg-gray-900 border-t border-gray-100 dark:border-gray-700">
+                    <div className="space-y-2">
+                      <p className="font-medium text-text-primary dark:text-gray-100">{task.title}</p>
+                      <p className="text-sm text-text-secondary dark:text-gray-400">
+                        Project: <span className="font-medium">{task.project_title}</span>
+                      </p>
+                      {task.description && (
+                        <div className="mt-2">
+                          <p className="text-xs font-medium text-text-secondary dark:text-gray-400 uppercase tracking-wider mb-1">Description</p>
+                          <p className="text-sm text-text-primary dark:text-gray-200 whitespace-pre-wrap">{task.description}</p>
+                        </div>
+                      )}
+                      {task.due_date && (
+                        <p className="text-sm text-text-secondary dark:text-gray-400">
+                          Due: {format(parseISO(task.due_date), 'MMMM d, yyyy')}
+                        </p>
+                      )}
+                    </div>
+                  </div>
                 )}
-                <Link
-                  to={`/dashboard/projects/${task.project_id}`}
-                  className="flex-shrink-0 text-xs text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 font-medium"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  View Project
-                </Link>
               </div>
               )
             })

@@ -50,7 +50,7 @@ export default function ProjectDetail() {
     setParentTask, calculateProgress,
     members, membershipStatus, joinRequests,
     fetchMembers, fetchMembershipStatus, requestJoin, leaveProject,
-    fetchJoinRequests, reviewJoinRequest
+    fetchJoinRequests, reviewJoinRequest, addMember
   } = useProjectStore()
 
   const [activeTab, setActiveTab] = useState('overview')
@@ -61,11 +61,11 @@ export default function ProjectDetail() {
 
   // Action modals
   const [showActionModal, setShowActionModal] = useState(false)
-  const [newAction, setNewAction] = useState({ title: '', due_date: '', assigned_to: '', assignee_ids: [], category_id: '', parent_task_id: '' })
+  const [newAction, setNewAction] = useState({ title: '', description: '', due_date: '', assigned_to: '', assignee_ids: [], category_id: '', parent_task_id: '' })
 
   // Edit action state
   const [editingAction, setEditingAction] = useState(null)
-  const [editForm, setEditForm] = useState({ title: '', due_date: '', assignee_ids: [], category_id: '' })
+  const [editForm, setEditForm] = useState({ title: '', description: '', due_date: '', assignee_ids: [], category_id: '' })
 
   // Note modals
   const [showNoteModal, setShowNoteModal] = useState(false)
@@ -100,6 +100,16 @@ export default function ProjectDetail() {
   const [aiSummary, setAiSummary] = useState(null)
   const [aiSummaryLoading, setAiSummaryLoading] = useState(false)
   const [aiSummaryError, setAiSummaryError] = useState(null)
+
+  // Important Info editing state
+  const [editingImportantInfo, setEditingImportantInfo] = useState(false)
+  const [importantInfoDraft, setImportantInfoDraft] = useState('')
+
+  // Add Member modal state
+  const [showAddMemberModal, setShowAddMemberModal] = useState(false)
+  const [allUsers, setAllUsers] = useState([])
+  const [addMemberSearch, setAddMemberSearch] = useState('')
+  const [selectedUserIds, setSelectedUserIds] = useState([])
 
   // Category filter state
   const [categoryFilter, setCategoryFilter] = useState(null)
@@ -178,6 +188,7 @@ export default function ProjectDetail() {
     e.preventDefault()
     await createAction(id, {
       title: newAction.title,
+      description: newAction.description || null,
       due_date: newAction.due_date || null,
       assigned_to: newAction.assignee_ids.length > 0 ? newAction.assignee_ids[0] : (newAction.assigned_to || null),
       assignee_ids: newAction.assignee_ids.length > 0 ? newAction.assignee_ids : (newAction.assigned_to ? [newAction.assigned_to] : []),
@@ -185,7 +196,7 @@ export default function ProjectDetail() {
       parent_task_id: newAction.parent_task_id || null
     })
     setShowActionModal(false)
-    setNewAction({ title: '', due_date: '', assigned_to: '', assignee_ids: [], category_id: '', parent_task_id: '' })
+    setNewAction({ title: '', description: '', due_date: '', assigned_to: '', assignee_ids: [], category_id: '', parent_task_id: '' })
   }
 
   // Handle editing an action
@@ -193,6 +204,7 @@ export default function ProjectDetail() {
     setEditingAction(action)
     setEditForm({
       title: action.title || '',
+      description: action.description || '',
       due_date: action.due_date ? action.due_date.split('T')[0] : '',
       assignee_ids: action.assignees?.map(a => a.user_id) || [],
       category_id: action.category_id || ''
@@ -205,6 +217,7 @@ export default function ProjectDetail() {
     try {
       await updateAction(editingAction.id, {
         title: editForm.title.trim(),
+        description: editForm.description || null,
         due_date: editForm.due_date || null,
         assignee_ids: editForm.assignee_ids,
         category_id: editForm.category_id || null
@@ -252,6 +265,32 @@ export default function ProjectDetail() {
     } finally {
       setAiSummaryLoading(false)
     }
+  }
+
+  // Handle saving Important Information
+  const handleSaveImportantInfo = async () => {
+    await updateProject(id, { important_info: importantInfoDraft })
+    setEditingImportantInfo(false)
+  }
+
+  // Handle Add Member modal
+  const handleOpenAddMember = async () => {
+    try {
+      const { data } = await usersApi.team()
+      setAllUsers(data.users || [])
+    } catch { /* */ }
+    setAddMemberSearch('')
+    setSelectedUserIds([])
+    setShowAddMemberModal(true)
+  }
+
+  const handleAddSelectedMembers = async () => {
+    for (const userId of selectedUserIds) {
+      await addMember(id, userId)
+    }
+    setShowAddMemberModal(false)
+    setSelectedUserIds([])
+    toast.success(`Added ${selectedUserIds.length} member${selectedUserIds.length !== 1 ? 's' : ''}`)
   }
 
   // Handle category creation for the project
@@ -589,10 +628,36 @@ export default function ProjectDetail() {
         {activeTab === 'overview' && (
           <div className="space-y-6">
             <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
-              <h3 className="font-display font-semibold text-lg dark:text-gray-100 mb-4">Project Overview</h3>
-              <p className="text-text-secondary dark:text-gray-400">
-                {currentProject.description || 'No description provided.'}
-              </p>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-display font-semibold text-lg dark:text-gray-100">Important Information</h3>
+                {canEdit && !editingImportantInfo && (
+                  <button
+                    onClick={() => { setImportantInfoDraft(currentProject.important_info || ''); setEditingImportantInfo(true) }}
+                    className="text-sm text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 font-medium"
+                  >
+                    Edit
+                  </button>
+                )}
+              </div>
+              {editingImportantInfo ? (
+                <div className="space-y-3">
+                  <textarea
+                    value={importantInfoDraft}
+                    onChange={(e) => setImportantInfoDraft(e.target.value)}
+                    rows={6}
+                    className="w-full px-4 py-2.5 rounded-organic border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-text-primary dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-primary-300 focus:border-primary-400 resize-none"
+                    placeholder="Add important information, links, or notes for the team..."
+                  />
+                  <div className="flex justify-end gap-2">
+                    <Button variant="secondary" size="sm" onClick={() => setEditingImportantInfo(false)}>Cancel</Button>
+                    <Button size="sm" onClick={handleSaveImportantInfo}>Save</Button>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-text-secondary dark:text-gray-400 whitespace-pre-wrap">
+                  {currentProject.important_info || 'No important information added yet.'}
+                </p>
+              )}
               <div className="mt-6 grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div className="p-4 bg-gray-50 dark:bg-gray-900 rounded-lg">
                   <p className="text-2xl font-bold text-text-primary dark:text-gray-100">{actions.length}</p>
@@ -622,6 +687,16 @@ export default function ProjectDetail() {
                   <Users size={20} />
                   Team Members ({members.length})
                 </h3>
+                {/* Add Member button (lead/admin) */}
+                {canEdit && (
+                  <button
+                    onClick={handleOpenAddMember}
+                    className="flex items-center gap-1.5 px-3 py-2 bg-primary-50 dark:bg-primary-900/30 text-primary-600 dark:text-primary-300 text-sm font-medium rounded-lg hover:bg-primary-100 dark:hover:bg-primary-900/50 transition-colors"
+                  >
+                    <UserPlus size={16} />
+                    Add Member
+                  </button>
+                )}
                 {/* Join/Leave buttons */}
                 {membershipStatus?.status === 'none' && (
                   <button
@@ -1057,26 +1132,18 @@ export default function ProjectDetail() {
             />
           </div>
           {canEditMeta && (
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-text-primary dark:text-gray-100 mb-1.5">Status</label>
-                <select
-                  value={editData.status}
-                  onChange={(e) => setEditData({ ...editData, status: e.target.value })}
-                  className="w-full px-4 py-2.5 rounded-organic border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-text-primary dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-primary-300"
-                >
-                  <option value="active">Active</option>
-                  <option value="completed">Completed</option>
-                  <option value="inactive">Inactive</option>
-                  <option value="archived">Archived</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-text-primary dark:text-gray-100 mb-1.5">Progress</label>
-                <div className="px-4 py-2.5 rounded-organic border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 text-text-secondary dark:text-gray-400 text-sm">
-                  Auto-calculated: {autoProgress}%
-                </div>
-              </div>
+            <div>
+              <label className="block text-sm font-medium text-text-primary dark:text-gray-100 mb-1.5">Status</label>
+              <select
+                value={editData.status}
+                onChange={(e) => setEditData({ ...editData, status: e.target.value })}
+                className="w-full px-4 py-2.5 rounded-organic border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-text-primary dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-primary-300"
+              >
+                <option value="active">Active</option>
+                <option value="completed">Completed</option>
+                <option value="inactive">Inactive</option>
+                <option value="archived">Archived</option>
+              </select>
             </div>
           )}
           <div className="flex justify-end gap-3 pt-2">
@@ -1105,9 +1172,19 @@ export default function ProjectDetail() {
             placeholder="What needs to be done?"
             required
           />
+          <div>
+            <label className="block text-sm font-medium text-text-primary dark:text-gray-100 mb-1.5">Description (optional)</label>
+            <textarea
+              value={newAction.description}
+              onChange={(e) => setNewAction({ ...newAction, description: e.target.value })}
+              rows={3}
+              placeholder="Add more details about this task..."
+              className="w-full px-4 py-2.5 rounded-organic border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-text-primary dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-primary-300 focus:border-primary-400 resize-none"
+            />
+          </div>
           <div className="grid grid-cols-2 gap-4">
             <Input
-              label="Due date"
+              label="Due date (optional)"
               type="date"
               value={newAction.due_date}
               onChange={(e) => setNewAction({ ...newAction, due_date: e.target.value })}
@@ -1195,13 +1272,34 @@ export default function ProjectDetail() {
             required
           />
           <div>
-            <label className="block text-sm font-medium text-text-primary dark:text-gray-100 mb-1.5">Due Date</label>
-            <input
-              type="date"
-              value={editForm.due_date}
-              onChange={(e) => setEditForm({...editForm, due_date: e.target.value})}
-              className="w-full px-4 py-2.5 rounded-organic border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-text-primary dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-primary-300"
+            <label className="block text-sm font-medium text-text-primary dark:text-gray-100 mb-1.5">Description (optional)</label>
+            <textarea
+              value={editForm.description}
+              onChange={(e) => setEditForm({...editForm, description: e.target.value})}
+              rows={3}
+              placeholder="Add more details about this task..."
+              className="w-full px-4 py-2.5 rounded-organic border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-text-primary dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-primary-300 focus:border-primary-400 resize-none"
             />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-text-primary dark:text-gray-100 mb-1.5">Due Date (optional)</label>
+            <div className="flex gap-2">
+              <input
+                type="date"
+                value={editForm.due_date}
+                onChange={(e) => setEditForm({...editForm, due_date: e.target.value})}
+                className="flex-1 px-4 py-2.5 rounded-organic border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-text-primary dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-primary-300"
+              />
+              {editForm.due_date && (
+                <button
+                  type="button"
+                  onClick={() => setEditForm({...editForm, due_date: ''})}
+                  className="px-3 py-2 text-xs font-medium text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/30 rounded-organic hover:bg-red-100 dark:hover:bg-red-900/50 transition-colors"
+                >
+                  Clear
+                </button>
+              )}
+            </div>
           </div>
           {categories.length > 0 && (
             <div>
@@ -1509,6 +1607,66 @@ export default function ProjectDetail() {
           setPreviewFile(null)
         }}
       />
+
+      {/* Add Member Modal */}
+      <Modal isOpen={showAddMemberModal} onClose={() => setShowAddMemberModal(false)} title="Add Members">
+        <div className="space-y-4">
+          <Input
+            placeholder="Search users by name..."
+            value={addMemberSearch}
+            onChange={(e) => setAddMemberSearch(e.target.value)}
+          />
+          <div className="border border-gray-300 dark:border-gray-600 rounded-organic max-h-60 overflow-y-auto">
+            {(() => {
+              const existingIds = new Set(members.map(m => m.user_id))
+              const filtered = allUsers.filter(u =>
+                !existingIds.has(u.id) &&
+                u.name?.toLowerCase().includes(addMemberSearch.toLowerCase())
+              )
+              if (filtered.length === 0) {
+                return <p className="text-sm text-text-secondary dark:text-gray-400 px-3 py-4 text-center">No users found</p>
+              }
+              return filtered.map(u => (
+                <label key={u.id} className="flex items-center gap-3 px-3 py-2.5 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={selectedUserIds.includes(u.id)}
+                    onChange={() => {
+                      setSelectedUserIds(prev =>
+                        prev.includes(u.id) ? prev.filter(id => id !== u.id) : [...prev, u.id]
+                      )
+                    }}
+                    className="rounded border-gray-300 dark:border-gray-600 text-primary-600 focus:ring-primary-300"
+                  />
+                  <div className="flex items-center gap-2 min-w-0">
+                    <div className="w-8 h-8 rounded-full bg-primary-100 dark:bg-primary-900/30 flex items-center justify-center flex-shrink-0">
+                      <span className="text-xs font-medium text-primary-600 dark:text-primary-300">
+                        {u.name?.charAt(0)?.toUpperCase() || '?'}
+                      </span>
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-text-primary dark:text-gray-100 truncate">{u.name}</p>
+                      <p className="text-xs text-text-secondary dark:text-gray-400 truncate">{u.email}</p>
+                    </div>
+                  </div>
+                </label>
+              ))
+            })()}
+          </div>
+          {selectedUserIds.length > 0 && (
+            <p className="text-xs text-text-secondary dark:text-gray-400">
+              {selectedUserIds.length} user{selectedUserIds.length !== 1 ? 's' : ''} selected
+            </p>
+          )}
+          <div className="flex justify-end gap-3 pt-2">
+            <Button variant="secondary" onClick={() => setShowAddMemberModal(false)}>Cancel</Button>
+            <Button onClick={handleAddSelectedMembers} disabled={selectedUserIds.length === 0}>
+              <UserPlus size={16} />
+              Add Selected
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   )
 }

@@ -143,7 +143,7 @@ router.post('/project/:projectId', authenticate, requireProjectAccess(), sanitiz
       return res.status(400).json({ error: { message: 'Validation failed', details: errors.array() } });
     }
 
-    const { title, due_date, assigned_to, assignee_ids, category_id, parent_task_id } = req.body;
+    const { title, description, due_date, assigned_to, assignee_ids, category_id, parent_task_id } = req.body;
     const projectId = req.params.projectId;
 
     // If parent_task_id is set, validate it belongs to the same project
@@ -164,8 +164,8 @@ router.post('/project/:projectId', authenticate, requireProjectAccess(), sanitiz
     );
 
     const result = await db.query(
-      'INSERT INTO action_items (project_id, title, due_date, assigned_to, category_id, sort_order, parent_task_id) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *',
-      [projectId, title, due_date || null, assigned_to || null, category_id || null, orderResult.rows[0].next_order, parent_task_id || null]
+      'INSERT INTO action_items (project_id, title, description, due_date, assigned_to, category_id, sort_order, parent_task_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *',
+      [projectId, title, description || null, due_date || null, assigned_to || null, category_id || null, orderResult.rows[0].next_order, parent_task_id || null]
     );
 
     const actionItem = result.rows[0];
@@ -353,7 +353,7 @@ router.put('/:id', authenticate, sanitizeBody('title'), [
       return res.status(400).json({ error: { message: 'Validation failed', details: errors.array() } });
     }
 
-    const { title, completed, due_date, assigned_to, assignee_ids, category_id, parent_task_id } = req.body;
+    const { title, description, completed, due_date, assigned_to, assignee_ids, category_id, parent_task_id } = req.body;
 
     const existing = await db.query('SELECT id, project_id FROM action_items WHERE id = $1', [req.params.id]);
     if (existing.rows.length === 0) {
@@ -379,6 +379,7 @@ router.put('/:id', authenticate, sanitizeBody('title'), [
     updates.push('updated_at = CURRENT_TIMESTAMP');
 
     if (title !== undefined) { updates.push(`title = $${paramCount++}`); values.push(title); }
+    if (description !== undefined) { updates.push(`description = $${paramCount++}`); values.push(description); }
     if (completed !== undefined) { updates.push(`completed = $${paramCount++}`); values.push(completed); }
     if (due_date !== undefined) { updates.push(`due_date = $${paramCount++}`); values.push(due_date); }
     if (assigned_to !== undefined) { updates.push(`assigned_to = $${paramCount++}`); values.push(assigned_to); }

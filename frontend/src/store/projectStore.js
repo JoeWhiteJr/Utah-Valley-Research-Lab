@@ -429,6 +429,17 @@ export const useProjectStore = create((set, get) => ({
     }
   },
 
+  addMember: async (projectId, userId) => {
+    try {
+      await projectsApi.addMember(projectId, userId)
+      get().fetchMembers(projectId)
+      return true
+    } catch (error) {
+      set({ error: error.response?.data?.error?.message || 'Failed to add member' })
+      return false
+    }
+  },
+
   reviewJoinRequest: async (projectId, reqId, action) => {
     try {
       await projectsApi.reviewJoinRequest(projectId, reqId, action)

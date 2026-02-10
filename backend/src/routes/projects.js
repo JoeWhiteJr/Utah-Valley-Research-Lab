@@ -210,7 +210,8 @@ router.put('/:id', authenticate, requireRole('admin', 'project_lead'), [
   body('title').optional().trim().notEmpty().isLength({ max: 200 }),
   body('description').optional().trim().isLength({ max: 10000 }),
   body('status').optional().isIn(['active', 'completed', 'archived', 'inactive']),
-  body('progress').optional().isInt({ min: 0, max: 100 })
+  body('progress').optional().isInt({ min: 0, max: 100 }),
+  body('important_info').optional().trim().isLength({ max: 50000 })
 ], async (req, res, next) => {
   try {
     const errors = validationResult(req);
@@ -218,7 +219,7 @@ router.put('/:id', authenticate, requireRole('admin', 'project_lead'), [
       return res.status(400).json({ error: { message: 'Validation failed', details: errors.array() } });
     }
 
-    const { title, description, header_image, status, progress } = req.body;
+    const { title, description, header_image, status, progress, important_info } = req.body;
 
     // Only admins can update title, status, and progress
     if (req.user.role !== 'admin') {
@@ -241,6 +242,7 @@ router.put('/:id', authenticate, requireRole('admin', 'project_lead'), [
     if (header_image !== undefined) { updates.push(`header_image = $${paramCount++}`); values.push(header_image); }
     if (status !== undefined) { updates.push(`status = $${paramCount++}`); values.push(status); }
     if (progress !== undefined) { updates.push(`progress = $${paramCount++}`); values.push(progress); }
+    if (important_info !== undefined) { updates.push(`important_info = $${paramCount++}`); values.push(important_info); }
 
     if (updates.length === 0) {
       return res.status(400).json({ error: { message: 'No fields to update' } });
@@ -322,6 +324,71 @@ router.get('/:id/members', authenticate, async (req, res, next) => {
     `, [req.params.id]);
 
     res.json({ members: result.rows });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Add member directly (lead/admin only)
+router.post('/:id/members', authenticate, [
+  body('user_id').notEmpty().isUUID()
+], async (req, res, next) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ error: { message: 'Validation failed', details: errors.array() } });
+    }
+
+    // Check if user is lead or admin
+    if (req.user.role !== 'admin') {
+      const leadCheck = await db.query(
+        "SELECT 1 FROM project_members WHERE project_id = $1 AND user_id = $2 AND role = 'lead'",
+        [req.params.id, req.user.id]
+      );
+      if (leadCheck.rows.length === 0) {
+        return res.status(403).json({ error: { message: 'Only project lead or admin can add members' } });
+      }
+    }
+
+    const { user_id } = req.body;
+
+    // Check if already a member
+    const memberCheck = await db.query(
+      'SELECT 1 FROM project_members WHERE project_id = $1 AND user_id = $2',
+      [req.params.id, user_id]
+    );
+    if (memberCheck.rows.length > 0) {
+      return res.status(400).json({ error: { message: 'User is already a member of this project' } });
+    }
+
+    // Add as member
+    await db.query(
+      "INSERT INTO project_members (project_id, user_id, role) VALUES ($1, $2, 'member')",
+      [req.params.id, user_id]
+    );
+
+    // Clean up any pending join request for this user
+    await db.query(
+      "DELETE FROM project_join_requests WHERE project_id = $1 AND user_id = $2 AND status = 'pending'",
+      [req.params.id, user_id]
+    );
+
+    // Notify the added user
+    try {
+      const project = await db.query('SELECT title FROM projects WHERE id = $1', [req.params.id]);
+      const projectTitle = project.rows[0]?.title || 'a project';
+      const notification = await createNotification(
+        user_id, 'system',
+        `Welcome to ${projectTitle}`,
+        `${req.user.name} added you to this project.`,
+        req.params.id, 'member_accepted'
+      );
+      if (notification) socketService.emitToUser(user_id, 'notification', notification);
+    } catch (notifError) {
+      console.error('Failed to send member added notification:', notifError);
+    }
+
+    res.status(201).json({ message: 'Member added successfully' });
   } catch (error) {
     next(error);
   }
