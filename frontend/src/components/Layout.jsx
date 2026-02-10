@@ -2,6 +2,7 @@ import { Outlet, NavLink, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../store/authStore'
 import { getUploadUrl } from '../services/api'
 import { useThemeStore } from '../store/themeStore'
+import { useNotificationStore } from '../store/notificationStore'
 import { LayoutDashboard, User, FolderKanban, Settings, LogOut, Menu, X, MessageCircle, Shield, ExternalLink, Search, Sun, Moon, WifiOff } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import socket from '../services/socket'
@@ -14,11 +15,16 @@ import useKeyboardShortcuts from '../hooks/useKeyboardShortcuts'
 export default function Layout() {
   const { user, logout } = useAuthStore()
   const { theme, toggleTheme } = useThemeStore()
+  const { unreadCountsByType, fetchUnreadCountsByType } = useNotificationStore()
   const navigate = useNavigate()
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [searchOpen, setSearchOpen] = useState(false)
   const [shortcutsOpen, setShortcutsOpen] = useState(false)
   const [socketStatus, setSocketStatus] = useState(socket.getConnectionStatus())
+
+  useEffect(() => {
+    fetchUnreadCountsByType()
+  }, [fetchUnreadCountsByType])
 
   useEffect(() => {
     const unsub = socket.subscribeToConnectionStatus((status) => {
@@ -49,12 +55,16 @@ export default function Layout() {
     navigate('/login')
   }
 
+  const dashboardBadge = (unreadCountsByType.task_assigned || 0)
+  const projectsBadge = (unreadCountsByType.join_request || 0) + (unreadCountsByType.member_accepted || 0)
+  const adminBadge = (unreadCountsByType.application || 0)
+
   const navItems = [
     { to: '/dashboard', icon: LayoutDashboard, label: 'Lab Dashboard' },
-    { to: '/dashboard/my-dashboard', icon: User, label: 'My Dashboard' },
-    { to: '/dashboard/projects', icon: FolderKanban, label: 'Projects' },
+    { to: '/dashboard/my-dashboard', icon: User, label: 'My Dashboard', badge: dashboardBadge },
+    { to: '/dashboard/projects', icon: FolderKanban, label: 'Projects', badge: projectsBadge },
     { to: '/dashboard/chat', icon: MessageCircle, label: 'Chat' },
-    ...(user?.role === 'admin' ? [{ to: '/dashboard/admin', icon: Shield, label: 'Admin' }] : []),
+    ...(user?.role === 'admin' ? [{ to: '/dashboard/admin', icon: Shield, label: 'Admin', badge: adminBadge }] : []),
     { to: '/dashboard/settings', icon: Settings, label: 'Settings' },
   ]
 
@@ -109,7 +119,7 @@ export default function Layout() {
         </div>
 
         <nav className="p-4 space-y-1">
-          {navItems.map(({ to, icon: Icon, label }) => (
+          {navItems.map(({ to, icon: Icon, label, badge }) => (
             <NavLink
               key={to}
               to={to}
@@ -125,6 +135,11 @@ export default function Layout() {
             >
               <Icon size={20} />
               {label}
+              {badge > 0 && (
+                <span className="ml-auto w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">
+                  {badge}
+                </span>
+              )}
             </NavLink>
           ))}
         </nav>

@@ -5,6 +5,8 @@ const { body, validationResult } = require('express-validator');
 const db = require('../config/database');
 const { authenticate, requireRole } = require('../middleware/auth');
 const { logAdminAction } = require('../middleware/auditLog');
+const { createNotificationForUsers } = require('./notifications');
+const socketService = require('../services/socketService');
 
 const router = express.Router();
 
@@ -45,6 +47,27 @@ router.post('/', [
       'INSERT INTO applications (first_name, last_name, email, message, password_hash) VALUES ($1, $2, $3, $4, $5) RETURNING *',
       [firstName, lastName, email, message, passwordHash]
     );
+
+    // Notify admins about the new application
+    try {
+      const admins = await db.query(
+        "SELECT id FROM users WHERE role = 'admin' AND deleted_at IS NULL"
+      );
+      const adminIds = admins.rows.map(a => a.id);
+      if (adminIds.length > 0) {
+        const notifications = await createNotificationForUsers(
+          adminIds, 'system',
+          `New application: ${firstName} ${lastName}`,
+          `${email} has applied to join the lab.`,
+          result.rows[0].id, 'application'
+        );
+        for (const notification of notifications) {
+          socketService.emitToUser(notification.user_id, 'notification', notification);
+        }
+      }
+    } catch (notifError) {
+      console.error('Failed to send application notifications:', notifError);
+    }
 
     res.status(201).json({
       application: result.rows[0],

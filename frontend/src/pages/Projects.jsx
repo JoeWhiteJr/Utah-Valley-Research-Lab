@@ -151,7 +151,7 @@ export default function Projects() {
         return displayProjects.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
             {displayProjects.map((project) => (
-              <ProjectCard key={project.id} project={project} onClick={() => handleProjectClick(project)} />
+              <ProjectCard key={project.id} project={project} pendingJoinRequests={project.pending_join_request_count} onClick={() => handleProjectClick(project)} />
             ))}
           </div>
         ) : (
@@ -192,7 +192,7 @@ export default function Projects() {
           {showInactive && (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
               {inactiveProjects.map((project) => (
-                <ProjectCard key={project.id} project={project} onClick={() => handleProjectClick(project)} />
+                <ProjectCard key={project.id} project={project} pendingJoinRequests={project.pending_join_request_count} onClick={() => handleProjectClick(project)} />
               ))}
             </div>
           )}
@@ -212,7 +212,7 @@ export default function Projects() {
           {showArchived && (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
               {archivedProjects.map((project) => (
-                <ProjectCard key={project.id} project={project} onClick={() => handleProjectClick(project)} />
+                <ProjectCard key={project.id} project={project} pendingJoinRequests={project.pending_join_request_count} onClick={() => handleProjectClick(project)} />
               ))}
             </div>
           )}

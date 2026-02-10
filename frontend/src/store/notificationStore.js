@@ -4,6 +4,7 @@ import { notificationsApi } from '../services/api'
 export const useNotificationStore = create((set, _get) => ({
   notifications: [],
   unreadCount: 0,
+  unreadCountsByType: {},
   total: 0,
   isLoading: false,
   error: null,
@@ -31,6 +32,15 @@ export const useNotificationStore = create((set, _get) => ({
     }
   },
 
+  fetchUnreadCountsByType: async () => {
+    try {
+      const { data } = await notificationsApi.getUnreadCountsByType()
+      set({ unreadCountsByType: data.counts })
+    } catch (error) {
+      // Non-critical, don't set error state
+    }
+  },
+
   markRead: async (id) => {
     try {
       const { data } = await notificationsApi.markRead(id)
@@ -40,6 +50,8 @@ export const useNotificationStore = create((set, _get) => ({
         ),
         unreadCount: Math.max(0, state.unreadCount - 1)
       }))
+      // Refresh counts by type
+      _get().fetchUnreadCountsByType()
       return true
     } catch (error) {
       set({ error: error.response?.data?.error?.message || 'Failed to mark notification as read' })
@@ -55,7 +67,8 @@ export const useNotificationStore = create((set, _get) => ({
           ...n,
           read_at: n.read_at || new Date().toISOString()
         })),
-        unreadCount: 0
+        unreadCount: 0,
+        unreadCountsByType: {}
       }))
       return true
     } catch (error) {
@@ -75,6 +88,8 @@ export const useNotificationStore = create((set, _get) => ({
           unreadCount: removed && !removed.read_at ? state.unreadCount - 1 : state.unreadCount
         }
       })
+      // Refresh counts by type
+      _get().fetchUnreadCountsByType()
       return true
     } catch (error) {
       set({ error: error.response?.data?.error?.message || 'Failed to delete notification' })
@@ -83,11 +98,18 @@ export const useNotificationStore = create((set, _get) => ({
   },
 
   addNotification: (notification) => {
-    set((state) => ({
-      notifications: [notification, ...state.notifications],
-      unreadCount: state.unreadCount + 1,
-      total: state.total + 1
-    }))
+    set((state) => {
+      const newCountsByType = { ...state.unreadCountsByType }
+      if (notification.reference_type) {
+        newCountsByType[notification.reference_type] = (newCountsByType[notification.reference_type] || 0) + 1
+      }
+      return {
+        notifications: [notification, ...state.notifications],
+        unreadCount: state.unreadCount + 1,
+        unreadCountsByType: newCountsByType,
+        total: state.total + 1
+      }
+    })
   },
 
   clearError: () => set({ error: null })

@@ -56,6 +56,28 @@ router.get('/', authenticate, [
   }
 });
 
+// Get unread counts grouped by reference_type
+router.get('/unread-counts-by-type', authenticate, async (req, res, next) => {
+  try {
+    const result = await db.query(
+      `SELECT reference_type, COUNT(*)::int as count
+       FROM notifications
+       WHERE user_id = $1 AND read_at IS NULL AND reference_type IS NOT NULL
+       GROUP BY reference_type`,
+      [req.user.id]
+    );
+
+    const counts = {};
+    for (const row of result.rows) {
+      counts[row.reference_type] = row.count;
+    }
+
+    res.json({ counts });
+  } catch (error) {
+    next(error);
+  }
+});
+
 // Get unread count
 router.get('/unread-count', authenticate, async (req, res, next) => {
   try {

@@ -7,7 +7,7 @@ import JoinRequestModal from './JoinRequestModal'
 export default function NotificationBell() {
   const [isOpen, setIsOpen] = useState(false)
   const [joinRequestProjectId, setJoinRequestProjectId] = useState(null)
-  const { unreadCount, notifications, markAllRead, markRead, fetchNotifications, fetchUnreadCount } = useNotificationStore()
+  const { unreadCount, notifications, markAllRead, markRead, fetchNotifications, fetchUnreadCount, fetchUnreadCountsByType } = useNotificationStore()
   const bellRef = useRef(null)
   const navigate = useNavigate()
 
@@ -41,6 +41,12 @@ export default function NotificationBell() {
     if (n.reference_type === 'join_request' && n.reference_id) {
       setJoinRequestProjectId(n.reference_id)
       return
+    } else if (n.reference_type === 'task_assigned' && n.reference_id) {
+      navigate(`/dashboard/projects/${n.reference_id}`)
+    } else if (n.reference_type === 'member_accepted' && n.reference_id) {
+      navigate(`/dashboard/projects/${n.reference_id}`)
+    } else if (n.reference_type === 'application') {
+      navigate('/dashboard/admin')
     } else if (n.reference_type === 'project' && n.reference_id) {
       navigate(`/dashboard/projects/${n.reference_id}`)
     } else if ((n.reference_type === 'message' || n.reference_type === 'chat') && n.reference_id) {
@@ -61,7 +67,7 @@ export default function NotificationBell() {
         <div className="absolute right-0 mt-2 w-80 bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 z-50">
           <div className="flex items-center justify-between p-3 border-b border-gray-200 dark:border-gray-700">
             <span className="font-semibold text-text-primary dark:text-gray-100">Notifications</span>
-            <button onClick={markAllRead} className="text-xs text-primary-600 dark:text-primary-400">Mark all read</button>
+            <button onClick={() => { markAllRead(); fetchUnreadCountsByType() }} className="text-xs text-primary-600 dark:text-primary-400">Mark all read</button>
           </div>
           <div className="max-h-80 overflow-y-auto">
             {notifications.length === 0 ? (

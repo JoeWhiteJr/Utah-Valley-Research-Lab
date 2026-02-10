@@ -4,6 +4,8 @@ const db = require('../config/database');
 const { authenticate, requireProjectAccess } = require('../middleware/auth');
 const { sanitizeBody } = require('../middleware/sanitize');
 const { logActivity } = require('./users');
+const { createNotification } = require('./notifications');
+const socketService = require('../services/socketService');
 
 const router = express.Router();
 
@@ -172,6 +174,25 @@ router.post('/project/:projectId', authenticate, requireProjectAccess(), sanitiz
     const effectiveAssignees = assignee_ids || (assigned_to ? [assigned_to] : []);
     if (effectiveAssignees.length > 0) {
       await setAssignees(actionItem.id, effectiveAssignees);
+    }
+
+    // Notify assignees about the new task
+    try {
+      const projectResult = await db.query('SELECT title FROM projects WHERE id = $1', [projectId]);
+      const projectTitle = projectResult.rows[0]?.title || 'a project';
+      for (const assigneeId of effectiveAssignees) {
+        if (assigneeId !== req.user.id) {
+          const notification = await createNotification(
+            assigneeId, 'system',
+            `New task: ${title}`,
+            `${req.user.name} assigned you a task in ${projectTitle}`,
+            projectId, 'task_assigned'
+          );
+          if (notification) socketService.emitToUser(assigneeId, 'notification', notification);
+        }
+      }
+    } catch (notifError) {
+      console.error('Failed to send task assignment notifications:', notifError);
     }
 
     // Fetch with category info and assignees
@@ -365,7 +386,15 @@ router.put('/:id', authenticate, sanitizeBody('title'), [
     if (parent_task_id !== undefined) { updates.push(`parent_task_id = $${paramCount++}`); values.push(parent_task_id); }
 
     // Handle assignee_ids update separately
+    let oldAssigneeIds = [];
     if (assignee_ids !== undefined) {
+      // Fetch old assignees before replacing
+      const oldAssignees = await db.query(
+        'SELECT user_id FROM action_item_assignees WHERE action_item_id = $1',
+        [req.params.id]
+      );
+      oldAssigneeIds = oldAssignees.rows.map(r => r.user_id);
+
       await setAssignees(req.params.id, assignee_ids);
       // Also update the legacy assigned_to to first assignee for backward compat
       if (assigned_to === undefined) {
@@ -389,6 +418,31 @@ router.put('/:id', authenticate, sanitizeBody('title'), [
     // Log task completion activity for streak tracking
     if (completed === true) {
       logActivity(req.user.id, 'task_completed');
+    }
+
+    // Notify newly added assignees
+    if (assignee_ids !== undefined) {
+      try {
+        const newAssignees = assignee_ids.filter(id => !oldAssigneeIds.includes(id) && id !== req.user.id);
+        if (newAssignees.length > 0) {
+          const taskResult = await db.query('SELECT title, project_id FROM action_items WHERE id = $1', [req.params.id]);
+          const taskTitle = taskResult.rows[0]?.title || 'a task';
+          const projId = taskResult.rows[0]?.project_id;
+          const projectResult = await db.query('SELECT title FROM projects WHERE id = $1', [projId]);
+          const projectTitle = projectResult.rows[0]?.title || 'a project';
+          for (const assigneeId of newAssignees) {
+            const notification = await createNotification(
+              assigneeId, 'system',
+              `New task: ${taskTitle}`,
+              `${req.user.name} assigned you a task in ${projectTitle}`,
+              projId, 'task_assigned'
+            );
+            if (notification) socketService.emitToUser(assigneeId, 'notification', notification);
+          }
+        }
+      } catch (notifError) {
+        console.error('Failed to send task assignment notifications:', notifError);
+      }
     }
 
     // Fetch with category info

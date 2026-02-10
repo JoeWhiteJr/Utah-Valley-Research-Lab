@@ -6,7 +6,7 @@ const { v4: uuidv4 } = require('uuid');
 const { body, validationResult } = require('express-validator');
 const db = require('../config/database');
 const { authenticate, requireRole } = require('../middleware/auth');
-const { createNotificationForUsers } = require('./notifications');
+const { createNotification, createNotificationForUsers } = require('./notifications');
 const socketService = require('../services/socketService');
 
 const router = express.Router();
@@ -67,7 +67,8 @@ router.get('/', authenticate, async (req, res, next) => {
           WHEN my_mem.user_id IS NOT NULL THEN 'member'
           WHEN my_req.id IS NOT NULL THEN 'pending'
           ELSE 'none'
-        END as membership_status
+        END as membership_status,
+        COALESCE(pjr_stats.pending_count, 0) as pending_join_request_count
       FROM projects p
       JOIN users u ON p.created_by = u.id
       LEFT JOIN users lead_u ON p.lead_id = lead_u.id
@@ -87,6 +88,12 @@ router.get('/', authenticate, async (req, res, next) => {
         ON my_mem.project_id = p.id AND my_mem.user_id = $1
       LEFT JOIN project_join_requests my_req
         ON my_req.project_id = p.id AND my_req.user_id = $1 AND my_req.status = 'pending'
+      LEFT JOIN (
+        SELECT project_id, COUNT(*)::int as pending_count
+        FROM project_join_requests
+        WHERE status = 'pending'
+        GROUP BY project_id
+      ) pjr_stats ON pjr_stats.project_id = p.id
     `;
     const params = [req.user.id];
     const countParams = [];
@@ -113,7 +120,10 @@ router.get('/', authenticate, async (req, res, next) => {
     const projects = result.rows.map(p => ({
       ...p,
       progress: parseInt(p.calculated_progress) || 0,
-      membership_status: isAdmin ? 'member' : p.membership_status
+      membership_status: isAdmin ? 'member' : p.membership_status,
+      pending_join_request_count: (isAdmin || p.lead_id === req.user.id)
+        ? parseInt(p.pending_join_request_count) || 0
+        : 0
     }));
     res.json({ projects, total, limit, offset });
   } catch (error) {
@@ -483,12 +493,26 @@ router.put('/:id/join-requests/:reqId', authenticate, [
       return res.status(404).json({ error: { message: 'Join request not found' } });
     }
 
-    // If approved, add user as member
+    // If approved, add user as member and notify them
     if (action === 'approve') {
       await db.query(
         "INSERT INTO project_members (project_id, user_id, role) VALUES ($1, $2, 'member') ON CONFLICT DO NOTHING",
         [req.params.id, result.rows[0].user_id]
       );
+
+      try {
+        const project = await db.query('SELECT title FROM projects WHERE id = $1', [req.params.id]);
+        const projectTitle = project.rows[0]?.title || 'a project';
+        const notification = await createNotification(
+          result.rows[0].user_id, 'system',
+          `Welcome to ${projectTitle}`,
+          'Your join request was approved.',
+          req.params.id, 'member_accepted'
+        );
+        if (notification) socketService.emitToUser(result.rows[0].user_id, 'notification', notification);
+      } catch (notifError) {
+        console.error('Failed to send member accepted notification:', notifError);
+      }
     }
 
     res.json({ request: result.rows[0] });

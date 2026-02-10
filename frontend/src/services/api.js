@@ -282,6 +282,7 @@ export const notificationsApi = {
   list: ({ limit, offset, unread_only } = {}) =>
     api.get('/notifications', { params: { limit, offset, unread_only } }),
   getUnreadCount: () => api.get('/notifications/unread-count'),
+  getUnreadCountsByType: () => api.get('/notifications/unread-counts-by-type'),
   markRead: (id) => api.put(`/notifications/${id}/read`),
   markAllRead: () => api.put('/notifications/read-all'),
   delete: (id) => api.delete(`/notifications/${id}`)
