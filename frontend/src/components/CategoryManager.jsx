@@ -123,7 +123,7 @@ export default function CategoryManager({
           {categories.map((category) => (
             <div
               key={category.id}
-              className="flex items-center justify-between p-2 rounded-lg bg-gray-50 group"
+              className="flex items-center justify-between p-2 rounded-lg bg-gray-50 dark:bg-gray-800 group"
             >
               {editingCategory?.id === category.id ? (
                 <form onSubmit={handleUpdate} className="flex-1 flex items-center gap-2">
@@ -131,7 +131,7 @@ export default function CategoryManager({
                     type="text"
                     value={formData.name}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    className="flex-1 px-2 py-1 text-sm rounded border border-gray-300 focus:outline-none focus:ring-1 focus:ring-primary-300"
+                    className="flex-1 px-2 py-1 text-sm rounded border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-primary-300"
                     autoFocus
                   />
                   <div className="flex items-center gap-1">
@@ -141,7 +141,7 @@ export default function CategoryManager({
                         type="button"
                         onClick={() => setFormData({ ...formData, color })}
                         className={`w-5 h-5 rounded-full transition-transform ${
-                          formData.color === color ? 'ring-2 ring-offset-1 ring-gray-400 scale-110' : ''
+                          formData.color === color ? 'ring-2 ring-offset-1 ring-gray-400 dark:ring-gray-500 scale-110' : ''
                         }`}
                         style={{ backgroundColor: color }}
                       />
@@ -150,14 +150,14 @@ export default function CategoryManager({
                   <button
                     type="submit"
                     disabled={isSubmitting}
-                    className="p-1 text-green-600 hover:bg-green-50 rounded"
+                    className="p-1 text-green-600 hover:bg-green-50 dark:hover:bg-green-900/30 rounded"
                   >
                     <Check size={16} />
                   </button>
                   <button
                     type="button"
                     onClick={handleCancelEdit}
-                    className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded"
+                    className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
                   >
                     <X size={16} />
                   </button>
@@ -175,13 +175,13 @@ export default function CategoryManager({
                   <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                     <button
                       onClick={() => handleOpenEdit(category)}
-                      className="p-1 text-gray-400 hover:text-primary-600 hover:bg-primary-50 rounded"
+                      className="p-1 text-gray-400 hover:text-primary-600 hover:bg-primary-50 dark:hover:bg-primary-900/30 rounded"
                     >
                       <Edit2 size={14} />
                     </button>
                     <button
                       onClick={() => setDeleteConfirm(category)}
-                      className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded"
+                      className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 rounded"
                     >
                       <Trash2 size={14} />
                     </button>

@@ -39,7 +39,7 @@ export default function FileCard({ file, onDownload, onDelete, onPreview }) {
 
   return (
     <div
-      className="group bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden hover:border-primary-300 hover:shadow-sm transition-all cursor-pointer"
+      className="group bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden hover:border-primary-300 dark:hover:border-primary-600 hover:shadow-sm transition-all cursor-pointer"
       onClick={handleClick}
     >
       {/* Preview area */}
@@ -59,7 +59,7 @@ export default function FileCard({ file, onDownload, onDelete, onPreview }) {
           {onPreview && (
             <button
               onClick={(e) => { e.stopPropagation(); onPreview(file); }}
-              className="p-2 bg-white rounded-lg text-text-primary hover:bg-gray-100"
+              className="p-2 bg-white dark:bg-gray-700 rounded-lg text-text-primary hover:bg-gray-100 dark:hover:bg-gray-600"
               title="Preview"
             >
               <Eye size={18} />
@@ -67,14 +67,14 @@ export default function FileCard({ file, onDownload, onDelete, onPreview }) {
           )}
           <button
             onClick={(e) => { e.stopPropagation(); onDownload(file); }}
-            className="p-2 bg-white rounded-lg text-text-primary hover:bg-gray-100"
+            className="p-2 bg-white dark:bg-gray-700 rounded-lg text-text-primary hover:bg-gray-100 dark:hover:bg-gray-600"
             title="Download"
           >
             <Download size={18} />
           </button>
           <button
             onClick={(e) => { e.stopPropagation(); onDelete(file.id); }}
-            className="p-2 bg-white rounded-lg text-red-600 hover:bg-red-50"
+            className="p-2 bg-white dark:bg-gray-700 rounded-lg text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30"
             title="Delete"
           >
             <Trash2 size={18} />

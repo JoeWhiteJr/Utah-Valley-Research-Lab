@@ -49,7 +49,7 @@ export default function DropZone({
     return (
       <button
         onClick={() => inputRef.current?.click()}
-        className={`inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-primary-600 bg-primary-50 rounded-organic hover:bg-primary-100 transition-colors ${className}`}
+        className={`inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-primary-600 bg-primary-50 rounded-organic hover:bg-primary-100 dark:bg-primary-900/30 dark:text-primary-300 dark:hover:bg-primary-800/40 transition-colors ${className}`}
       >
         <FileUp size={16} />
         Upload
@@ -75,14 +75,14 @@ export default function DropZone({
         relative rounded-xl border-2 border-dashed cursor-pointer transition-colors
         ${
           isDragging
-            ? 'border-primary-400 bg-primary-50'
-            : 'border-gray-300 bg-gray-50 hover:border-primary-300 hover:bg-primary-50/50'
+            ? 'border-primary-400 bg-primary-50 dark:bg-primary-900/30'
+            : 'border-gray-300 bg-gray-50 hover:border-primary-300 hover:bg-primary-50/50 dark:border-gray-600 dark:bg-gray-800 dark:hover:border-primary-500 dark:hover:bg-primary-900/30'
         }
         ${className}
       `}
     >
       <div className="flex flex-col items-center justify-center py-8 px-4 text-center">
-        <div className={`p-3 rounded-full mb-3 ${isDragging ? 'bg-primary-100' : 'bg-gray-100'}`}>
+        <div className={`p-3 rounded-full mb-3 ${isDragging ? 'bg-primary-100 dark:bg-primary-900/30' : 'bg-gray-100 dark:bg-gray-700'}`}>
           <Upload size={24} className={isDragging ? 'text-primary-500' : 'text-text-secondary'} />
         </div>
         <p className="text-sm font-medium text-text-primary">{label}</p>

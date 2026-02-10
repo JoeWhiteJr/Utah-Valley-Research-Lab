@@ -62,11 +62,11 @@ export default function DatePicker({
           type="button"
           onClick={() => setIsOpen(!isOpen)}
           className={`
-            w-full flex items-center justify-between gap-2 px-4 py-2.5 rounded-organic border bg-white
+            w-full flex items-center justify-between gap-2 px-4 py-2.5 rounded-organic border bg-white dark:bg-gray-800
             text-left
             focus:outline-none focus:ring-2 focus:ring-primary-300 focus:border-primary-400
             transition-colors
-            ${error ? 'border-red-400 focus:ring-red-300 focus:border-red-400' : 'border-gray-300'}
+            ${error ? 'border-red-400 focus:ring-red-300 focus:border-red-400' : 'border-gray-300 dark:border-gray-600'}
             ${displayValue ? 'text-text-primary' : 'text-text-secondary'}
           `}
         >
@@ -83,17 +83,17 @@ export default function DatePicker({
             />
 
             {/* Calendar Popup */}
-            <div className="absolute top-full left-0 mt-2 z-50 bg-white rounded-lg shadow-lg border border-gray-200 overflow-hidden">
+            <div className="absolute top-full left-0 mt-2 z-50 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
               <ReactDatePicker
                 selected={selectedDate}
                 onChange={handleDateChange}
                 inline
                 calendarClassName="custom-datepicker"
-                dayClassName={() => 'hover:bg-primary-100 rounded-full'}
+                dayClassName={() => 'hover:bg-primary-100 dark:hover:bg-primary-900/30 rounded-full'}
               />
 
               {/* Action buttons */}
-              <div className="flex items-center justify-between gap-2 p-3 border-t border-gray-200 bg-gray-50">
+              <div className="flex items-center justify-between gap-2 p-3 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
                 <button
                   type="button"
                   onClick={handleClear}

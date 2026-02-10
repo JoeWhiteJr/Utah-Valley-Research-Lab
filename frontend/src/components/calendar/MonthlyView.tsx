@@ -1,7 +1,8 @@
-import { useMemo } from 'react';
+import { useMemo, useRef } from 'react';
 import { startOfMonth, startOfWeek, addDays, isSameDay, isToday, isSameMonth, format } from 'date-fns';
 import type { CalendarEvent, DeadlineEvent } from './types';
 import { DAYS_SHORT } from './types';
+import { useDateRangeDrag } from '../../hooks/useDateRangeDrag';
 
 interface MonthlyViewProps {
   selectedDate: Date;
@@ -11,13 +12,29 @@ interface MonthlyViewProps {
   onSwitchToDaily: (date: Date) => void;
   onEditEvent: (event: CalendarEvent) => void;
   onTimeClick?: (time: Date) => void;
+  onTimeRangeSelect?: (startTime: Date, endTime: Date) => void;
   scope: 'lab' | 'personal';
 }
 
 export function MonthlyView({
   selectedDate, events, deadlines,
-  onSelectDate, onSwitchToDaily, onEditEvent, onTimeClick,
+  onSelectDate, onSwitchToDaily, onEditEvent, onTimeClick, onTimeRangeSelect,
 }: MonthlyViewProps) {
+  const justDraggedRef = useRef(false);
+
+  const { isDragging, onCellMouseDown, onCellMouseEnter, isInRange } = useDateRangeDrag({
+    onRangeSelected: (start, end) => {
+      if (onTimeRangeSelect) {
+        onTimeRangeSelect(start, end);
+      }
+      justDraggedRef.current = true;
+      requestAnimationFrame(() => {
+        justDraggedRef.current = false;
+      });
+    },
+    enabled: !!onTimeRangeSelect,
+  });
+
   const calendarDays = useMemo(() => {
     const monthStart = startOfMonth(selectedDate);
     const calendarStart = startOfWeek(monthStart, { weekStartsOn: 0 });
@@ -43,6 +60,7 @@ export function MonthlyView({
   };
 
   const handleDayClick = (day: Date) => {
+    if (justDraggedRef.current) return;
     onSelectDate(day);
     if (onTimeClick) {
       const noon = new Date(day);
@@ -74,16 +92,23 @@ export function MonthlyView({
               const today = isToday(day);
               const dayEvents = getEventsForDay(day);
               const dayDeadlines = getDeadlinesForDay(day);
+              const inDragRange = isInRange(day);
 
               return (
-                <button
+                <div
                   key={dayIndex}
                   onClick={() => handleDayClick(day)}
+                  onMouseDown={(e) => {
+                    if (e.button !== 0) return;
+                    if ((e.target as HTMLElement).closest('[data-event-item]')) return;
+                    onCellMouseDown(day);
+                  }}
+                  onMouseEnter={() => onCellMouseEnter(day)}
                   className={`
-                    relative flex flex-col p-1.5 border-r border-gray-100 dark:border-gray-800 text-left transition-colors
-                    ${selected ? 'bg-indigo-50 dark:bg-indigo-900/30' : ''}
+                    relative flex flex-col p-1.5 border-r border-gray-100 dark:border-gray-800 text-left transition-colors cursor-pointer select-none
+                    ${inDragRange ? 'bg-indigo-100 dark:bg-indigo-900/30' : selected ? 'bg-indigo-50 dark:bg-indigo-900/30' : ''}
                     ${!inCurrentMonth ? 'opacity-40' : ''}
-                    hover:bg-gray-50 dark:hover:bg-gray-800
+                    ${!inDragRange ? 'hover:bg-gray-50 dark:hover:bg-gray-800' : ''}
                   `}
                   style={{ minHeight: '70px' }}
                 >
@@ -98,6 +123,7 @@ export function MonthlyView({
                     {dayEvents.slice(0, 3).map((event) => (
                       <div
                         key={event.id}
+                        data-event-item
                         className="text-[0.55rem] truncate px-1 py-0.5 rounded text-gray-900 dark:text-gray-100"
                         style={{
                           backgroundColor: `${event.category_color || '#6366f1'}20`,
@@ -121,7 +147,7 @@ export function MonthlyView({
                       </div>
                     ))}
                   </div>
-                </button>
+                </div>
               );
             })}
           </div>

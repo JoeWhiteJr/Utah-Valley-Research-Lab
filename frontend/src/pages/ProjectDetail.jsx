@@ -114,6 +114,9 @@ export default function ProjectDetail() {
   // Category filter state
   const [categoryFilter, setCategoryFilter] = useState(null)
 
+  // Assignee filter state: null = all, 'me' = current user, or a user_id string
+  const [assigneeFilter, setAssigneeFilter] = useState(null)
+
   // Task completion status filter state
   const [taskStatusFilter, setTaskStatusFilter] = useState('current')
 
@@ -298,7 +301,7 @@ export default function ProjectDetail() {
     return await createCategory(id, categoryData)
   }
 
-  // Filter actions by category and completion status
+  // Filter actions by category, completion status, and assignee
   const filteredActions = actions.filter(a => {
     // Category filter
     if (categoryFilter && categoryFilter !== 'uncategorized' && a.category_id !== categoryFilter) return false
@@ -306,6 +309,14 @@ export default function ProjectDetail() {
     // Status filter
     if (taskStatusFilter === 'current' && a.completed) return false
     if (taskStatusFilter === 'completed' && !a.completed) return false
+    // Assignee filter
+    if (assigneeFilter === 'me') {
+      const hasMe = a.assignees?.some(x => x.user_id === user?.id) || a.assigned_to === user?.id
+      if (!hasMe) return false
+    } else if (assigneeFilter) {
+      const hasUser = a.assignees?.some(x => x.user_id === assigneeFilter) || a.assigned_to === assigneeFilter
+      if (!hasUser) return false
+    }
     return true
   })
 
@@ -844,6 +855,36 @@ export default function ProjectDetail() {
                   {tab.label}
                 </button>
               ))}
+            </div>
+
+            {/* Assignee filter */}
+            <div className="flex items-center gap-3 flex-wrap">
+              <button
+                onClick={() => {
+                  setAssigneeFilter(assigneeFilter === 'me' ? null : 'me')
+                }}
+                className={`px-3 py-1.5 text-xs rounded-full font-medium transition-colors ${
+                  assigneeFilter === 'me'
+                    ? 'bg-primary-100 text-primary-700 dark:bg-primary-900/30 dark:text-primary-300'
+                    : 'bg-gray-100 dark:bg-gray-700 text-text-secondary dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'
+                }`}
+              >
+                My Tasks ({actions.filter(a => {
+                  if (taskStatusFilter === 'current' && a.completed) return false
+                  if (taskStatusFilter === 'completed' && !a.completed) return false
+                  return a.assignees?.some(x => x.user_id === user?.id) || a.assigned_to === user?.id
+                }).length})
+              </button>
+              <select
+                value={assigneeFilter && assigneeFilter !== 'me' ? assigneeFilter : ''}
+                onChange={(e) => setAssigneeFilter(e.target.value || null)}
+                className="px-3 py-1.5 text-xs rounded-full font-medium border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 text-text-primary dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-primary-300"
+              >
+                <option value="">All Members</option>
+                {teamMembers.map((member) => (
+                  <option key={member.id} value={member.id}>{member.name}</option>
+                ))}
+              </select>
             </div>
 
             {/* Category Manager and Filter Section */}
