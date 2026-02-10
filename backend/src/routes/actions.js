@@ -186,7 +186,7 @@ router.post('/project/:projectId', authenticate, requireProjectAccess(), sanitiz
             assigneeId, 'system',
             `New task: ${title}`,
             `${req.user.name} assigned you a task in ${projectTitle}`,
-            projectId, 'task_assigned'
+            actionItem.id, 'task_assigned'
           );
           if (notification) socketService.emitToUser(assigneeId, 'notification', notification);
         }
@@ -435,7 +435,7 @@ router.put('/:id', authenticate, sanitizeBody('title'), [
               assigneeId, 'system',
               `New task: ${taskTitle}`,
               `${req.user.name} assigned you a task in ${projectTitle}`,
-              projId, 'task_assigned'
+              req.params.id, 'task_assigned'
             );
             if (notification) socketService.emitToUser(assigneeId, 'notification', notification);
           }

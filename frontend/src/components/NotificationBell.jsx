@@ -41,8 +41,8 @@ export default function NotificationBell() {
     if (n.reference_type === 'join_request' && n.reference_id) {
       setJoinRequestProjectId(n.reference_id)
       return
-    } else if (n.reference_type === 'task_assigned' && n.reference_id) {
-      navigate(`/dashboard/projects/${n.reference_id}`)
+    } else if (n.reference_type === 'task_assigned') {
+      navigate('/dashboard/my-dashboard')
     } else if (n.reference_type === 'member_accepted' && n.reference_id) {
       navigate(`/dashboard/projects/${n.reference_id}`)
     } else if (n.reference_type === 'application') {

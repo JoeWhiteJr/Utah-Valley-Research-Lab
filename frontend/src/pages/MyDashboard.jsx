@@ -2,7 +2,8 @@ import { useEffect, useState, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuthStore } from '../store/authStore'
 import { useProjectStore } from '../store/projectStore'
-import { actionsApi, usersApi } from '../services/api'
+import { useNotificationStore } from '../store/notificationStore'
+import { actionsApi, usersApi, notificationsApi } from '../services/api'
 import { CalendarView } from '../components/calendar/CalendarView'
 import {
   CheckCircle2, Circle, Calendar, ArrowUpRight,
@@ -13,9 +14,11 @@ import { format, isToday, isPast, parseISO } from 'date-fns'
 export default function MyDashboard() {
   const { user } = useAuthStore()
   const { projects, fetchProjects, isLoading } = useProjectStore()
+  const { markRead } = useNotificationStore()
   const [myTasks, setMyTasks] = useState([])
   const [loadingTasks, setLoadingTasks] = useState(true)
   const [streak, setStreak] = useState(0)
+  const [highlightedTaskIds, setHighlightedTaskIds] = useState(new Map()) // taskId -> notificationId
 
   const loadMyTasks = useCallback(async () => {
     setLoadingTasks(true)
@@ -39,6 +42,17 @@ export default function MyDashboard() {
     usersApi.getStreak().then(({ data }) => {
       setStreak(data.streak || 0)
     }).catch(() => setStreak(0))
+    // Fetch unread task_assigned notifications to highlight new tasks
+    notificationsApi.list({ limit: 50, unread_only: true }).then(({ data }) => {
+      const taskNotifs = (data.notifications || []).filter(n => n.reference_type === 'task_assigned' && n.reference_id && !n.read_at)
+      if (taskNotifs.length > 0) {
+        const map = new Map()
+        for (const n of taskNotifs) {
+          map.set(n.reference_id, n.id)
+        }
+        setHighlightedTaskIds(map)
+      }
+    }).catch(() => {})
   }, [fetchProjects, loadMyTasks])
 
   // Filter projects where user is creator or has assigned tasks
@@ -68,6 +82,19 @@ export default function MyDashboard() {
       /* error handled silently */
     }
   }
+
+  const handleTaskHover = useCallback((taskId) => {
+    const notificationId = highlightedTaskIds.get(taskId)
+    if (!notificationId) return
+    markRead(notificationId)
+    setTimeout(() => {
+      setHighlightedTaskIds(prev => {
+        const next = new Map(prev)
+        next.delete(taskId)
+        return next
+      })
+    }, 300)
+  }, [highlightedTaskIds, markRead])
 
   const completedCount = myTasks.filter(t => t.completed).length
   const pendingTasks = myTasks.filter(t => !t.completed).length
@@ -164,10 +191,13 @@ export default function MyDashboard() {
               <p className="text-text-secondary dark:text-gray-400 mt-3">Loading your tasks...</p>
             </div>
           ) : myTasks.filter(t => !t.completed).length > 0 ? (
-            myTasks.filter(t => !t.completed).map((task) => (
+            myTasks.filter(t => !t.completed).map((task) => {
+              const isNew = highlightedTaskIds.has(task.id)
+              return (
               <div
                 key={task.id}
-                className="flex items-center gap-4 p-4 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                className={`flex items-center gap-4 p-4 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors ${isNew ? 'bg-primary-50 dark:bg-primary-900/20 border-l-4 border-l-primary-500' : ''}`}
+                onMouseEnter={isNew ? () => handleTaskHover(task.id) : undefined}
               >
                 <button
                   onClick={() => handleToggleTask(task.id, task.completed)}
@@ -180,7 +210,14 @@ export default function MyDashboard() {
                   )}
                 </button>
                 <div className="flex-1 min-w-0">
-                  <p className={`font-medium truncate ${task.completed ? 'line-through text-text-secondary dark:text-gray-400' : 'text-text-primary dark:text-gray-100'}`}>{task.title}</p>
+                  <div className="flex items-center">
+                    <p className={`font-medium truncate ${task.completed ? 'line-through text-text-secondary dark:text-gray-400' : 'text-text-primary dark:text-gray-100'}`}>{task.title}</p>
+                    {isNew && (
+                      <span className="text-xs font-medium text-primary-600 dark:text-primary-400 bg-primary-100 dark:bg-primary-900/30 px-2 py-0.5 rounded-full ml-2 flex-shrink-0">
+                        New
+                      </span>
+                    )}
+                  </div>
                   <p className="text-sm text-text-secondary dark:text-gray-400">{task.project_title}</p>
                 </div>
                 {task.due_date && (
@@ -203,7 +240,8 @@ export default function MyDashboard() {
                   View Project
                 </Link>
               </div>
-            ))
+              )
+            })
           ) : (
             <div className="p-12 text-center">
               <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-green-100 dark:from-green-900/30 to-secondary-100 dark:to-secondary-900/30 flex items-center justify-center">
