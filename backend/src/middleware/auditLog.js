@@ -1,4 +1,5 @@
 const db = require('../config/database');
+const logger = require('../config/logger');
 
 /**
  * Log an admin action to the audit log
@@ -13,7 +14,7 @@ const logAdminAction = async (req, action, entityType, entityId, oldValues = nul
   try {
     const adminId = req.user?.id;
     if (!adminId) {
-      console.warn('Audit log: No user ID available');
+      logger.warn('Audit log: No user ID available');
       return;
     }
 
@@ -40,7 +41,7 @@ const logAdminAction = async (req, action, entityType, entityId, oldValues = nul
     );
   } catch (error) {
     // Don't throw - audit logging should not break the main operation
-    console.error('Failed to log admin action:', error.message);
+    logger.error({ err: error }, 'Failed to log admin action');
   }
 };
 
@@ -60,7 +61,7 @@ const auditMiddleware = (action, entityType, getEntityId) => {
           : req.params.id;
 
         logAdminAction(req, action, entityType, entityId, req.auditOldValues, data)
-          .catch(err => console.error('Audit middleware error:', err));
+          .catch(err => logger.error({ err }, 'Audit middleware error'));
       }
       return originalJson(data);
     };

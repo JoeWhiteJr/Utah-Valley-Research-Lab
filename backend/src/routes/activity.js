@@ -1,5 +1,6 @@
 const express = require('express');
 const db = require('../config/database');
+const logger = require('../config/logger');
 const { authenticate } = require('../middleware/auth');
 
 const router = express.Router();
@@ -34,6 +35,6 @@ module.exports.logActivityEvent = async (userId, action, entityType, entityId, e
       VALUES ($1, $2, $3, $4, $5, $6, $7)
     `, [userId, action, entityType, entityId || null, entityTitle || null, projectId || null, metadata || {}]);
   } catch (error) {
-    console.error('Failed to log activity:', error);
+    logger.error({ err: error }, 'Failed to log activity');
   }
 };

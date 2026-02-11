@@ -5,6 +5,7 @@ const fs = require('fs');
 const { v4: uuidv4 } = require('uuid');
 const { body, validationResult } = require('express-validator');
 const db = require('../config/database');
+const logger = require('../config/logger');
 const { authenticate, requireProjectAccess } = require('../middleware/auth');
 const { sanitizeBody } = require('../middleware/sanitize');
 
@@ -306,7 +307,7 @@ router.delete('/:id', authenticate, async (req, res, next) => {
     // Delete audio file if exists
     if (meeting.audio_path) {
       fs.unlink(meeting.audio_path, (err) => {
-        if (err) console.error('Error deleting audio file:', err);
+        if (err) logger.error({ err }, 'Error deleting audio file');
       });
     }
 

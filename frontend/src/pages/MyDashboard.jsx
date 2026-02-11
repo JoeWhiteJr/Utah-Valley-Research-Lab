@@ -4,6 +4,7 @@ import { useAuthStore } from '../store/authStore'
 import { useProjectStore } from '../store/projectStore'
 import { useNotificationStore } from '../store/notificationStore'
 import { actionsApi, usersApi, notificationsApi } from '../services/api'
+import { toast } from '../store/toastStore'
 import { CalendarView } from '../components/calendar/CalendarView'
 import {
   CheckCircle2, Circle, Calendar, ArrowUpRight,
@@ -28,7 +29,7 @@ export default function MyDashboard() {
       const { data } = await actionsApi.my()
       setMyTasks(data.actions || [])
     } catch {
-      /* error handled silently */
+      toast.error('Failed to load tasks')
     }
     setLoadingTasks(false)
   }, [])
@@ -48,7 +49,7 @@ export default function MyDashboard() {
     notificationsApi.list({ limit: 50, unread_only: true }).then(({ data }) => {
       const taskNotifs = (data.notifications || []).filter(n => n.reference_type === 'task_assigned' && !n.read_at)
       setTaskNotifications(taskNotifs)
-    }).catch(() => {})
+    }).catch(() => { /* notifications non-critical */ })
   }, [fetchProjects, loadMyTasks])
 
   // Build highlighted task map when both tasks and notifications are loaded
@@ -98,7 +99,7 @@ export default function MyDashboard() {
       setMyTasks(prev => prev.map(t =>
         t.id === taskId ? { ...t, completed: currentCompleted } : t
       ))
-      /* error handled silently */
+      toast.error('Failed to update task')
     }
   }
 

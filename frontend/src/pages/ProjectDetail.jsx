@@ -281,7 +281,7 @@ export default function ProjectDetail() {
     try {
       const { data } = await usersApi.team()
       setAllUsers(data.users || [])
-    } catch { /* */ }
+    } catch { toast.error('Failed to load users') }
     setAddMemberSearch('')
     setSelectedUserIds([])
     setShowAddMemberModal(true)

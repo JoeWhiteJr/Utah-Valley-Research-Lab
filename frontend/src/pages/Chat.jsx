@@ -14,6 +14,7 @@ import MessageReactions from '../components/chat/MessageReactions'
 import MentionAutocomplete from '../components/chat/MentionAutocomplete'
 import { useChatNotifications } from '../components/chat/useChatNotifications'
 import { chatApi } from '../services/api'
+import { toast } from '../store/toastStore'
 import { MessageCircle, Plus, Sparkles, Send, Trash2, Smile, Pencil, Reply, X, ArrowLeft } from 'lucide-react'
 import { format, isToday, isYesterday } from 'date-fns'
 
@@ -176,7 +177,7 @@ export default function Chat() {
       const { data } = await usersApi.team()
       setAllUsers(data.users.filter(u => u.id !== user.id))
     } catch {
-      /* error handled silently */
+      toast.error('Failed to load users')
     }
     setShowCreateModal(true)
   }
@@ -288,7 +289,7 @@ export default function Chat() {
       setEditingMessage(null)
       setEditText('')
     } catch {
-      /* error handled silently */
+      toast.error('Failed to edit message')
     }
   }
 

@@ -1,5 +1,7 @@
+const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const db = require('../config/database');
+const logger = require('../config/logger');
 
 const jwtSecret = process.env.JWT_SECRET;
 if (!jwtSecret) {
@@ -22,6 +24,13 @@ const socketAuth = async (socket, next) => {
 
     // Verify JWT
     const decoded = jwt.verify(token, jwtSecret);
+
+    // Check token blocklist
+    const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+    const blocked = await db.query('SELECT 1 FROM token_blocklist WHERE token_hash = $1', [tokenHash]);
+    if (blocked.rows.length > 0) {
+      return next(new Error('Token has been revoked'));
+    }
 
     // Fetch user from database
     const result = await db.query(
@@ -49,7 +58,7 @@ const socketAuth = async (socket, next) => {
     if (error.name === 'TokenExpiredError') {
       return next(new Error('Token expired'));
     }
-    console.error('Socket auth error:', error);
+    logger.error({ err: error }, 'Socket auth error');
     return next(new Error('Authentication failed'));
   }
 };

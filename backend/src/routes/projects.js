@@ -5,6 +5,7 @@ const fs = require('fs');
 const { v4: uuidv4 } = require('uuid');
 const { body, validationResult } = require('express-validator');
 const db = require('../config/database');
+const logger = require('../config/logger');
 const { authenticate, requireRole } = require('../middleware/auth');
 const { createNotification, createNotificationForUsers } = require('./notifications');
 const socketService = require('../services/socketService');
@@ -352,28 +353,42 @@ router.post('/:id/members', authenticate, [
 
     const { user_id } = req.body;
 
-    // Check if already a member
-    const memberCheck = await db.query(
-      'SELECT 1 FROM project_members WHERE project_id = $1 AND user_id = $2',
-      [req.params.id, user_id]
-    );
-    if (memberCheck.rows.length > 0) {
-      return res.status(400).json({ error: { message: 'User is already a member of this project' } });
+    // Use transaction to prevent race conditions on concurrent member adds
+    const client = await db.getClient();
+    try {
+      await client.query('BEGIN');
+
+      // Check if already a member
+      const memberCheck = await client.query(
+        'SELECT 1 FROM project_members WHERE project_id = $1 AND user_id = $2',
+        [req.params.id, user_id]
+      );
+      if (memberCheck.rows.length > 0) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: { message: 'User is already a member of this project' } });
+      }
+
+      // Add as member
+      await client.query(
+        "INSERT INTO project_members (project_id, user_id, role) VALUES ($1, $2, 'member')",
+        [req.params.id, user_id]
+      );
+
+      // Clean up any pending join request for this user
+      await client.query(
+        "DELETE FROM project_join_requests WHERE project_id = $1 AND user_id = $2 AND status = 'pending'",
+        [req.params.id, user_id]
+      );
+
+      await client.query('COMMIT');
+    } catch (txError) {
+      await client.query('ROLLBACK');
+      throw txError;
+    } finally {
+      client.release();
     }
 
-    // Add as member
-    await db.query(
-      "INSERT INTO project_members (project_id, user_id, role) VALUES ($1, $2, 'member')",
-      [req.params.id, user_id]
-    );
-
-    // Clean up any pending join request for this user
-    await db.query(
-      "DELETE FROM project_join_requests WHERE project_id = $1 AND user_id = $2 AND status = 'pending'",
-      [req.params.id, user_id]
-    );
-
-    // Notify the added user
+    // Notify the added user (outside transaction — non-critical)
     try {
       const project = await db.query('SELECT title FROM projects WHERE id = $1', [req.params.id]);
       const projectTitle = project.rows[0]?.title || 'a project';
@@ -385,7 +400,7 @@ router.post('/:id/members', authenticate, [
       );
       if (notification) socketService.emitToUser(user_id, 'notification', notification);
     } catch (notifError) {
-      console.error('Failed to send member added notification:', notifError);
+      logger.error({ err: notifError }, 'Failed to send member added notification');
     }
 
     res.status(201).json({ message: 'Member added successfully' });
@@ -490,7 +505,7 @@ router.post('/:id/join-request', authenticate, [
         }
       }
     } catch (notifError) {
-      console.error('Failed to send join request notifications:', notifError);
+      logger.error({ err: notifError }, 'Failed to send join request notifications');
     }
 
     res.status(201).json({ request: result.rows[0] });
@@ -578,7 +593,7 @@ router.put('/:id/join-requests/:reqId', authenticate, [
         );
         if (notification) socketService.emitToUser(result.rows[0].user_id, 'notification', notification);
       } catch (notifError) {
-        console.error('Failed to send member accepted notification:', notifError);
+        logger.error({ err: notifError }, 'Failed to send member accepted notification');
       }
     }
 

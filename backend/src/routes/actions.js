@@ -1,6 +1,7 @@
 const express = require('express');
 const { body, validationResult } = require('express-validator');
 const db = require('../config/database');
+const logger = require('../config/logger');
 const { authenticate, requireProjectAccess } = require('../middleware/auth');
 const { sanitizeBody } = require('../middleware/sanitize');
 const { logActivity } = require('./users');
@@ -192,7 +193,7 @@ router.post('/project/:projectId', authenticate, requireProjectAccess(), sanitiz
         }
       }
     } catch (notifError) {
-      console.error('Failed to send task assignment notifications:', notifError);
+      logger.error({ err: notifError }, 'Failed to send task assignment notifications');
     }
 
     // Fetch with category info and assignees
@@ -442,7 +443,7 @@ router.put('/:id', authenticate, sanitizeBody('title'), [
           }
         }
       } catch (notifError) {
-        console.error('Failed to send task assignment notifications:', notifError);
+        logger.error({ err: notifError }, 'Failed to send task assignment notifications');
       }
     }
 

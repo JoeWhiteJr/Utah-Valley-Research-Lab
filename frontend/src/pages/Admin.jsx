@@ -5,6 +5,7 @@ import { useAuthStore } from '../store/authStore'
 import { useProjectStore } from '../store/projectStore'
 import { usePublishStore } from '../store/publishStore'
 import { usersApi, projectsApi } from '../services/api'
+import { toast } from '../store/toastStore'
 import Button from '../components/Button'
 import Modal from '../components/Modal'
 import { LayoutDashboard, Users, Trash2, Sparkles, Globe, Pencil, XCircle, BrainCircuit, Calendar, FolderKanban, FileEdit, UserCircle } from 'lucide-react'
@@ -50,7 +51,7 @@ export default function Admin() {
       const { data } = await usersApi.list()
       setTeamMembers(data.users)
     } catch {
-      /* error handled silently */
+      toast.error('Failed to load team members')
     }
     setIsLoadingTeam(false)
   }, [])
@@ -73,7 +74,7 @@ export default function Admin() {
         members.map((m) => (m.id === userId ? { ...m, role: newRole } : m))
       )
     } catch {
-      /* error handled silently */
+      toast.error('Failed to update role')
     }
   }
 
@@ -83,7 +84,7 @@ export default function Admin() {
       setTeamMembers((members) => members.filter((m) => m.id !== userId))
       setShowDeleteConfirm(null)
     } catch {
-      /* error handled silently */
+      toast.error('Failed to remove team member')
     }
   }
 

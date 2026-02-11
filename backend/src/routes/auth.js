@@ -8,8 +8,17 @@ const { authenticate, generateToken } = require('../middleware/auth');
 const { logActivity } = require('./users');
 const logger = require('../config/logger');
 const { sendPasswordResetEmail } = require('../services/email');
+const rateLimit = require('express-rate-limit');
 
 const router = express.Router();
+
+// Stricter rate limit for password reset to prevent email enumeration
+const forgotPasswordLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 5,
+  message: { error: { message: 'Too many password reset requests, please try again later' } },
+  keyGenerator: (req) => req.body?.email || req.ip,
+});
 
 // Register - disabled, users must apply and be approved by an admin
 // New accounts are created via the application approval flow (see routes/applications.js)
@@ -85,7 +94,7 @@ router.post('/logout', authenticate, async (req, res, next) => {
 });
 
 // Request password reset
-router.post('/forgot-password', [
+router.post('/forgot-password', forgotPasswordLimiter, [
   body('email').isEmail().normalizeEmail()
 ], async (req, res, next) => {
   try {

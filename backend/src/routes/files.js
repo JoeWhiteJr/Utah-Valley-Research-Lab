@@ -4,6 +4,7 @@ const path = require('path');
 const fs = require('fs');
 const { v4: uuidv4 } = require('uuid');
 const db = require('../config/database');
+const logger = require('../config/logger');
 const { authenticate, requireProjectAccess } = require('../middleware/auth');
 
 const router = express.Router();
@@ -180,7 +181,7 @@ router.delete('/:id', authenticate, async (req, res, next) => {
     await db.query('DELETE FROM files WHERE id = $1', [req.params.id]);
     const fs = require('fs');
     fs.unlink(file.storage_path, (err) => {
-      if (err) console.error('Error deleting file:', err);
+      if (err) logger.error({ err }, 'Error deleting file');
     });
     res.json({ message: 'File deleted successfully' });
   } catch (error) {

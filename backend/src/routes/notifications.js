@@ -165,7 +165,7 @@ const createNotification = async (userId, type, title, body = null, referenceId 
     );
     return result.rows[0];
   } catch (error) {
-    console.error('Failed to create notification:', error.message);
+    logger.error({ err: error }, 'Failed to create notification');
     return null;
   }
 };

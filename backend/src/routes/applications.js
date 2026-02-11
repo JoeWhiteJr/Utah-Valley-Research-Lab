@@ -3,6 +3,7 @@ const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
 const { body, validationResult } = require('express-validator');
 const db = require('../config/database');
+const logger = require('../config/logger');
 const { authenticate, requireRole } = require('../middleware/auth');
 const { logAdminAction } = require('../middleware/auditLog');
 const { createNotificationForUsers } = require('./notifications');
@@ -66,7 +67,7 @@ router.post('/', [
         }
       }
     } catch (notifError) {
-      console.error('Failed to send application notifications:', notifError);
+      logger.error({ err: notifError }, 'Failed to send application notifications');
     }
 
     res.status(201).json({

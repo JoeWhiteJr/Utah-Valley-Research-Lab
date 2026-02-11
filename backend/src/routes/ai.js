@@ -1,6 +1,7 @@
 const express = require('express');
 const { body, validationResult } = require('express-validator');
 const db = require('../config/database');
+const logger = require('../config/logger');
 const { authenticate, requireRole } = require('../middleware/auth');
 
 const router = express.Router();
@@ -21,7 +22,7 @@ const getModel = (modelName = 'gemini-2.5-flash') => {
       }
       genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
     } catch (error) {
-      console.error('Failed to initialize Google AI client:', error.message);
+      logger.error({ err: error }, 'Failed to initialize Google AI client');
       return null;
     }
   }
