@@ -6,10 +6,16 @@ const FOCUSABLE = 'a[href], button:not([disabled]), textarea:not([disabled]), in
 export default function Modal({ isOpen, onClose, title, children, size = 'md' }) {
   const modalRef = useRef(null)
   const previousFocusRef = useRef(null)
+  const onCloseRef = useRef(onClose)
+
+  // Keep the ref up to date without triggering effect re-runs
+  useEffect(() => {
+    onCloseRef.current = onClose
+  })
 
   const handleKeyDown = useCallback((e) => {
     if (e.key === 'Escape') {
-      onClose()
+      onCloseRef.current()
       return
     }
     if (e.key !== 'Tab' || !modalRef.current) return
@@ -31,7 +37,7 @@ export default function Modal({ isOpen, onClose, title, children, size = 'md' })
         first.focus()
       }
     }
-  }, [onClose])
+  }, [])
 
   useEffect(() => {
     if (!isOpen) return
@@ -88,6 +94,7 @@ export default function Modal({ isOpen, onClose, title, children, size = 'md' })
       <div
         ref={modalRef}
         className={`relative bg-white dark:bg-gray-800 rounded-xl shadow-xl w-full ${sizes[size]} max-h-[90vh] overflow-hidden flex flex-col`}
+        onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 dark:border-gray-700">
           <h2 id="modal-title" className="font-display font-semibold text-lg text-text-primary dark:text-gray-100">{title}</h2>
