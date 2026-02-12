@@ -7,6 +7,7 @@ const { sanitizeBody } = require('../middleware/sanitize');
 const { logActivity } = require('./users');
 const { createNotification } = require('./notifications');
 const socketService = require('../services/socketService');
+const { logAdminAction } = require('../middleware/auditLog');
 
 const router = express.Router();
 
@@ -488,6 +489,7 @@ router.delete('/:id', authenticate, async (req, res, next) => {
 
     await db.query('DELETE FROM action_items WHERE id = $1', [req.params.id]);
 
+    logAdminAction(req, 'delete_action_item', 'action_item', req.params.id, { project_id: existing.rows[0].project_id }, null);
     res.json({ message: 'Action item deleted successfully' });
   } catch (error) {
     next(error);

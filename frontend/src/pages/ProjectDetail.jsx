@@ -139,6 +139,14 @@ export default function ProjectDetail() {
     document.title = currentProject?.title ? `${currentProject.title} - Stats Lab` : 'Project - Stats Lab'
   }, [currentProject?.title])
 
+  // Warn before navigating away with unsaved important info edits
+  useEffect(() => {
+    if (!editingImportantInfo) return
+    const handler = (e) => { e.preventDefault() }
+    window.addEventListener('beforeunload', handler)
+    return () => window.removeEventListener('beforeunload', handler)
+  }, [editingImportantInfo])
+
   useEffect(() => {
     fetchProject(id)
     fetchActions(id)

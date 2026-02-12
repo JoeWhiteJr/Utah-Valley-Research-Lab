@@ -9,6 +9,7 @@ const logger = require('../config/logger');
 const { authenticate, requireRole } = require('../middleware/auth');
 const { createNotification, createNotificationForUsers } = require('./notifications');
 const socketService = require('../services/socketService');
+const { logAdminAction } = require('../middleware/auditLog');
 
 const router = express.Router();
 
@@ -200,6 +201,7 @@ router.post('/', authenticate, requireRole('admin', 'project_lead'), [
       [result.rows[0].id, req.user.id, 'lead']
     );
 
+    logAdminAction(req, 'create_project', 'project', result.rows[0].id, null, { title, description });
     res.status(201).json({ project: result.rows[0] });
   } catch (error) {
     next(error);
@@ -296,12 +298,13 @@ router.post('/:id/cover', authenticate, requireRole('admin', 'project_lead'), co
 // Delete project
 router.delete('/:id', authenticate, requireRole('admin'), async (req, res, next) => {
   try {
-    const result = await db.query('DELETE FROM projects WHERE id = $1 RETURNING id', [req.params.id]);
+    const result = await db.query('DELETE FROM projects WHERE id = $1 RETURNING id, title', [req.params.id]);
 
     if (result.rows.length === 0) {
       return res.status(404).json({ error: { message: 'Project not found' } });
     }
 
+    logAdminAction(req, 'delete_project', 'project', req.params.id, { title: result.rows[0].title }, null);
     res.json({ message: 'Project deleted successfully' });
   } catch (error) {
     next(error);
@@ -668,6 +671,7 @@ router.put('/:id/lead', authenticate, requireRole('admin'), [
     // Update projects table
     await db.query('UPDATE projects SET lead_id = $1 WHERE id = $2', [user_id, projectId]);
 
+    logAdminAction(req, 'change_project_lead', 'project', projectId, { lead_id: oldLeadId }, { lead_id: user_id });
     res.json({ message: 'Project lead updated successfully' });
   } catch (error) {
     next(error);

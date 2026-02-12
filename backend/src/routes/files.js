@@ -6,6 +6,7 @@ const { v4: uuidv4 } = require('uuid');
 const db = require('../config/database');
 const logger = require('../config/logger');
 const { authenticate, requireProjectAccess } = require('../middleware/auth');
+const { logAdminAction } = require('../middleware/auditLog');
 
 const router = express.Router();
 
@@ -179,10 +180,10 @@ router.delete('/:id', authenticate, async (req, res, next) => {
     }
 
     await db.query('DELETE FROM files WHERE id = $1', [req.params.id]);
-    const fs = require('fs');
     fs.unlink(file.storage_path, (err) => {
       if (err) logger.error({ err }, 'Error deleting file');
     });
+    logAdminAction(req, 'delete_file', 'file', req.params.id, { filename: file.original_filename, project_id: file.project_id }, null);
     res.json({ message: 'File deleted successfully' });
   } catch (error) {
     next(error);

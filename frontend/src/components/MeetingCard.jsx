@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, memo } from 'react'
 import { Mic, FileText, Sparkles, Trash2, Calendar, ChevronDown, ChevronUp, StickyNote } from 'lucide-react'
 import { format } from 'date-fns'
 import AudioPlayer from './AudioPlayer'
@@ -6,7 +6,7 @@ import { RichTextContent } from './RichTextEditor'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api'
 
-export default function MeetingCard({ meeting, onView, onDelete, onEdit }) {
+const MeetingCard = memo(function MeetingCard({ meeting, onView, onDelete, onEdit }) {
   const [isExpanded, setIsExpanded] = useState(false)
 
   const hasAudio = !!meeting.audio_path
@@ -128,4 +128,6 @@ export default function MeetingCard({ meeting, onView, onDelete, onEdit }) {
       )}
     </div>
   )
-}
+})
+
+export default MeetingCard

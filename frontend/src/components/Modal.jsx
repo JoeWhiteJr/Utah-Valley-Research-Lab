@@ -1,15 +1,59 @@
-import { useEffect } from 'react'
+import { useEffect, useRef, useCallback } from 'react'
 import { X } from 'lucide-react'
 
+const FOCUSABLE = 'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'
+
 export default function Modal({ isOpen, onClose, title, children, size = 'md' }) {
+  const modalRef = useRef(null)
+  const previousFocusRef = useRef(null)
+
+  const handleKeyDown = useCallback((e) => {
+    if (e.key === 'Escape') {
+      onClose()
+      return
+    }
+    if (e.key !== 'Tab' || !modalRef.current) return
+
+    const focusable = modalRef.current.querySelectorAll(FOCUSABLE)
+    if (focusable.length === 0) return
+
+    const first = focusable[0]
+    const last = focusable[focusable.length - 1]
+
+    if (e.shiftKey) {
+      if (document.activeElement === first) {
+        e.preventDefault()
+        last.focus()
+      }
+    } else {
+      if (document.activeElement === last) {
+        e.preventDefault()
+        first.focus()
+      }
+    }
+  }, [onClose])
+
   useEffect(() => {
     if (!isOpen) return
-    const handleEsc = (e) => {
-      if (e.key === 'Escape') onClose()
+    previousFocusRef.current = document.activeElement
+    document.addEventListener('keydown', handleKeyDown)
+
+    // Focus first focusable element after render
+    requestAnimationFrame(() => {
+      if (modalRef.current) {
+        const focusable = modalRef.current.querySelectorAll(FOCUSABLE)
+        if (focusable.length > 0) focusable[0].focus()
+      }
+    })
+
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown)
+      // Restore focus to the element that opened the modal
+      if (previousFocusRef.current && typeof previousFocusRef.current.focus === 'function') {
+        previousFocusRef.current.focus()
+      }
     }
-    document.addEventListener('keydown', handleEsc)
-    return () => document.removeEventListener('keydown', handleEsc)
-  }, [isOpen, onClose])
+  }, [isOpen, handleKeyDown])
 
   useEffect(() => {
     if (isOpen) {
@@ -36,16 +80,17 @@ export default function Modal({ isOpen, onClose, title, children, size = 'md' })
   }
 
   return (
-    <div data-modal className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div data-modal className="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="modal-title">
       <div
         className="fixed inset-0 bg-black/40 backdrop-blur-sm"
         onClick={onClose}
       />
       <div
+        ref={modalRef}
         className={`relative bg-white dark:bg-gray-800 rounded-xl shadow-xl w-full ${sizes[size]} max-h-[90vh] overflow-hidden flex flex-col`}
       >
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 dark:border-gray-700">
-          <h2 className="font-display font-semibold text-lg text-text-primary dark:text-gray-100">{title}</h2>
+          <h2 id="modal-title" className="font-display font-semibold text-lg text-text-primary dark:text-gray-100">{title}</h2>
           <button
             onClick={onClose}
             className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-text-secondary dark:text-gray-400 hover:text-text-primary dark:hover:text-gray-200 transition-colors"

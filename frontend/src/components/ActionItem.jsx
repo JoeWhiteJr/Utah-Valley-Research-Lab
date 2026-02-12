@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, memo } from 'react'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { GripVertical, Trash2, Pencil, Calendar, User, Users, Tag, ChevronDown, ChevronRight, CornerDownRight, MessageSquare, Send as SendIcon } from 'lucide-react'
@@ -8,7 +8,7 @@ import ConfirmDialog from './ConfirmDialog'
 import { commentsApi } from '../services/api'
 import { toast } from '../store/toastStore'
 
-export default function ActionItem({
+const ActionItem = memo(function ActionItem({
   action,
   onToggle,
   onDelete,
@@ -367,4 +367,6 @@ export default function ActionItem({
       />
     </div>
   )
-}
+})
+
+export default ActionItem

@@ -1,8 +1,9 @@
+import { memo } from 'react'
 import { CheckCircle2, Calendar, Users } from 'lucide-react'
 import { format } from 'date-fns'
 import { getUploadUrl } from '../services/api'
 
-export default function ProjectCard({ project, showActions = true, onClick, pendingJoinRequests = 0 }) {
+const ProjectCard = memo(function ProjectCard({ project, showActions = true, onClick, pendingJoinRequests = 0 }) {
   const statusColors = {
     active: 'bg-secondary-100 dark:bg-secondary-900/30 text-secondary-700 dark:text-secondary-300',
     completed: 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300',
@@ -111,4 +112,6 @@ export default function ProjectCard({ project, showActions = true, onClick, pend
       </div>
     </div>
   )
-}
+})
+
+export default ProjectCard

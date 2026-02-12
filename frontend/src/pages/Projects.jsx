@@ -121,6 +121,13 @@ export default function Projects() {
         </div>
       </div>
 
+      {/* Result count */}
+      {!isLoading && (
+        <p className="text-sm text-text-secondary dark:text-gray-400">
+          {filteredProjects.length} {filteredProjects.length === 1 ? 'project' : 'projects'}{search ? ` matching "${search}"` : ''}{filter !== 'all' ? ` (${filter})` : ''}
+        </p>
+      )}
+
       {/* Projects display based on filter */}
       {isLoading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">

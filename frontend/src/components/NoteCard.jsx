@@ -1,7 +1,8 @@
+import { memo } from 'react'
 import { Edit3, Trash2, User, Calendar } from 'lucide-react'
 import { format } from 'date-fns'
 
-export default function NoteCard({ note, onEdit, onDelete }) {
+const NoteCard = memo(function NoteCard({ note, onEdit, onDelete }) {
   // Strip HTML tags for preview
   const previewText = note.content
     ? note.content.replace(/<[^>]*>/g, '').slice(0, 150)
@@ -45,4 +46,6 @@ export default function NoteCard({ note, onEdit, onDelete }) {
       </div>
     </div>
   )
-}
+})
+
+export default NoteCard

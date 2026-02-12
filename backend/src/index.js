@@ -73,8 +73,8 @@ app.use(express.urlencoded({ extended: true }));
 // Serve cover images statically (these are public project images, not sensitive files)
 // Other file uploads remain behind authenticated /api/files/:id/download endpoint
 const uploadDir = process.env.UPLOAD_DIR || path.join(__dirname, '../uploads');
-app.use('/uploads/covers', express.static(path.join(uploadDir, 'covers')));
-app.use('/uploads/avatars', express.static(path.join(uploadDir, 'avatars')));
+app.use('/uploads/covers', express.static(path.join(uploadDir, 'covers'), { maxAge: '1d' }));
+app.use('/uploads/avatars', express.static(path.join(uploadDir, 'avatars'), { maxAge: '1d' }));
 
 // Rate limiting
 const authLimiter = rateLimit({
