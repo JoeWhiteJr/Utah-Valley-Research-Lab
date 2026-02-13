@@ -148,35 +148,64 @@ export default function MyDashboard() {
 
   return (
     <div className="space-y-6">
-      {/* Row 1: Personal Header */}
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-slate-900 via-slate-800 to-primary-900 p-8 md:p-10">
-        <div className="absolute inset-0 opacity-20">
-          <div className="absolute inset-0" style={{backgroundImage: 'radial-gradient(circle at 2px 2px, rgba(255,255,255,0.1) 1px, transparent 0)', backgroundSize: '24px 24px'}}></div>
-        </div>
-        <div className="relative flex flex-col md:flex-row md:items-center md:justify-between gap-6">
-          <div className="flex items-center gap-5">
-            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-primary-400 to-secondary-400 flex items-center justify-center text-white text-2xl font-bold shadow-lg">
-              {user?.name?.charAt(0)?.toUpperCase() || 'U'}
+      {/* Row 1: Personal Header — light/dark adaptive */}
+      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-slate-100 via-white to-primary-50 dark:from-slate-900 dark:via-slate-800 dark:to-primary-900 p-8 md:p-10">
+        {/* Dot pattern — light mode */}
+        <div className="absolute inset-0 opacity-[0.04] dark:opacity-0" style={{backgroundImage: 'radial-gradient(circle at 2px 2px, rgba(0,0,0,1) 1px, transparent 0)', backgroundSize: '24px 24px'}}></div>
+        {/* Dot pattern — dark mode */}
+        <div className="absolute inset-0 opacity-0 dark:opacity-20" style={{backgroundImage: 'radial-gradient(circle at 2px 2px, rgba(255,255,255,0.1) 1px, transparent 0)', backgroundSize: '24px 24px'}}></div>
+        <div className="relative">
+          {/* Top row: Avatar + Greeting | Stats mini-cards */}
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
+            <div className="flex items-center gap-5">
+              <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-primary-400 to-secondary-400 flex items-center justify-center text-white text-2xl font-bold shadow-lg ring-4 ring-white/20 dark:ring-white/10">
+                {user?.name?.charAt(0)?.toUpperCase() || 'U'}
+              </div>
+              <div>
+                <h1 className="font-display font-bold text-2xl md:text-3xl text-text-primary dark:text-white mb-1">
+                  {getGreeting()}, {user?.name?.split(' ')[0]}
+                </h1>
+                <p className="text-text-secondary dark:text-slate-400">
+                  Here&apos;s your personal research overview
+                </p>
+              </div>
             </div>
-            <div>
-              <h1 className="font-display font-bold text-2xl md:text-3xl text-white mb-1">
-                {getGreeting()}, {user?.name?.split(' ')[0]}
-              </h1>
-              <p className="text-slate-400">
-                Here&apos;s your personal research overview
-              </p>
+            {/* Stats mini-cards */}
+            <div className="flex items-center gap-3">
+              <div className="bg-white/60 dark:bg-white/10 backdrop-blur-sm rounded-xl px-4 py-3 flex items-center gap-2.5">
+                <CheckCircle2 size={16} className="text-green-600 dark:text-green-300" />
+                <div>
+                  <p className="text-lg font-display font-bold text-text-primary dark:text-white leading-none">{completedCount}</p>
+                  <p className="text-[11px] text-text-secondary dark:text-slate-400">Completed</p>
+                </div>
+              </div>
+              <div className="bg-white/60 dark:bg-white/10 backdrop-blur-sm rounded-xl px-4 py-3 flex items-center gap-2.5">
+                <Target size={16} className="text-amber-600 dark:text-amber-300" />
+                <div>
+                  <p className="text-lg font-display font-bold text-text-primary dark:text-white leading-none">{pendingTasks}</p>
+                  <p className="text-[11px] text-text-secondary dark:text-slate-400">Remaining</p>
+                </div>
+              </div>
+              <div className="bg-white/60 dark:bg-white/10 backdrop-blur-sm rounded-xl px-4 py-3 flex items-center gap-2.5">
+                <Award size={16} className="text-primary-600 dark:text-primary-300" />
+                <div>
+                  <p className="text-lg font-display font-bold text-text-primary dark:text-white leading-none">{myProjects.length}</p>
+                  <p className="text-[11px] text-text-secondary dark:text-slate-400">Projects</p>
+                </div>
+              </div>
             </div>
           </div>
-          <div className="flex items-center gap-4">
+          {/* Bottom row: Streak + Weekly Review beneath subtitle */}
+          <div className="flex items-center gap-3 mt-3">
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/60 dark:bg-white/10 backdrop-blur-sm">
+              <Zap size={14} className="text-amber-400" />
+              <span className="text-sm font-medium text-text-primary dark:text-white">{streak} day streak</span>
+            </div>
             <WeeklyReviewCard
               review={weeklyReview}
               onGenerate={generateWeeklyReview}
               isGenerating={isGenerating && !plan}
             />
-            <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/10 backdrop-blur-sm">
-              <Zap size={18} className="text-amber-400" />
-              <span className="text-white font-medium">{streak} day streak</span>
-            </div>
           </div>
         </div>
       </div>
@@ -190,67 +219,26 @@ export default function MyDashboard() {
         />
       )}
 
-      {/* Row 2: AI Plan (left) + Stats (right) */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2">
-          {/* AI Daily Plan section */}
-          <section>
-            <div className="flex items-center justify-between mb-5">
-              <h2 className="font-display font-bold text-xl text-text-primary dark:text-gray-100">AI Daily Plan</h2>
-            </div>
-            {plan ? (
-              <DailyPlanCard
-                plan={plan}
-                steps={planSteps}
-                onToggleStep={toggleStep}
-                onRegenerate={() => generatePlan(true)}
-                isGenerating={isGenerating}
-              />
-            ) : (
-              <PlannerEmptyState
-                onGenerate={() => generatePlan(false)}
-                isGenerating={isGenerating}
-              />
-            )}
-          </section>
+      {/* Row 2: AI Daily Plan (full width) */}
+      <section>
+        <div className="flex items-center justify-between mb-5">
+          <h2 className="font-display font-bold text-xl text-text-primary dark:text-gray-100">AI Daily Plan</h2>
         </div>
-        <div className="space-y-4">
-          {/* Stats cards - stacked vertically */}
-          <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5">
-            <div className="flex items-center gap-3 mb-2">
-              <div className="w-10 h-10 rounded-lg bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
-                <CheckCircle2 size={20} className="text-green-600 dark:text-green-300" />
-              </div>
-              <div>
-                <p className="text-2xl font-display font-bold text-text-primary dark:text-gray-100">{completedCount}</p>
-                <p className="text-sm text-text-secondary dark:text-gray-400">Tasks Completed</p>
-              </div>
-            </div>
-          </div>
-          <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5">
-            <div className="flex items-center gap-3 mb-2">
-              <div className="w-10 h-10 rounded-lg bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center">
-                <Target size={20} className="text-amber-600 dark:text-amber-300" />
-              </div>
-              <div>
-                <p className="text-2xl font-display font-bold text-text-primary dark:text-gray-100">{pendingTasks}</p>
-                <p className="text-sm text-text-secondary dark:text-gray-400">Tasks Remaining</p>
-              </div>
-            </div>
-          </div>
-          <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5">
-            <div className="flex items-center gap-3 mb-2">
-              <div className="w-10 h-10 rounded-lg bg-primary-100 dark:bg-primary-900/30 flex items-center justify-center">
-                <Award size={20} className="text-primary-600 dark:text-primary-300" />
-              </div>
-              <div>
-                <p className="text-2xl font-display font-bold text-text-primary dark:text-gray-100">{myProjects.length}</p>
-                <p className="text-sm text-text-secondary dark:text-gray-400">Active Projects</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+        {plan ? (
+          <DailyPlanCard
+            plan={plan}
+            steps={planSteps}
+            onToggleStep={toggleStep}
+            onRegenerate={() => generatePlan(true)}
+            isGenerating={isGenerating}
+          />
+        ) : (
+          <PlannerEmptyState
+            onGenerate={() => generatePlan(false)}
+            isGenerating={isGenerating}
+          />
+        )}
+      </section>
 
       {/* Weekly Review (expanded view when exists) */}
       {weeklyReview && (
@@ -264,13 +252,8 @@ export default function MyDashboard() {
       {/* Row 3: Calendar (left) + Tasks & Projects (right) */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2">
-          {/* My Calendar */}
-          <section>
-            <div className="flex items-center justify-between mb-5">
-              <h2 className="font-display font-bold text-xl text-text-primary dark:text-gray-100">My Calendar</h2>
-            </div>
-            <CalendarView scope="dashboard" compact />
-          </section>
+          {/* Calendar — no extra h2, component has its own header */}
+          <CalendarView scope="dashboard" compact />
         </div>
         <div className="space-y-6">
           {/* Collapsible My Tasks */}
@@ -287,8 +270,8 @@ export default function MyDashboard() {
             </button>
             {tasksExpanded && (
               <div className="border-t border-gray-100 dark:border-gray-700">
-                {/* Filter controls & links */}
-                <div className="flex items-center justify-between px-4 py-2 border-b border-gray-100 dark:border-gray-700">
+                {/* Filter button — inside expanded content */}
+                <div className="px-4 py-2">
                   <button
                     onClick={() => setShowFilters(!showFilters)}
                     className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-lg transition-colors ${
@@ -303,16 +286,9 @@ export default function MyDashboard() {
                       <span className="w-1.5 h-1.5 rounded-full bg-primary-500" />
                     )}
                   </button>
-                  <Link
-                    to="/dashboard/projects"
-                    className="inline-flex items-center gap-1 text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 text-xs font-medium"
-                  >
-                    View all projects
-                    <ArrowUpRight size={14} />
-                  </Link>
                 </div>
 
-                {/* Filter row */}
+                {/* Filter panel */}
                 {showFilters && (
                   <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-700">
                     <div className="flex items-center justify-between mb-2">
@@ -389,8 +365,8 @@ export default function MyDashboard() {
                   </div>
                 )}
 
-                {/* Task list */}
-                <div className="divide-y divide-gray-100 dark:divide-gray-700 max-h-96 overflow-y-auto">
+                {/* Task list — no scroll lock, expands to fit */}
+                <div className="divide-y divide-gray-100 dark:divide-gray-700">
                   {loadingTasks ? (
                     <div className="p-6 text-center">
                       <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary-500 mx-auto"></div>
@@ -540,27 +516,36 @@ export default function MyDashboard() {
               </div>
             </button>
             {projectsExpanded && (
-              <div className="border-t border-gray-100 dark:border-gray-700 divide-y divide-gray-100 dark:divide-gray-700">
-                {isLoading ? (
-                  <div className="p-6 text-center">
-                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary-500 mx-auto"></div>
-                    <p className="text-text-secondary dark:text-gray-400 mt-2 text-sm">Loading projects...</p>
-                  </div>
-                ) : myProjects.length > 0 ? (
-                  myProjects.map(project => (
-                    <Link
-                      key={project.id}
-                      to={`/dashboard/projects/${project.id}`}
-                      className="flex items-center gap-3 p-3 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
-                    >
-                      <FolderKanban size={16} className="text-primary-500 flex-shrink-0" />
-                      <span className="text-sm font-medium text-text-primary dark:text-gray-100 truncate">{project.title}</span>
-                      <ArrowUpRight size={14} className="text-gray-400 ml-auto flex-shrink-0" />
-                    </Link>
-                  ))
-                ) : (
-                  <div className="p-6 text-center text-sm text-text-secondary dark:text-gray-400">No projects yet</div>
-                )}
+              <div className="border-t border-gray-100 dark:border-gray-700">
+                <div className="divide-y divide-gray-100 dark:divide-gray-700">
+                  {isLoading ? (
+                    <div className="p-6 text-center">
+                      <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary-500 mx-auto"></div>
+                      <p className="text-text-secondary dark:text-gray-400 mt-2 text-sm">Loading projects...</p>
+                    </div>
+                  ) : myProjects.length > 0 ? (
+                    myProjects.map(project => (
+                      <Link
+                        key={project.id}
+                        to={`/dashboard/projects/${project.id}`}
+                        className="flex items-center gap-3 p-3 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
+                      >
+                        <FolderKanban size={16} className="text-primary-500 flex-shrink-0" />
+                        <span className="text-sm font-medium text-text-primary dark:text-gray-100 truncate">{project.title}</span>
+                        <ArrowUpRight size={14} className="text-gray-400 ml-auto flex-shrink-0" />
+                      </Link>
+                    ))
+                  ) : (
+                    <div className="p-6 text-center text-sm text-text-secondary dark:text-gray-400">No projects yet</div>
+                  )}
+                </div>
+                <Link
+                  to="/dashboard/projects"
+                  className="flex items-center justify-center gap-1 text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 text-sm font-medium py-3 border-t border-gray-100 dark:border-gray-700"
+                >
+                  View all projects
+                  <ArrowUpRight size={14} />
+                </Link>
               </div>
             )}
           </section>
