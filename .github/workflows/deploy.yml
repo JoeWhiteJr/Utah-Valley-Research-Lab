@@ -7,6 +7,10 @@ on:
     branches: [main]
   workflow_dispatch:
 
+concurrency:
+  group: deploy-production
+  cancel-in-progress: true
+
 jobs:
   deploy:
     name: Deploy to Production
@@ -31,6 +35,7 @@ jobs:
             fi
             docker compose -f docker-compose.ec2.yml down --timeout 30 --remove-orphans || true
             docker rm -f statslab-backend statslab-frontend statslab-nginx statslab-db 2>/dev/null || true
+            docker network rm stats-lab-manager_statslab-network 2>/dev/null || true
             docker system prune -f 2>/dev/null || true
             docker builder prune -af 2>/dev/null || true
             # Build sequentially to limit peak disk usage on small disk
@@ -38,6 +43,8 @@ jobs:
             docker builder prune -af 2>/dev/null || true
             docker compose -f docker-compose.ec2.yml build frontend
             docker builder prune -af 2>/dev/null || true
+            # Remove any containers that might have been recreated during build
+            docker rm -f statslab-backend statslab-frontend statslab-nginx statslab-db 2>/dev/null || true
             docker compose -f docker-compose.ec2.yml up -d --force-recreate --remove-orphans --wait --wait-timeout 120
             for f in database/migrations/*.sql; do
               docker exec -i statslab-db psql -U statslab -d statslab < "$f" || true
