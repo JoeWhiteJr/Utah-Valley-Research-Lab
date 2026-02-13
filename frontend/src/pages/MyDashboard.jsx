@@ -3,9 +3,14 @@ import { Link } from 'react-router-dom'
 import { useAuthStore } from '../store/authStore'
 import { useProjectStore } from '../store/projectStore'
 import { useNotificationStore } from '../store/notificationStore'
+import { usePlannerStore } from '../store/plannerStore'
 import { actionsApi, usersApi, notificationsApi } from '../services/api'
 import { toast } from '../store/toastStore'
 import { CalendarView } from '../components/calendar/CalendarView'
+import DailyPlanCard from '../components/planner/DailyPlanCard'
+import PlannerEmptyState from '../components/planner/PlannerEmptyState'
+import CheckinModal from '../components/planner/CheckinModal'
+import WeeklyReviewCard from '../components/planner/WeeklyReviewCard'
 import {
   CheckCircle2, Circle, Calendar, ArrowUpRight,
   FolderKanban, Zap, Target, Award, ChevronDown, ChevronRight, Filter, X
@@ -16,6 +21,11 @@ export default function MyDashboard() {
   const { user } = useAuthStore()
   const { projects, fetchProjects, isLoading } = useProjectStore()
   const { markRead } = useNotificationStore()
+  const {
+    plan, steps: planSteps, checkin, weeklyReview, showCheckin, isGenerating,
+    fetchToday, generatePlan, toggleStep, respondToCheckin, dismissCheckin,
+    fetchWeeklyReview, generateWeeklyReview,
+  } = usePlannerStore()
   const [myTasks, setMyTasks] = useState([])
   const [loadingTasks, setLoadingTasks] = useState(true)
   const [streak, setStreak] = useState(0)
@@ -50,6 +60,8 @@ export default function MyDashboard() {
   useEffect(() => {
     fetchProjects()
     loadMyTasks()
+    fetchToday()
+    fetchWeeklyReview()
     // Load streak
     usersApi.getStreak().then(({ data }) => {
       setStreak(data.streak || 0)
@@ -59,7 +71,7 @@ export default function MyDashboard() {
       const taskNotifs = (data.notifications || []).filter(n => n.reference_type === 'task_assigned' && !n.read_at)
       setTaskNotifications(taskNotifs)
     }).catch(() => { /* notifications non-critical */ })
-  }, [fetchProjects, loadMyTasks])
+  }, [fetchProjects, loadMyTasks, fetchToday, fetchWeeklyReview])
 
   // Build highlighted task map when both tasks and notifications are loaded
   useEffect(() => {
@@ -150,6 +162,11 @@ export default function MyDashboard() {
             </div>
           </div>
           <div className="flex items-center gap-4">
+            <WeeklyReviewCard
+              review={weeklyReview}
+              onGenerate={generateWeeklyReview}
+              isGenerating={isGenerating && !plan}
+            />
             <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/10 backdrop-blur-sm">
               <Zap size={18} className="text-amber-400" />
               <span className="text-white font-medium">{streak} day streak</span>
@@ -199,6 +216,45 @@ export default function MyDashboard() {
           <p className="text-text-secondary dark:text-gray-400 mt-1">Active Projects</p>
         </div>
       </div>
+
+      {/* Check-in Modal */}
+      {showCheckin && checkin && (
+        <CheckinModal
+          checkin={checkin}
+          onSubmit={respondToCheckin}
+          onDismiss={dismissCheckin}
+        />
+      )}
+
+      {/* AI Daily Plan */}
+      <section>
+        <div className="flex items-center justify-between mb-5">
+          <h2 className="font-display font-bold text-xl text-text-primary dark:text-gray-100">AI Daily Plan</h2>
+        </div>
+        {plan ? (
+          <DailyPlanCard
+            plan={plan}
+            steps={planSteps}
+            onToggleStep={toggleStep}
+            onRegenerate={() => generatePlan(true)}
+            isGenerating={isGenerating}
+          />
+        ) : (
+          <PlannerEmptyState
+            onGenerate={() => generatePlan(false)}
+            isGenerating={isGenerating}
+          />
+        )}
+      </section>
+
+      {/* Weekly Review (expanded view when exists) */}
+      {weeklyReview && (
+        <WeeklyReviewCard
+          review={weeklyReview}
+          onGenerate={generateWeeklyReview}
+          isGenerating={isGenerating && !plan}
+        />
+      )}
 
       {/* My Tasks */}
       <section>

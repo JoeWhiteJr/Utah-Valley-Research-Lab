@@ -313,6 +313,18 @@ export const aiApi = {
     api.post('/ai/summarize-dashboard')
 }
 
+// Planner
+export const plannerApi = {
+  getToday: () => api.get('/planner/today'),
+  generate: (force) => api.post('/planner/generate', { force }),
+  toggleStep: (stepId) => api.put(`/planner/steps/${stepId}/toggle`),
+  respondToCheckin: (checkinId, responses) => api.post('/planner/checkin/respond', { checkinId, responses }),
+  dismissCheckin: (checkinId) => api.post('/planner/checkin/dismiss', { checkinId }),
+  getHistory: (params) => api.get('/planner/history', { params }),
+  generateWeeklyReview: () => api.post('/planner/weekly-review'),
+  getWeeklyReview: () => api.get('/planner/weekly-review'),
+}
+
 // Calendar
 export const calendarApi = {
   listEvents: (params) => api.get('/calendar/events', { params }),
