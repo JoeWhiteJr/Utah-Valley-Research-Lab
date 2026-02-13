@@ -2,7 +2,7 @@ version: '3.8'
 
 services:
   postgres:
-    image: postgres:15-alpine
+    image: pgvector/pgvector:pg15
     container_name: stats-lab-db
     environment:
       POSTGRES_USER: statslab
@@ -30,6 +30,7 @@ services:
       JWT_SECRET: dev-jwt-secret-change-in-production
       PORT: 3001
       UPLOAD_DIR: /app/uploads
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
     ports:
       - "3001:3001"
     volumes:

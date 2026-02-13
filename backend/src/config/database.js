@@ -1,4 +1,5 @@
 const { Pool } = require('pg');
+const pgvector = require('pgvector');
 const logger = require('./logger');
 
 const pool = new Pool({
@@ -7,6 +8,9 @@ const pool = new Pool({
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 2000,
 });
+
+// Register pgvector type with pg
+pgvector.registerType(pool);
 
 pool.on('error', (err) => {
   logger.error({ err }, 'Unexpected database pool error');

@@ -366,4 +366,18 @@ export const activityApi = {
   list: (params) => api.get('/activity', { params })
 }
 
+// AI Research Assistant
+export const assistantApi = {
+  getStatus: () => api.get('/assistant/status'),
+  createConversation: (projectId, title) =>
+    api.post('/assistant/conversations', { projectId, title }),
+  listConversations: () => api.get('/assistant/conversations'),
+  getConversation: (id) => api.get(`/assistant/conversations/${id}`),
+  deleteConversation: (id) => api.delete(`/assistant/conversations/${id}`),
+  sendMessage: (conversationId, message) =>
+    api.post(`/assistant/conversations/${conversationId}/messages`, { message }),
+  getFileStatus: (fileId) => api.get(`/assistant/files/${fileId}/status`),
+  reindexFile: (fileId) => api.post(`/assistant/reindex/${fileId}`)
+}
+
 export default api

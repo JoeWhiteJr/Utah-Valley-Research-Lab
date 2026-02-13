@@ -7,6 +7,7 @@ const db = require('../config/database');
 const logger = require('../config/logger');
 const { authenticate, requireProjectAccess } = require('../middleware/auth');
 const { logAdminAction } = require('../middleware/auditLog');
+const { indexFile } = require('../services/ragIndexingService');
 
 const router = express.Router();
 
@@ -111,6 +112,12 @@ router.post('/project/:projectId', authenticate, requireProjectAccess(), upload.
       ]
     );
 
+    // Fire-and-forget background indexing for RAG
+    const fileId = result.rows[0].id;
+    indexFile(fileId).catch(err => {
+      logger.warn({ err, fileId }, 'Background indexing failed');
+    });
+
     res.status(201).json({ file: result.rows[0] });
   } catch (error) {
     // Clean up uploaded file on error
@@ -179,7 +186,7 @@ router.delete('/:id', authenticate, async (req, res, next) => {
       }
     }
 
-    await db.query('UPDATE files SET deleted_at = NOW(), deleted_by = $1 WHERE id = $2', [req.user.id, req.params.id]);
+    await db.query('UPDATE files SET deleted_at = NOW(), deleted_by = $1 WHERE id = $2 AND deleted_at IS NULL', [req.user.id, req.params.id]);
     logAdminAction(req, 'delete_file', 'file', req.params.id, { filename: file.original_filename, project_id: file.project_id }, null);
     res.json({ message: 'File deleted successfully' });
   } catch (error) {

@@ -3,7 +3,7 @@
 
 services:
   db:
-    image: postgres:15-alpine
+    image: pgvector/pgvector:pg15
     container_name: statslab-db
     environment:
       POSTGRES_USER: ${DB_USER:-statslab}
@@ -33,6 +33,7 @@ services:
       UPLOAD_DIR: /app/uploads
       CORS_ORIGIN: ${CORS_ORIGIN:-*}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
     volumes:
       - uploads_data:/app/uploads
     depends_on:

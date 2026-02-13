@@ -1,4 +1,4 @@
-import { FileText, Image, File, Download, Trash2, Music, Video, FileSpreadsheet, Eye } from 'lucide-react'
+import { FileText, Image, File, Download, Trash2, Music, Video, FileSpreadsheet, Eye, Search, AlertCircle, Clock, Loader2, MinusCircle } from 'lucide-react'
 import { format } from 'date-fns'
 import { getUploadUrl } from '../services/api'
 
@@ -25,6 +25,25 @@ function formatFileSize(bytes) {
   const sizes = ['B', 'KB', 'MB', 'GB']
   const i = Math.floor(Math.log(bytes) / Math.log(k))
   return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i]
+}
+
+function IndexingStatus({ status }) {
+  if (!status || status === 'pending') {
+    return <Clock size={12} className="text-gray-400" title="Indexing pending" />
+  }
+  if (status === 'processing') {
+    return <Loader2 size={12} className="text-blue-500 animate-spin" title="Indexing..." />
+  }
+  if (status === 'completed') {
+    return <Search size={12} className="text-green-500" title="Indexed for AI search" />
+  }
+  if (status === 'failed') {
+    return <AlertCircle size={12} className="text-red-500" title="Indexing failed" />
+  }
+  if (status === 'skipped') {
+    return <MinusCircle size={12} className="text-gray-400" title="Not indexable" />
+  }
+  return null
 }
 
 export default function FileCard({ file, onDownload, onDelete, onPreview }) {
@@ -88,7 +107,10 @@ export default function FileCard({ file, onDownload, onDelete, onPreview }) {
           {file.original_filename}
         </p>
         <div className="flex items-center justify-between mt-1 text-xs text-text-secondary dark:text-gray-400">
-          <span>{formatFileSize(file.file_size)}</span>
+          <div className="flex items-center gap-1.5">
+            <span>{formatFileSize(file.file_size)}</span>
+            <IndexingStatus status={file.indexing_status} />
+          </div>
           <span>{format(new Date(file.uploaded_at), 'MMM d')}</span>
         </div>
       </div>

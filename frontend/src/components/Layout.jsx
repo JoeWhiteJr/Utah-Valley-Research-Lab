@@ -10,12 +10,16 @@ import NotificationBell from './NotificationBell'
 import SearchModal from './SearchModal'
 import ShortcutsHelpModal from './ShortcutsHelpModal'
 import Breadcrumbs from './Breadcrumbs'
+import AssistantToggle from './assistant/AssistantToggle'
+import AssistantSidebar from './assistant/AssistantSidebar'
+import { useAssistantStore } from '../store/assistantStore'
 import useKeyboardShortcuts from '../hooks/useKeyboardShortcuts'
 
 export default function Layout() {
   const { user, logout } = useAuthStore()
   const { theme, toggleTheme } = useThemeStore()
   const { unreadCountsByType, fetchUnreadCountsByType } = useNotificationStore()
+  const assistantIsOpen = useAssistantStore((s) => s.isOpen)
   const navigate = useNavigate()
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [searchOpen, setSearchOpen] = useState(false)
@@ -104,6 +108,7 @@ export default function Layout() {
           >
             {theme === 'light' ? <Moon size={18} /> : <Sun size={18} />}
           </button>
+          <AssistantToggle />
           <NotificationBell />
         </div>
       </div>
@@ -205,12 +210,15 @@ export default function Layout() {
       )}
 
       {/* Main content */}
-      <main className={`lg:ml-64 pt-16 min-h-screen ${socketStatus === 'reconnecting' ? 'mt-8' : ''}`}>
+      <main className={`lg:ml-64 pt-16 min-h-screen transition-[margin] ${assistantIsOpen ? 'lg:mr-96' : ''} ${socketStatus === 'reconnecting' ? 'mt-8' : ''}`}>
         <div className="p-6 lg:p-8">
           <Breadcrumbs />
           <Outlet />
         </div>
       </main>
+
+      {/* AI Research Assistant Sidebar */}
+      <AssistantSidebar />
 
       {/* Search Modal */}
       <SearchModal isOpen={searchOpen} onClose={() => setSearchOpen(false)} />

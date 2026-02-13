@@ -30,6 +30,7 @@ const commentRoutes = require('./routes/comments');
 const activityRoutes = require('./routes/activity');
 const trashRoutes = require('./routes/trash');
 const plannerRoutes = require('./routes/planner');
+const assistantRoutes = require('./routes/assistant');
 const { publicRouter: siteContentPublicRoutes, adminRouter: siteContentAdminRoutes } = require('./routes/siteContent');
 
 const app = express();
@@ -114,6 +115,7 @@ app.use('/api/comments', commentRoutes);
 app.use('/api/activity', activityRoutes);
 app.use('/api/trash', trashRoutes);
 app.use('/api/planner', plannerRoutes);
+app.use('/api/assistant', assistantRoutes);
 app.use('/api/public', siteContentPublicRoutes);
 app.use('/api/admin', siteContentAdminRoutes);
 
