@@ -13,7 +13,7 @@ import CheckinModal from '../components/planner/CheckinModal'
 import WeeklyReviewCard from '../components/planner/WeeklyReviewCard'
 import {
   CheckCircle2, Circle, Calendar, ArrowUpRight,
-  FolderKanban, Zap, Target, Award, ChevronDown, ChevronRight, Filter, X
+  FolderKanban, Zap, Target, Award, ChevronDown, ChevronRight, Filter, X, Pencil
 } from 'lucide-react'
 import { format, isToday, isPast, parseISO } from 'date-fns'
 
@@ -34,8 +34,8 @@ export default function MyDashboard() {
   const [taskNotifications, setTaskNotifications] = useState([]) // raw unread task_assigned notifications
   const [taskFilters, setTaskFilters] = useState({ project_id: '', priority: '', status: '', due_before: '', due_after: '' })
   const [showFilters, setShowFilters] = useState(false)
-  const [tasksExpanded, setTasksExpanded] = useState(true)
-  const [projectsExpanded, setProjectsExpanded] = useState(true)
+  const [tasksExpanded, setTasksExpanded] = useState(false)
+  const [projectsExpanded, setProjectsExpanded] = useState(false)
   const [editingDescription, setEditingDescription] = useState({})
 
   const loadMyTasks = useCallback(async () => {
@@ -219,41 +219,26 @@ export default function MyDashboard() {
         />
       )}
 
-      {/* Row 2: AI Daily Plan (full width) */}
-      <section>
-        <div className="flex items-center justify-between mb-5">
-          <h2 className="font-display font-bold text-xl text-text-primary dark:text-gray-100">AI Daily Plan</h2>
-        </div>
-        {plan ? (
-          <DailyPlanCard
-            plan={plan}
-            steps={planSteps}
-            onToggleStep={toggleStep}
-            onRegenerate={() => generatePlan(true)}
-            isGenerating={isGenerating}
-          />
-        ) : (
-          <PlannerEmptyState
-            onGenerate={() => generatePlan(false)}
-            isGenerating={isGenerating}
-          />
-        )}
-      </section>
+      {/* AI Daily Plan title (standalone above grid) */}
+      <h2 className="font-display font-bold text-xl text-text-primary dark:text-gray-100">AI Daily Plan</h2>
 
-      {/* Weekly Review (expanded view when exists) */}
-      {weeklyReview && (
-        <WeeklyReviewCard
-          review={weeklyReview}
-          onGenerate={generateWeeklyReview}
-          isGenerating={isGenerating && !plan}
-        />
-      )}
-
-      {/* Row 3: Calendar (left) + Tasks & Projects (right) */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      {/* Row 2: DailyPlanCard (left) + Tasks & Projects (right) */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
         <div className="lg:col-span-2">
-          {/* Calendar — no extra h2, component has its own header */}
-          <CalendarView scope="dashboard" compact />
+          {plan ? (
+            <DailyPlanCard
+              plan={plan}
+              steps={planSteps}
+              onToggleStep={toggleStep}
+              onRegenerate={() => generatePlan(true)}
+              isGenerating={isGenerating}
+            />
+          ) : (
+            <PlannerEmptyState
+              onGenerate={() => generatePlan(false)}
+              isGenerating={isGenerating}
+            />
+          )}
         </div>
         <div className="space-y-6">
           {/* Collapsible My Tasks */}
@@ -441,34 +426,53 @@ export default function MyDashboard() {
                             <div className="px-4 py-3 bg-gray-50 dark:bg-gray-900 border-t border-gray-100 dark:border-gray-700">
                               <div className="space-y-2">
                                 <p className="text-xs font-medium text-text-secondary dark:text-gray-400 uppercase tracking-wider">Description</p>
-                                <textarea
-                                  value={editingDescription[task.id] !== undefined ? editingDescription[task.id] : (task.description || '')}
-                                  onChange={(e) => setEditingDescription(prev => ({ ...prev, [task.id]: e.target.value }))}
-                                  placeholder="Add a description..."
-                                  rows={3}
-                                  className="w-full text-sm px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-text-primary dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-primary-300 resize-none"
-                                />
-                                {editingDescription[task.id] !== undefined && editingDescription[task.id] !== (task.description || '') && (
-                                  <div className="flex gap-2 justify-end">
-                                    <button
-                                      onClick={() => setEditingDescription(prev => { const next = {...prev}; delete next[task.id]; return next; })}
-                                      className="px-3 py-1 text-xs text-text-secondary dark:text-gray-400 hover:text-text-primary dark:hover:text-gray-200"
-                                    >
-                                      Cancel
-                                    </button>
-                                    <button
-                                      onClick={async () => {
-                                        try {
-                                          await actionsApi.update(task.id, { description: editingDescription[task.id] });
-                                          setMyTasks(prev => prev.map(t => t.id === task.id ? { ...t, description: editingDescription[task.id] } : t));
-                                          setEditingDescription(prev => { const next = {...prev}; delete next[task.id]; return next; });
-                                          toast.success('Description updated');
-                                        } catch { toast.error('Failed to update description'); }
-                                      }}
-                                      className="px-3 py-1 text-xs bg-primary-500 text-white rounded-lg hover:bg-primary-600"
-                                    >
-                                      Save
-                                    </button>
+                                {editingDescription[task.id] !== undefined ? (
+                                  <>
+                                    <textarea
+                                      value={editingDescription[task.id]}
+                                      onChange={(e) => setEditingDescription(prev => ({ ...prev, [task.id]: e.target.value }))}
+                                      placeholder="Add a description..."
+                                      rows={3}
+                                      className="w-full text-sm px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-text-primary dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-primary-300 resize-none"
+                                    />
+                                    <div className="flex gap-2 justify-end">
+                                      <button
+                                        onClick={() => setEditingDescription(prev => { const next = {...prev}; delete next[task.id]; return next; })}
+                                        className="px-3 py-1 text-xs text-text-secondary dark:text-gray-400 hover:text-text-primary dark:hover:text-gray-200"
+                                      >
+                                        Cancel
+                                      </button>
+                                      <button
+                                        onClick={async () => {
+                                          try {
+                                            await actionsApi.update(task.id, { description: editingDescription[task.id] });
+                                            setMyTasks(prev => prev.map(t => t.id === task.id ? { ...t, description: editingDescription[task.id] } : t));
+                                            setEditingDescription(prev => { const next = {...prev}; delete next[task.id]; return next; });
+                                            toast.success('Description updated');
+                                          } catch { toast.error('Failed to update description'); }
+                                        }}
+                                        className="px-3 py-1 text-xs bg-primary-500 text-white rounded-lg hover:bg-primary-600"
+                                      >
+                                        Save
+                                      </button>
+                                    </div>
+                                  </>
+                                ) : (
+                                  <div>
+                                    {task.description ? (
+                                      <p className="text-sm text-text-primary dark:text-gray-200 whitespace-pre-wrap">{task.description}</p>
+                                    ) : (
+                                      <p className="text-sm italic text-text-secondary dark:text-gray-500">No description</p>
+                                    )}
+                                    <div className="flex justify-end mt-1">
+                                      <button
+                                        onClick={() => setEditingDescription(prev => ({ ...prev, [task.id]: task.description || '' }))}
+                                        className="inline-flex items-center gap-1 text-xs text-text-secondary dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 transition-colors"
+                                      >
+                                        <Pencil size={12} />
+                                        Edit
+                                      </button>
+                                    </div>
                                   </div>
                                 )}
                                 {task.due_date && (
@@ -551,6 +555,18 @@ export default function MyDashboard() {
           </section>
         </div>
       </div>
+
+      {/* Weekly Review (expanded view when exists) */}
+      {weeklyReview && (
+        <WeeklyReviewCard
+          review={weeklyReview}
+          onGenerate={generateWeeklyReview}
+          isGenerating={isGenerating && !plan}
+        />
+      )}
+
+      {/* Calendar — full width */}
+      <CalendarView scope="dashboard" compact />
     </div>
   )
 }

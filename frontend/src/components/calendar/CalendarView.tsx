@@ -212,7 +212,7 @@ export function CalendarView({ scope, compact = false, projectId }: CalendarView
       )}
 
       {/* Calendar Body */}
-      <div className="overflow-auto" style={{ maxHeight: compact ? (currentView === 'monthly' ? '350px' : '400px') : (currentView === 'monthly' ? '600px' : '700px') }}>
+      <div className="overflow-auto" style={{ maxHeight: compact ? (currentView === 'monthly' ? '550px' : '600px') : (currentView === 'monthly' ? '600px' : '700px') }}>
         {currentView === 'daily' && (
           <DailyView
             selectedDate={selectedDate}
