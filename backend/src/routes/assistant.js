@@ -10,27 +10,27 @@ const router = express.Router();
 // All routes require authentication
 router.use(authenticate);
 
-// GET /api/assistant/status — Check Claude + pgvector availability
+// GET /api/assistant/status — Check Claude availability
 router.get('/status', async (req, res, next) => {
   try {
     const claudeAvailable = !!ragQueryService.getClient();
 
-    let pgvectorAvailable = false;
+    let dbAvailable = false;
     try {
-      const result = await db.query("SELECT 1 FROM pg_extension WHERE extname = 'vector'");
-      pgvectorAvailable = result.rows.length > 0;
+      await db.query('SELECT 1');
+      dbAvailable = true;
     } catch {
-      // pgvector not available
+      // db not available
     }
 
     res.json({
-      available: claudeAvailable && pgvectorAvailable,
+      available: claudeAvailable && dbAvailable,
       claude: claudeAvailable,
-      pgvector: pgvectorAvailable,
+      database: dbAvailable,
       message: !claudeAvailable
         ? 'Anthropic API key not configured'
-        : !pgvectorAvailable
-          ? 'pgvector extension not available'
+        : !dbAvailable
+          ? 'Database not available'
           : 'AI Assistant is ready'
     });
   } catch (error) {

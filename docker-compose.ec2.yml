@@ -3,7 +3,7 @@
 
 services:
   db:
-    image: pgvector/pgvector:pg15
+    image: postgres:15-alpine
     container_name: statslab-db
     environment:
       POSTGRES_USER: ${DB_USER:-statslab}

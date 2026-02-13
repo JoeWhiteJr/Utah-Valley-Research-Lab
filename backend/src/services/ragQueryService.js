@@ -1,6 +1,4 @@
 const db = require('../config/database');
-const { embedText } = require('./embeddingService');
-const pgvector = require('pgvector');
 
 const TOP_K = parseInt(process.env.RAG_TOP_K) || 8;
 const ANTHROPIC_MODEL = process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-20250514';
@@ -20,44 +18,92 @@ function getClient() {
 }
 
 /**
- * Search for relevant document chunks using vector similarity.
+ * Convert a natural language question into a tsquery string.
+ * Splits on whitespace, removes non-alphanumeric, joins with & (AND).
+ */
+function buildTsQuery(question) {
+  const words = question
+    .replace(/[^\w\s]/g, '')
+    .split(/\s+/)
+    .filter(w => w.length > 1);
+
+  if (words.length === 0) return null;
+  return words.join(' & ');
+}
+
+/**
+ * Search for relevant document chunks using PostgreSQL full-text search.
  * Permission-aware: filters by user access (admin sees all, others see own projects).
  */
-async function searchChunks(queryEmbedding, userId, userRole, projectId = null) {
-  const embeddingStr = pgvector.toSql(queryEmbedding);
+async function searchChunks(question, userId, userRole, projectId = null) {
+  const tsQuery = buildTsQuery(question);
+
+  // Fallback: if no valid search terms, do ILIKE on the raw question
+  const useFallback = !tsQuery;
 
   let query;
   let params;
 
   if (userRole === 'admin') {
     if (projectId) {
-      query = `
-        SELECT dc.id, dc.content, dc.chunk_index, dc.metadata, dc.file_id,
-               f.original_filename, f.file_type, dc.project_id,
-               p.title as project_title,
-               1 - (dc.embedding <=> $1) as similarity
-        FROM document_chunks dc
-        JOIN files f ON dc.file_id = f.id
-        JOIN projects p ON dc.project_id = p.id
-        WHERE dc.project_id = $2 AND f.deleted_at IS NULL
-        ORDER BY dc.embedding <=> $1
-        LIMIT $3
-      `;
-      params = [embeddingStr, projectId, TOP_K];
+      if (useFallback) {
+        query = `
+          SELECT dc.id, dc.content, dc.chunk_index, dc.metadata, dc.file_id,
+                 f.original_filename, f.file_type, dc.project_id,
+                 p.title as project_title, 0 as rank
+          FROM document_chunks dc
+          JOIN files f ON dc.file_id = f.id
+          JOIN projects p ON dc.project_id = p.id
+          WHERE dc.project_id = $1 AND f.deleted_at IS NULL
+            AND dc.content ILIKE $2
+          LIMIT $3
+        `;
+        params = [projectId, `%${question}%`, TOP_K];
+      } else {
+        query = `
+          SELECT dc.id, dc.content, dc.chunk_index, dc.metadata, dc.file_id,
+                 f.original_filename, f.file_type, dc.project_id,
+                 p.title as project_title,
+                 ts_rank(dc.search_vector, to_tsquery('english', $1)) as rank
+          FROM document_chunks dc
+          JOIN files f ON dc.file_id = f.id
+          JOIN projects p ON dc.project_id = p.id
+          WHERE dc.project_id = $2 AND f.deleted_at IS NULL
+            AND dc.search_vector @@ to_tsquery('english', $1)
+          ORDER BY rank DESC
+          LIMIT $3
+        `;
+        params = [tsQuery, projectId, TOP_K];
+      }
     } else {
-      query = `
-        SELECT dc.id, dc.content, dc.chunk_index, dc.metadata, dc.file_id,
-               f.original_filename, f.file_type, dc.project_id,
-               p.title as project_title,
-               1 - (dc.embedding <=> $1) as similarity
-        FROM document_chunks dc
-        JOIN files f ON dc.file_id = f.id
-        JOIN projects p ON dc.project_id = p.id
-        WHERE f.deleted_at IS NULL
-        ORDER BY dc.embedding <=> $1
-        LIMIT $2
-      `;
-      params = [embeddingStr, TOP_K];
+      if (useFallback) {
+        query = `
+          SELECT dc.id, dc.content, dc.chunk_index, dc.metadata, dc.file_id,
+                 f.original_filename, f.file_type, dc.project_id,
+                 p.title as project_title, 0 as rank
+          FROM document_chunks dc
+          JOIN files f ON dc.file_id = f.id
+          JOIN projects p ON dc.project_id = p.id
+          WHERE f.deleted_at IS NULL AND dc.content ILIKE $1
+          LIMIT $2
+        `;
+        params = [`%${question}%`, TOP_K];
+      } else {
+        query = `
+          SELECT dc.id, dc.content, dc.chunk_index, dc.metadata, dc.file_id,
+                 f.original_filename, f.file_type, dc.project_id,
+                 p.title as project_title,
+                 ts_rank(dc.search_vector, to_tsquery('english', $1)) as rank
+          FROM document_chunks dc
+          JOIN files f ON dc.file_id = f.id
+          JOIN projects p ON dc.project_id = p.id
+          WHERE f.deleted_at IS NULL
+            AND dc.search_vector @@ to_tsquery('english', $1)
+          ORDER BY rank DESC
+          LIMIT $2
+        `;
+        params = [tsQuery, TOP_K];
+      }
     }
   } else {
     // Non-admin: only search accessible projects
@@ -72,35 +118,69 @@ async function searchChunks(queryEmbedding, userId, userRole, projectId = null) 
     `;
 
     if (projectId) {
-      query = `
-        SELECT dc.id, dc.content, dc.chunk_index, dc.metadata, dc.file_id,
-               f.original_filename, f.file_type, dc.project_id,
-               p.title as project_title,
-               1 - (dc.embedding <=> $1) as similarity
-        FROM document_chunks dc
-        JOIN files f ON dc.file_id = f.id
-        JOIN projects p ON dc.project_id = p.id
-        WHERE dc.project_id = $3 AND f.deleted_at IS NULL
-          AND dc.project_id IN (${accessSubquery})
-        ORDER BY dc.embedding <=> $1
-        LIMIT $4
-      `;
-      params = [embeddingStr, userId, projectId, TOP_K];
+      if (useFallback) {
+        query = `
+          SELECT dc.id, dc.content, dc.chunk_index, dc.metadata, dc.file_id,
+                 f.original_filename, f.file_type, dc.project_id,
+                 p.title as project_title, 0 as rank
+          FROM document_chunks dc
+          JOIN files f ON dc.file_id = f.id
+          JOIN projects p ON dc.project_id = p.id
+          WHERE dc.project_id = $3 AND f.deleted_at IS NULL
+            AND dc.content ILIKE $1
+            AND dc.project_id IN (${accessSubquery})
+          LIMIT $4
+        `;
+        params = [`%${question}%`, userId, projectId, TOP_K];
+      } else {
+        query = `
+          SELECT dc.id, dc.content, dc.chunk_index, dc.metadata, dc.file_id,
+                 f.original_filename, f.file_type, dc.project_id,
+                 p.title as project_title,
+                 ts_rank(dc.search_vector, to_tsquery('english', $1)) as rank
+          FROM document_chunks dc
+          JOIN files f ON dc.file_id = f.id
+          JOIN projects p ON dc.project_id = p.id
+          WHERE dc.project_id = $3 AND f.deleted_at IS NULL
+            AND dc.search_vector @@ to_tsquery('english', $1)
+            AND dc.project_id IN (${accessSubquery})
+          ORDER BY rank DESC
+          LIMIT $4
+        `;
+        params = [tsQuery, userId, projectId, TOP_K];
+      }
     } else {
-      query = `
-        SELECT dc.id, dc.content, dc.chunk_index, dc.metadata, dc.file_id,
-               f.original_filename, f.file_type, dc.project_id,
-               p.title as project_title,
-               1 - (dc.embedding <=> $1) as similarity
-        FROM document_chunks dc
-        JOIN files f ON dc.file_id = f.id
-        JOIN projects p ON dc.project_id = p.id
-        WHERE f.deleted_at IS NULL
-          AND dc.project_id IN (${accessSubquery})
-        ORDER BY dc.embedding <=> $1
-        LIMIT $3
-      `;
-      params = [embeddingStr, userId, TOP_K];
+      if (useFallback) {
+        query = `
+          SELECT dc.id, dc.content, dc.chunk_index, dc.metadata, dc.file_id,
+                 f.original_filename, f.file_type, dc.project_id,
+                 p.title as project_title, 0 as rank
+          FROM document_chunks dc
+          JOIN files f ON dc.file_id = f.id
+          JOIN projects p ON dc.project_id = p.id
+          WHERE f.deleted_at IS NULL
+            AND dc.content ILIKE $1
+            AND dc.project_id IN (${accessSubquery})
+          LIMIT $3
+        `;
+        params = [`%${question}%`, userId, TOP_K];
+      } else {
+        query = `
+          SELECT dc.id, dc.content, dc.chunk_index, dc.metadata, dc.file_id,
+                 f.original_filename, f.file_type, dc.project_id,
+                 p.title as project_title,
+                 ts_rank(dc.search_vector, to_tsquery('english', $1)) as rank
+          FROM document_chunks dc
+          JOIN files f ON dc.file_id = f.id
+          JOIN projects p ON dc.project_id = p.id
+          WHERE f.deleted_at IS NULL
+            AND dc.search_vector @@ to_tsquery('english', $1)
+            AND dc.project_id IN (${accessSubquery})
+          ORDER BY rank DESC
+          LIMIT $3
+        `;
+        params = [tsQuery, userId, TOP_K];
+      }
     }
   }
 
@@ -139,7 +219,7 @@ GUIDELINES:
 }
 
 /**
- * Query the RAG pipeline: embed question → search → Claude → response.
+ * Query the RAG pipeline: full-text search → Claude → response.
  */
 async function query(question, conversationHistory, userId, userRole, projectId = null) {
   const client = getClient();
@@ -147,11 +227,8 @@ async function query(question, conversationHistory, userId, userRole, projectId 
     throw new Error('Anthropic API key not configured');
   }
 
-  // Embed the question
-  const queryEmbedding = await embedText(question);
-
-  // Search for relevant chunks
-  const chunks = await searchChunks(queryEmbedding, userId, userRole, projectId);
+  // Search for relevant chunks using full-text search
+  const chunks = await searchChunks(question, userId, userRole, projectId);
 
   // Build messages array with conversation history (last 10 messages)
   const recentHistory = conversationHistory.slice(-10);
@@ -188,7 +265,7 @@ async function query(question, conversationHistory, userId, userRole, projectId 
     fileName: chunks[idx].original_filename,
     projectTitle: chunks[idx].project_title,
     chunkPreview: chunks[idx].content.substring(0, 150) + '...',
-    similarity: parseFloat(chunks[idx].similarity)
+    rank: parseFloat(chunks[idx].rank)
   }));
 
   return {

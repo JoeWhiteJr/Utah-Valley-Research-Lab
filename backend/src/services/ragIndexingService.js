@@ -2,11 +2,9 @@ const db = require('../config/database');
 const logger = require('../config/logger');
 const { extractText } = require('./textExtractorService');
 const { chunkText } = require('./chunkingService');
-const { embedBatch } = require('./embeddingService');
-const pgvector = require('pgvector');
 
 /**
- * Index a file: extract text → chunk → embed → store in document_chunks.
+ * Index a file: extract text → chunk → store in document_chunks with tsvector.
  * Idempotent: deletes existing chunks before re-indexing.
  */
 async function indexFile(fileId) {
@@ -68,27 +66,22 @@ async function indexFile(fileId) {
       return;
     }
 
-    // Generate embeddings
-    const embeddings = await embedBatch(chunks.map(c => c.content));
-
     // Delete existing chunks (idempotent re-index)
     await client.query('DELETE FROM document_chunks WHERE file_id = $1', [fileId]);
 
-    // Insert chunks with embeddings
+    // Insert chunks with tsvector for full-text search
     for (let i = 0; i < chunks.length; i++) {
       const chunk = chunks[i];
-      const embedding = embeddings[i];
 
       await client.query(
-        `INSERT INTO document_chunks (file_id, project_id, chunk_index, content, token_count, embedding, metadata)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+        `INSERT INTO document_chunks (file_id, project_id, chunk_index, content, token_count, search_vector, metadata)
+         VALUES ($1, $2, $3, $4, $5, to_tsvector('english', $4), $6)`,
         [
           fileId,
           file.project_id,
           chunk.chunkIndex,
           chunk.content,
           chunk.tokenCount,
-          pgvector.toSql(embedding),
           JSON.stringify(chunk.metadata)
         ]
       );

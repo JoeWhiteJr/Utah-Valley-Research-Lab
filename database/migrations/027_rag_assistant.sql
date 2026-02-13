@@ -1,10 +1,7 @@
 -- 027_rag_assistant.sql
--- RAG-powered AI Research Assistant: vector storage, conversations, messages
+-- RAG-powered AI Research Assistant: document chunks with full-text search, conversations, messages
 
--- Enable pgvector extension
-CREATE EXTENSION IF NOT EXISTS vector;
-
--- Document chunks with embeddings for similarity search
+-- Document chunks with full-text search for retrieval
 CREATE TABLE IF NOT EXISTS document_chunks (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   file_id UUID NOT NULL REFERENCES files(id) ON DELETE CASCADE,
@@ -12,17 +9,15 @@ CREATE TABLE IF NOT EXISTS document_chunks (
   chunk_index INTEGER NOT NULL,
   content TEXT NOT NULL,
   token_count INTEGER NOT NULL DEFAULT 0,
-  embedding vector(384),
+  search_vector TSVECTOR,
   metadata JSONB DEFAULT '{}',
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- IVFFlat index for cosine similarity search
--- Note: IVFFlat requires rows to exist before creating the index.
--- For initial setup with no data, we create it with lists=1 (will be recreated as data grows).
-CREATE INDEX IF NOT EXISTS idx_document_chunks_embedding
-  ON document_chunks USING ivfflat (embedding vector_cosine_ops) WITH (lists = 1);
+-- GIN index for full-text search
+CREATE INDEX IF NOT EXISTS idx_document_chunks_search_vector
+  ON document_chunks USING GIN (search_vector);
 
 CREATE INDEX IF NOT EXISTS idx_document_chunks_file_id ON document_chunks(file_id);
 CREATE INDEX IF NOT EXISTS idx_document_chunks_project_id ON document_chunks(project_id);

@@ -5,4 +5,4 @@ mkdir -p /app/uploads/chat /app/uploads/covers /app/uploads/files
 chown -R 1001:1001 /app/uploads
 
 # Drop to nodejs user and run the command
-exec gosu nodejs "$@"
+exec su-exec nodejs "$@"
