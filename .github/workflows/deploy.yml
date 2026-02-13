@@ -30,9 +30,14 @@ jobs:
               sudo cp deploy/ssl.conf /etc/nginx/conf.d/ssl.conf
             fi
             docker compose -f docker-compose.ec2.yml down --timeout 30 || true
-            docker system prune -af 2>/dev/null || docker system prune -f
+            docker system prune -f 2>/dev/null || true
             docker builder prune -af 2>/dev/null || true
-            docker compose -f docker-compose.ec2.yml up -d --build --remove-orphans --wait --wait-timeout 120
+            # Build sequentially to limit peak disk usage on small disk
+            docker compose -f docker-compose.ec2.yml build backend
+            docker builder prune -af 2>/dev/null || true
+            docker compose -f docker-compose.ec2.yml build frontend
+            docker builder prune -af 2>/dev/null || true
+            docker compose -f docker-compose.ec2.yml up -d --remove-orphans --wait --wait-timeout 120
             for f in database/migrations/*.sql; do
               docker exec -i statslab-db psql -U statslab -d statslab < "$f" || true
             done
