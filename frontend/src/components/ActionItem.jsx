@@ -1,12 +1,19 @@
 import { useState, useEffect, useCallback, memo } from 'react'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { GripVertical, Trash2, Pencil, Calendar, User, Users, Tag, ChevronDown, ChevronRight, CornerDownRight, MessageSquare, Send as SendIcon } from 'lucide-react'
+import { GripVertical, Trash2, Pencil, Calendar, User, Users, Tag, Flag, MessageSquare, Send as SendIcon } from 'lucide-react'
 import { format } from 'date-fns'
 import CategoryBadge from './CategoryBadge'
 import ConfirmDialog from './ConfirmDialog'
 import { commentsApi } from '../services/api'
 import { toast } from '../store/toastStore'
+
+const PRIORITY_COLORS = {
+  urgent: { bg: 'bg-red-100 dark:bg-red-900/30', text: 'text-red-700 dark:text-red-300' },
+  high: { bg: 'bg-orange-100 dark:bg-orange-900/30', text: 'text-orange-700 dark:text-orange-300' },
+  medium: { bg: 'bg-yellow-100 dark:bg-yellow-900/30', text: 'text-yellow-700 dark:text-yellow-300' },
+  low: { bg: 'bg-gray-100 dark:bg-gray-700', text: 'text-gray-600 dark:text-gray-400' }
+}
 
 const ActionItem = memo(function ActionItem({
   action,
@@ -15,16 +22,10 @@ const ActionItem = memo(function ActionItem({
   onEdit,
   onUpdateCategory,
   users = [],
-  categories = [],
-  subtasks = [],
-  onToggleSubtask,
-  onDeleteSubtask,
-  isSubtask = false,
-  onDrop
+  categories = []
 }) {
   const [isHovered, setIsHovered] = useState(false)
   const [showCategoryPicker, setShowCategoryPicker] = useState(false)
-  const [showSubtasks, setShowSubtasks] = useState(true)
   const [showComments, setShowComments] = useState(false)
   const [comments, setComments] = useState([])
   const [newComment, setNewComment] = useState('')
@@ -72,47 +73,18 @@ const ActionItem = memo(function ActionItem({
     }
   }, [showComments, comments.length, fetchComments])
 
-  // Handle drop on this task (to make subtask)
-  const handleDragOver = (e) => {
-    if (!isSubtask && onDrop) {
-      e.preventDefault()
-      e.stopPropagation()
-    }
-  }
-
-  const handleDropOnTask = (e) => {
-    if (!isSubtask && onDrop) {
-      e.preventDefault()
-      e.stopPropagation()
-      const draggedId = e.dataTransfer.getData('text/action-id')
-      if (draggedId && draggedId !== action.id) {
-        onDrop(draggedId, action.id)
-      }
-    }
-  }
-
-  const handleDragStart = (e) => {
-    e.dataTransfer.setData('text/action-id', action.id)
-  }
-
   return (
     <div>
       <div
         ref={setNodeRef}
         style={style}
         className={`group flex items-start gap-3 p-3 rounded-lg border transition-colors ${
-          isSubtask ? 'ml-8 border-l-2 border-l-primary-200 dark:border-l-primary-700' : ''
-        } ${
           action.completed
             ? 'bg-gray-50 dark:bg-gray-800/50 border-gray-200 dark:border-gray-700'
             : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:border-primary-200 dark:hover:border-primary-700'
         }`}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
-        onDragOver={handleDragOver}
-        onDrop={handleDropOnTask}
-        draggable
-        onDragStart={handleDragStart}
       >
         <button
           {...attributes}
@@ -123,18 +95,8 @@ const ActionItem = memo(function ActionItem({
           <GripVertical size={16} />
         </button>
 
-        {isSubtask && (
-          <CornerDownRight size={14} className="text-gray-400 mt-1 flex-shrink-0" />
-        )}
-
         <button
-          onClick={() => {
-            if (isSubtask && onToggleSubtask) {
-              onToggleSubtask(action.id, !action.completed)
-            } else {
-              onToggle(action.id, !action.completed)
-            }
-          }}
+          onClick={() => onToggle(action.id, !action.completed)}
           className={`flex-shrink-0 w-5 h-5 mt-0.5 rounded-md border-2 transition-colors ${
             action.completed
               ? 'bg-secondary-500 border-secondary-500'
@@ -150,14 +112,6 @@ const ActionItem = memo(function ActionItem({
 
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            {!isSubtask && subtasks.length > 0 && (
-              <button
-                onClick={() => setShowSubtasks(!showSubtasks)}
-                className="p-0.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-              >
-                {showSubtasks ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-              </button>
-            )}
             <p className={`text-sm ${action.completed ? 'text-text-secondary dark:text-gray-400 line-through' : 'text-text-primary dark:text-gray-100'}`}>
               {action.title}
             </p>
@@ -168,9 +122,10 @@ const ActionItem = memo(function ActionItem({
                 size="xs"
               />
             )}
-            {!isSubtask && subtasks.length > 0 && (
-              <span className="text-xs text-text-secondary dark:text-gray-400 bg-gray-100 dark:bg-gray-700 px-1.5 py-0.5 rounded">
-                {subtasks.filter(s => s.completed).length}/{subtasks.length} subtasks
+            {action.priority && PRIORITY_COLORS[action.priority] && (
+              <span className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium ${PRIORITY_COLORS[action.priority].bg} ${PRIORITY_COLORS[action.priority].text}`}>
+                <Flag size={10} />
+                {action.priority.charAt(0).toUpperCase() + action.priority.slice(1)}
               </span>
             )}
           </div>
@@ -261,13 +216,7 @@ const ActionItem = memo(function ActionItem({
         )}
 
         <button
-          onClick={() => {
-            if (isSubtask && onDeleteSubtask) {
-              onDeleteSubtask(action.id)
-            } else {
-              onDelete(action.id)
-            }
-          }}
+          onClick={() => onDelete(action.id)}
           className={`p-1.5 rounded text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 transition-all ${
             isHovered ? 'opacity-100' : 'opacity-0'
           }`}
@@ -331,25 +280,6 @@ const ActionItem = memo(function ActionItem({
         </div>
       )}
 
-      {/* Render subtasks */}
-      {!isSubtask && showSubtasks && subtasks.length > 0 && (
-        <div className="space-y-1 mt-1">
-          {subtasks.map((subtask) => (
-            <ActionItem
-              key={subtask.id}
-              action={subtask}
-              onToggle={onToggleSubtask || onToggle}
-              onDelete={onDeleteSubtask || onDelete}
-              onEdit={onEdit}
-              onUpdateCategory={onUpdateCategory}
-              users={users}
-              categories={categories}
-              subtasks={[]}
-              isSubtask={true}
-            />
-          ))}
-        </div>
-      )}
       <ConfirmDialog
         isOpen={!!deleteCommentTarget}
         onClose={() => setDeleteCommentTarget(null)}

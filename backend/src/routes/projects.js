@@ -54,7 +54,7 @@ router.get('/', authenticate, async (req, res, next) => {
       return res.status(400).json({ error: { message: 'Invalid status filter' } });
     }
 
-    let countQuery = 'SELECT COUNT(*) FROM projects p';
+    let countQuery = 'SELECT COUNT(*) FROM projects p WHERE p.deleted_at IS NULL';
     let query = `
       SELECT p.*, u.name as creator_name,
         COALESCE(ai_stats.total_actions, 0) as total_actions,
@@ -100,9 +100,10 @@ router.get('/', authenticate, async (req, res, next) => {
     const params = [req.user.id];
     const countParams = [];
 
+    query += ' WHERE p.deleted_at IS NULL';
     if (status) {
-      query += ' WHERE p.status = $2';
-      countQuery += ' WHERE p.status = $1';
+      query += ' AND p.status = $2';
+      countQuery += ' AND p.status = $1';
       params.push(status);
       countParams.push(status);
     }
@@ -160,7 +161,7 @@ router.get('/:id', authenticate, async (req, res, next) => {
         FROM project_members
         GROUP BY project_id
       ) mem_stats ON mem_stats.project_id = p.id
-      WHERE p.id = $1
+      WHERE p.id = $1 AND p.deleted_at IS NULL
     `, [req.params.id]);
 
     if (result.rows.length === 0) {
@@ -231,7 +232,7 @@ router.put('/:id', authenticate, requireRole('admin', 'project_lead'), [
       }
     }
 
-    const existing = await db.query('SELECT id FROM projects WHERE id = $1', [req.params.id]);
+    const existing = await db.query('SELECT id FROM projects WHERE id = $1 AND deleted_at IS NULL', [req.params.id]);
     if (existing.rows.length === 0) {
       return res.status(404).json({ error: { message: 'Project not found' } });
     }
@@ -270,7 +271,7 @@ router.post('/:id/cover', authenticate, requireRole('admin', 'project_lead'), co
       return res.status(400).json({ error: { message: 'No image file provided' } });
     }
 
-    const existing = await db.query('SELECT id FROM projects WHERE id = $1', [req.params.id]);
+    const existing = await db.query('SELECT id FROM projects WHERE id = $1 AND deleted_at IS NULL', [req.params.id]);
     if (existing.rows.length === 0) {
       return res.status(404).json({ error: { message: 'Project not found' } });
     }
@@ -295,10 +296,13 @@ router.post('/:id/cover', authenticate, requireRole('admin', 'project_lead'), co
   }
 });
 
-// Delete project
+// Delete project (soft delete)
 router.delete('/:id', authenticate, requireRole('admin'), async (req, res, next) => {
   try {
-    const result = await db.query('DELETE FROM projects WHERE id = $1 RETURNING id, title', [req.params.id]);
+    const result = await db.query(
+      'UPDATE projects SET deleted_at = NOW(), deleted_by = $1 WHERE id = $2 AND deleted_at IS NULL RETURNING id, title',
+      [req.user.id, req.params.id]
+    );
 
     if (result.rows.length === 0) {
       return res.status(404).json({ error: { message: 'Project not found' } });

@@ -4,8 +4,6 @@ import { format } from 'date-fns'
 import AudioPlayer from './AudioPlayer'
 import { RichTextContent } from './RichTextEditor'
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api'
-
 const MeetingCard = memo(function MeetingCard({ meeting, onView, onDelete, onEdit }) {
   const [isExpanded, setIsExpanded] = useState(false)
 
@@ -13,13 +11,6 @@ const MeetingCard = memo(function MeetingCard({ meeting, onView, onDelete, onEdi
   const hasTranscript = !!meeting.transcript
   const hasSummary = !!meeting.summary
   const hasNotes = !!meeting.notes
-
-  // Construct audio URL from the path
-  const getAudioUrl = () => {
-    if (!meeting.audio_path) return null
-    // The audio_path from backend is a full system path, we need to serve it via API
-    return `${API_URL}/meetings/${meeting.id}/audio`
-  }
 
   return (
     <div className="group bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4 hover:border-primary-300 dark:hover:border-primary-500 hover:shadow-sm transition-all">
@@ -97,7 +88,7 @@ const MeetingCard = memo(function MeetingCard({ meeting, onView, onDelete, onEdi
       {/* Audio Player - show when audio exists */}
       {hasAudio && (
         <div className="mt-3">
-          <AudioPlayer src={getAudioUrl()} />
+          <AudioPlayer meetingId={meeting.id} />
         </div>
       )}
 

@@ -4,7 +4,7 @@ import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, us
 import { SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy, arrayMove } from '@dnd-kit/sortable'
 import { useAuthStore } from '../store/authStore'
 import { useProjectStore } from '../store/projectStore'
-import { usersApi, filesApi, aiApi, getUploadUrl } from '../services/api'
+import { usersApi, filesApi, aiApi, meetingsApi, getUploadUrl } from '../services/api'
 import Button from '../components/Button'
 import Modal from '../components/Modal'
 import Input from '../components/Input'
@@ -49,7 +49,7 @@ export default function ProjectDetail() {
     meetings, fetchMeetings, createMeeting, updateMeeting, deleteMeeting,
     clearCurrentProject, isLoading,
     uploadProgress, isUploading,
-    setParentTask, calculateProgress,
+    calculateProgress,
     members, membershipStatus, joinRequests,
     fetchMembers, fetchMembershipStatus, requestJoin, leaveProject,
     fetchJoinRequests, reviewJoinRequest, addMember
@@ -64,11 +64,11 @@ export default function ProjectDetail() {
 
   // Action modals
   const [showActionModal, setShowActionModal] = useState(false)
-  const [newAction, setNewAction] = useState({ title: '', description: '', due_date: '', assigned_to: '', assignee_ids: [], category_id: '', parent_task_id: '' })
+  const [newAction, setNewAction] = useState({ title: '', description: '', due_date: '', assigned_to: '', assignee_ids: [], category_id: '', priority: '' })
 
   // Edit action state
   const [editingAction, setEditingAction] = useState(null)
-  const [editForm, setEditForm] = useState({ title: '', description: '', due_date: '', assignee_ids: [], category_id: '' })
+  const [editForm, setEditForm] = useState({ title: '', description: '', due_date: '', assignee_ids: [], category_id: '', priority: '' })
 
   // Note modals
   const [showNoteModal, setShowNoteModal] = useState(false)
@@ -85,6 +85,7 @@ export default function ProjectDetail() {
 
   // Meeting view modal state
   const [viewingMeeting, setViewingMeeting] = useState(null)
+  const [meetingAudioUrl, setMeetingAudioUrl] = useState(null)
 
   // File upload state
   const [isDragging, setIsDragging] = useState(false)
@@ -207,10 +208,10 @@ export default function ProjectDetail() {
       assigned_to: newAction.assignee_ids.length > 0 ? newAction.assignee_ids[0] : (newAction.assigned_to || null),
       assignee_ids: newAction.assignee_ids.length > 0 ? newAction.assignee_ids : (newAction.assigned_to ? [newAction.assigned_to] : []),
       category_id: newAction.category_id || null,
-      parent_task_id: newAction.parent_task_id || null
+      priority: newAction.priority || null
     })
     setShowActionModal(false)
-    setNewAction({ title: '', description: '', due_date: '', assigned_to: '', assignee_ids: [], category_id: '', parent_task_id: '' })
+    setNewAction({ title: '', description: '', due_date: '', assigned_to: '', assignee_ids: [], category_id: '', priority: '' })
   }
 
   // Handle editing an action
@@ -221,7 +222,8 @@ export default function ProjectDetail() {
       description: action.description || '',
       due_date: action.due_date ? action.due_date.split('T')[0] : '',
       assignee_ids: action.assignees?.map(a => a.user_id) || [],
-      category_id: action.category_id || ''
+      category_id: action.category_id || '',
+      priority: action.priority || ''
     })
   }
 
@@ -234,25 +236,14 @@ export default function ProjectDetail() {
         description: editForm.description || null,
         due_date: editForm.due_date || null,
         assignee_ids: editForm.assignee_ids,
-        category_id: editForm.category_id || null
+        category_id: editForm.category_id || null,
+        priority: editForm.priority || null
       })
       setEditingAction(null)
     } catch {
       toast.error('Failed to save task changes')
     }
   }
-
-  // Handle drag-and-drop to make subtask
-  const handleMakeSubtask = async (childId, parentId) => {
-    if (childId === parentId) return
-    await setParentTask(childId, parentId)
-  }
-
-  // Get parent tasks (top-level only)
-  const parentTasks = actions.filter(a => !a.parent_task_id)
-
-  // Group actions: parent tasks and their subtasks
-  const getSubtasks = (parentId) => actions.filter(a => a.parent_task_id === parentId)
 
   // Auto-calculated progress
   const autoProgress = calculateProgress()
@@ -454,8 +445,27 @@ export default function ProjectDetail() {
   }
 
   // Handle viewing a meeting's details
-  const handleViewMeeting = (meeting) => {
+  const handleViewMeeting = async (meeting) => {
     setViewingMeeting(meeting)
+    // Fetch audio blob if meeting has audio
+    if (meeting.audio_path) {
+      try {
+        const { data } = await meetingsApi.getAudio(meeting.id)
+        setMeetingAudioUrl(URL.createObjectURL(data))
+      } catch {
+        setMeetingAudioUrl(null)
+      }
+    } else {
+      setMeetingAudioUrl(null)
+    }
+  }
+
+  const handleCloseMeetingView = () => {
+    setViewingMeeting(null)
+    if (meetingAudioUrl) {
+      URL.revokeObjectURL(meetingAudioUrl)
+      setMeetingAudioUrl(null)
+    }
   }
 
   if (isLoading || !currentProject) {
@@ -981,24 +991,20 @@ export default function ProjectDetail() {
                 {filteredActions.length > 0 ? (
                   <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
                     <SortableContext
-                      items={filteredActions.filter(a => !a.parent_task_id).map(a => a.id)}
+                      items={filteredActions.map(a => a.id)}
                       strategy={verticalListSortingStrategy}
                     >
                       <div className="space-y-2">
-                        {filteredActions.filter(a => !a.parent_task_id).map((action) => (
+                        {filteredActions.map((action) => (
                           <ActionItem
                             key={action.id}
                             action={action}
                             users={teamMembers}
                             categories={categories}
-                            subtasks={getSubtasks(action.id)}
                             onToggle={(actionId, completed) => updateAction(actionId, { completed })}
-                            onToggleSubtask={(actionId, completed) => updateAction(actionId, { completed })}
                             onDelete={deleteAction}
-                            onDeleteSubtask={deleteAction}
                             onEdit={handleEditAction}
                             onUpdateCategory={updateAction}
-                            onDrop={handleMakeSubtask}
                           />
                         ))}
                       </div>
@@ -1272,16 +1278,17 @@ export default function ProjectDetail() {
               onChange={(e) => setNewAction({ ...newAction, due_date: e.target.value })}
             />
             <div>
-              <label className="block text-sm font-medium text-text-primary dark:text-gray-100 mb-1.5">Parent Task (optional)</label>
+              <label className="block text-sm font-medium text-text-primary dark:text-gray-100 mb-1.5">Priority (optional)</label>
               <select
-                value={newAction.parent_task_id}
-                onChange={(e) => setNewAction({ ...newAction, parent_task_id: e.target.value })}
+                value={newAction.priority}
+                onChange={(e) => setNewAction({ ...newAction, priority: e.target.value })}
                 className="w-full px-4 py-2.5 rounded-organic border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-text-primary dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-primary-300"
               >
-                <option value="">No parent (top-level task)</option>
-                {parentTasks.map((task) => (
-                  <option key={task.id} value={task.id}>{task.title}</option>
-                ))}
+                <option value="">No priority</option>
+                <option value="low">Low</option>
+                <option value="medium">Medium</option>
+                <option value="high">High</option>
+                <option value="urgent">Urgent</option>
               </select>
             </div>
           </div>
@@ -1398,6 +1405,20 @@ export default function ProjectDetail() {
               </select>
             </div>
           )}
+          <div>
+            <label className="block text-sm font-medium text-text-primary dark:text-gray-100 mb-1.5">Priority</label>
+            <select
+              value={editForm.priority}
+              onChange={(e) => setEditForm({...editForm, priority: e.target.value})}
+              className="w-full px-4 py-2.5 rounded-organic border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-text-primary dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-primary-300"
+            >
+              <option value="">No priority</option>
+              <option value="low">Low</option>
+              <option value="medium">Medium</option>
+              <option value="high">High</option>
+              <option value="urgent">Urgent</option>
+            </select>
+          </div>
           <div>
             <label className="block text-sm font-medium text-text-primary dark:text-gray-100 mb-1.5">Assignees</label>
             <div className="max-h-32 overflow-y-auto border border-gray-300 dark:border-gray-600 rounded-organic">
@@ -1636,7 +1657,7 @@ export default function ProjectDetail() {
       {/* Meeting View Modal */}
       <Modal
         isOpen={!!viewingMeeting}
-        onClose={() => setViewingMeeting(null)}
+        onClose={handleCloseMeetingView}
         title={viewingMeeting?.title || 'Meeting Details'}
         size="lg"
       >
@@ -1646,6 +1667,16 @@ export default function ProjectDetail() {
               <p className="text-sm text-text-secondary dark:text-gray-400">
                 {new Date(viewingMeeting.recorded_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
               </p>
+            )}
+            {viewingMeeting.audio_path && (
+              <div>
+                <h4 className="text-sm font-semibold text-text-primary dark:text-gray-100 mb-1">Audio Recording</h4>
+                {meetingAudioUrl ? (
+                  <audio controls className="w-full" src={meetingAudioUrl} preload="metadata" />
+                ) : (
+                  <p className="text-sm text-text-secondary dark:text-gray-400">Loading audio...</p>
+                )}
+              </div>
             )}
             {viewingMeeting.summary && (
               <div>
@@ -1669,11 +1700,11 @@ export default function ProjectDetail() {
                 </div>
               </div>
             )}
-            {!viewingMeeting.summary && !viewingMeeting.transcript && !viewingMeeting.notes && (
+            {!viewingMeeting.summary && !viewingMeeting.transcript && !viewingMeeting.notes && !viewingMeeting.audio_path && (
               <p className="text-sm text-text-secondary dark:text-gray-400">No additional details available for this meeting.</p>
             )}
             <div className="flex justify-end gap-3 pt-2">
-              <Button variant="outline" onClick={() => setViewingMeeting(null)}>Close</Button>
+              <Button variant="outline" onClick={handleCloseMeetingView}>Close</Button>
             </div>
           </div>
         )}

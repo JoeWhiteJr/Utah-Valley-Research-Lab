@@ -86,6 +86,8 @@ export function useGridDragToCreate({
       const rect = grid.getBoundingClientRect();
       const y = e.clientY - rect.top;
 
+      // Prevent text selection and scroll interference during drag
+      e.preventDefault();
       dragStartPos.current = { x: e.clientX, y: e.clientY };
 
       // Store the initial position; we'll enter drag mode once the mouse moves enough
@@ -115,6 +117,8 @@ export function useGridDragToCreate({
       const currentY = Math.max(0, Math.min(e.clientY - rect.top, rect.height));
 
       if (distance > 5 || isDraggingRef.current) {
+        // Prevent scroll container from scrolling while dragging
+        e.preventDefault();
         isDraggingRef.current = true;
 
         // Calculate current column from mouse X position

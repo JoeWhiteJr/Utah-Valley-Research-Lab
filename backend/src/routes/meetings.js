@@ -31,7 +31,9 @@ const upload = multer({
   limits: { fileSize: 500 * 1024 * 1024 }, // 500MB limit for audio
   fileFilter: (req, file, cb) => {
     const allowedTypes = ['audio/mpeg', 'audio/wav', 'audio/mp4', 'audio/webm', 'audio/ogg'];
-    if (allowedTypes.includes(file.mimetype)) {
+    // Strip codec parameters (e.g., "audio/webm;codecs=opus" -> "audio/webm")
+    const baseType = file.mimetype.split(';')[0].trim();
+    if (allowedTypes.includes(baseType)) {
       cb(null, true);
     } else {
       cb(new Error('Audio file type not allowed'), false);
@@ -46,7 +48,7 @@ router.get('/project/:projectId', authenticate, requireProjectAccess(), async (r
     const offset = Math.max(parseInt(req.query.offset) || 0, 0);
 
     const countResult = await db.query(
-      'SELECT COUNT(*) FROM meetings WHERE project_id = $1',
+      'SELECT COUNT(*) FROM meetings WHERE project_id = $1 AND deleted_at IS NULL',
       [req.params.projectId]
     );
     const total = parseInt(countResult.rows[0].count);
@@ -55,7 +57,7 @@ router.get('/project/:projectId', authenticate, requireProjectAccess(), async (r
       SELECT m.*, u.name as creator_name
       FROM meetings m
       JOIN users u ON m.created_by = u.id
-      WHERE m.project_id = $1
+      WHERE m.project_id = $1 AND m.deleted_at IS NULL
       ORDER BY m.recorded_at DESC NULLS LAST, m.created_at DESC
       LIMIT $2 OFFSET $3
     `, [req.params.projectId, limit, offset]);
@@ -73,7 +75,7 @@ router.get('/:id', authenticate, async (req, res, next) => {
       SELECT m.*, u.name as creator_name
       FROM meetings m
       JOIN users u ON m.created_by = u.id
-      WHERE m.id = $1
+      WHERE m.id = $1 AND m.deleted_at IS NULL
     `, [req.params.id]);
 
     if (result.rows.length === 0) {
@@ -136,7 +138,7 @@ router.put('/:id', authenticate, sanitizeBody('notes'), [
 
     const { title, transcript, summary, notes } = req.body;
 
-    const existing = await db.query('SELECT id, project_id FROM meetings WHERE id = $1', [req.params.id]);
+    const existing = await db.query('SELECT id, project_id FROM meetings WHERE id = $1 AND deleted_at IS NULL', [req.params.id]);
     if (existing.rows.length === 0) {
       return res.status(404).json({ error: { message: 'Meeting not found' } });
     }
@@ -290,7 +292,7 @@ router.post('/:id/transcribe', authenticate, async (req, res, next) => {
 // Delete meeting
 router.delete('/:id', authenticate, async (req, res, next) => {
   try {
-    const result = await db.query('SELECT * FROM meetings WHERE id = $1', [req.params.id]);
+    const result = await db.query('SELECT * FROM meetings WHERE id = $1 AND deleted_at IS NULL', [req.params.id]);
 
     if (result.rows.length === 0) {
       return res.status(404).json({ error: { message: 'Meeting not found' } });
@@ -312,14 +314,7 @@ router.delete('/:id', authenticate, async (req, res, next) => {
       }
     }
 
-    await db.query('DELETE FROM meetings WHERE id = $1', [req.params.id]);
-
-    // Delete audio file if exists
-    if (meeting.audio_path) {
-      fs.unlink(meeting.audio_path, (err) => {
-        if (err) logger.error({ err }, 'Error deleting audio file');
-      });
-    }
+    await db.query('UPDATE meetings SET deleted_at = NOW(), deleted_by = $1 WHERE id = $2', [req.user.id, req.params.id]);
 
     res.json({ message: 'Meeting deleted successfully' });
   } catch (error) {

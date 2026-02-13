@@ -8,7 +8,7 @@ import { toast } from '../store/toastStore'
 import { CalendarView } from '../components/calendar/CalendarView'
 import {
   CheckCircle2, Circle, Calendar, ArrowUpRight,
-  FolderKanban, Zap, Target, Award, ChevronDown, ChevronRight
+  FolderKanban, Zap, Target, Award, ChevronDown, ChevronRight, Filter, X
 } from 'lucide-react'
 import { format, isToday, isPast, parseISO } from 'date-fns'
 
@@ -22,17 +22,26 @@ export default function MyDashboard() {
   const [expandedTaskId, setExpandedTaskId] = useState(null)
   const [highlightedTaskIds, setHighlightedTaskIds] = useState(new Map()) // taskId -> notificationId
   const [taskNotifications, setTaskNotifications] = useState([]) // raw unread task_assigned notifications
+  const [taskFilters, setTaskFilters] = useState({ project_id: '', priority: '', status: '', due_before: '', due_after: '' })
+  const [showFilters, setShowFilters] = useState(false)
 
   const loadMyTasks = useCallback(async () => {
     setLoadingTasks(true)
     try {
-      const { data } = await actionsApi.my()
+      // Build clean filters object (omit empty strings)
+      const params = {}
+      if (taskFilters.project_id) params.project_id = taskFilters.project_id
+      if (taskFilters.priority) params.priority = taskFilters.priority
+      if (taskFilters.status) params.status = taskFilters.status
+      if (taskFilters.due_before) params.due_before = taskFilters.due_before
+      if (taskFilters.due_after) params.due_after = taskFilters.due_after
+      const { data } = await actionsApi.my(Object.keys(params).length > 0 ? params : undefined)
       setMyTasks(data.actions || [])
     } catch {
       toast.error('Failed to load tasks')
     }
     setLoadingTasks(false)
-  }, [])
+  }, [taskFilters])
 
   useEffect(() => {
     document.title = 'My Dashboard - Stats Lab'
@@ -195,14 +204,107 @@ export default function MyDashboard() {
       <section>
         <div className="flex items-center justify-between mb-5">
           <h2 className="font-display font-bold text-xl text-text-primary dark:text-gray-100">My Tasks</h2>
-          <Link
-            to="/dashboard/projects"
-            className="inline-flex items-center gap-1 text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 text-sm font-medium"
-          >
-            View all projects
-            <ArrowUpRight size={16} />
-          </Link>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setShowFilters(!showFilters)}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
+                showFilters || Object.values(taskFilters).some(v => v)
+                  ? 'bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300'
+                  : 'bg-gray-100 dark:bg-gray-700 text-text-secondary dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'
+              }`}
+            >
+              <Filter size={14} />
+              Filters
+              {Object.values(taskFilters).some(v => v) && (
+                <span className="w-2 h-2 rounded-full bg-primary-500" />
+              )}
+            </button>
+            <Link
+              to="/dashboard/projects"
+              className="inline-flex items-center gap-1 text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 text-sm font-medium"
+            >
+              View all projects
+              <ArrowUpRight size={16} />
+            </Link>
+          </div>
         </div>
+
+        {/* Filter row */}
+        {showFilters && (
+          <div className="mb-4 p-4 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700">
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-sm font-medium text-text-primary dark:text-gray-100">Filter Tasks</span>
+              {Object.values(taskFilters).some(v => v) && (
+                <button
+                  onClick={() => setTaskFilters({ project_id: '', priority: '', status: '', due_before: '', due_after: '' })}
+                  className="flex items-center gap-1 text-xs text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 font-medium"
+                >
+                  <X size={12} />
+                  Clear filters
+                </button>
+              )}
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-text-secondary dark:text-gray-400 mb-1">Project</label>
+                <select
+                  value={taskFilters.project_id}
+                  onChange={(e) => setTaskFilters({ ...taskFilters, project_id: e.target.value })}
+                  className="w-full px-3 py-1.5 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-text-primary dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-primary-300"
+                >
+                  <option value="">All projects</option>
+                  {projects.map((p) => (
+                    <option key={p.id} value={p.id}>{p.title}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-text-secondary dark:text-gray-400 mb-1">Priority</label>
+                <select
+                  value={taskFilters.priority}
+                  onChange={(e) => setTaskFilters({ ...taskFilters, priority: e.target.value })}
+                  className="w-full px-3 py-1.5 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-text-primary dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-primary-300"
+                >
+                  <option value="">Any priority</option>
+                  <option value="low">Low</option>
+                  <option value="medium">Medium</option>
+                  <option value="high">High</option>
+                  <option value="urgent">Urgent</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-text-secondary dark:text-gray-400 mb-1">Status</label>
+                <select
+                  value={taskFilters.status}
+                  onChange={(e) => setTaskFilters({ ...taskFilters, status: e.target.value })}
+                  className="w-full px-3 py-1.5 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-text-primary dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-primary-300"
+                >
+                  <option value="">All</option>
+                  <option value="pending">Pending</option>
+                  <option value="completed">Completed</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-text-secondary dark:text-gray-400 mb-1">Due after</label>
+                <input
+                  type="date"
+                  value={taskFilters.due_after}
+                  onChange={(e) => setTaskFilters({ ...taskFilters, due_after: e.target.value })}
+                  className="w-full px-3 py-1.5 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-text-primary dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-primary-300"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-text-secondary dark:text-gray-400 mb-1">Due before</label>
+                <input
+                  type="date"
+                  value={taskFilters.due_before}
+                  onChange={(e) => setTaskFilters({ ...taskFilters, due_before: e.target.value })}
+                  className="w-full px-3 py-1.5 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-text-primary dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-primary-300"
+                />
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 divide-y divide-gray-100 dark:divide-gray-700">
           {loadingTasks ? (
@@ -210,8 +312,11 @@ export default function MyDashboard() {
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500 mx-auto"></div>
               <p className="text-text-secondary dark:text-gray-400 mt-3">Loading your tasks...</p>
             </div>
-          ) : myTasks.filter(t => !t.completed).length > 0 ? (
-            myTasks.filter(t => !t.completed).map((task) => {
+          ) : (() => {
+            // When server-side status filter is active, show all results; otherwise default to pending only
+            return taskFilters.status ? myTasks : myTasks.filter(t => !t.completed)
+          })().length > 0 ? (
+            (taskFilters.status ? myTasks : myTasks.filter(t => !t.completed)).map((task) => {
               const isNew = highlightedTaskIds.has(task.id)
               const isExpanded = expandedTaskId === task.id
               return (
@@ -235,10 +340,20 @@ export default function MyDashboard() {
                     )}
                   </button>
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center">
+                    <div className="flex items-center gap-2">
                       <p className={`font-medium truncate ${task.completed ? 'line-through text-text-secondary dark:text-gray-400' : 'text-text-primary dark:text-gray-100'}`}>{task.title}</p>
+                      {task.priority && (
+                        <span className={`text-xs font-medium px-1.5 py-0.5 rounded flex-shrink-0 ${
+                          task.priority === 'urgent' ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300' :
+                          task.priority === 'high' ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300' :
+                          task.priority === 'medium' ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300' :
+                          'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'
+                        }`}>
+                          {task.priority.charAt(0).toUpperCase() + task.priority.slice(1)}
+                        </span>
+                      )}
                       {isNew && (
-                        <span className="text-xs font-medium text-primary-600 dark:text-primary-400 bg-primary-100 dark:bg-primary-900/30 px-2 py-0.5 rounded-full ml-2 flex-shrink-0">
+                        <span className="text-xs font-medium text-primary-600 dark:text-primary-400 bg-primary-100 dark:bg-primary-900/30 px-2 py-0.5 rounded-full flex-shrink-0">
                           New
                         </span>
                       )}

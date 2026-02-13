@@ -131,7 +131,7 @@ export function DailyView({
           ))}
 
           {/* Drag preview */}
-          {previewStyle && (
+          {previewStyle && previewStyle.type === 'single' && (
             <div
               className="absolute left-1 right-1 rounded-lg border-2 border-dashed border-indigo-400 dark:border-indigo-500 bg-indigo-50/50 dark:bg-indigo-900/30 pointer-events-none z-30"
               style={{ top: previewStyle.top, height: previewStyle.height }}
