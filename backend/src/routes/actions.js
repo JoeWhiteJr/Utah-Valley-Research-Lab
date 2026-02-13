@@ -58,10 +58,12 @@ function attachAssignees(actions, assigneesMap) {
   }));
 }
 
-// Get all action items assigned to current user
+// Get all action items assigned to current user (with optional filters)
 router.get('/my', authenticate, async (req, res, next) => {
   try {
-    const result = await db.query(`
+    const { project_id, priority, status, due_before, due_after } = req.query;
+
+    let query = `
       SELECT DISTINCT a.*, u.name as assigned_name, p.title as project_title,
         c.name as category_name, c.color as category_color
       FROM action_items a
@@ -69,9 +71,36 @@ router.get('/my', authenticate, async (req, res, next) => {
       LEFT JOIN projects p ON a.project_id = p.id
       LEFT JOIN categories c ON a.category_id = c.id
       LEFT JOIN action_item_assignees aia ON a.id = aia.action_item_id
-      WHERE a.assigned_to = $1 OR aia.user_id = $1
-      ORDER BY a.completed ASC, a.due_date ASC NULLS LAST, a.created_at DESC
-    `, [req.user.id]);
+      WHERE (a.assigned_to = $1 OR aia.user_id = $1) AND a.deleted_at IS NULL
+    `;
+    const params = [req.user.id];
+    let paramCount = 2;
+
+    if (project_id) {
+      query += ` AND a.project_id = $${paramCount++}`;
+      params.push(project_id);
+    }
+    if (priority) {
+      query += ` AND a.priority = $${paramCount++}`;
+      params.push(priority);
+    }
+    if (status === 'completed') {
+      query += ' AND a.completed = true';
+    } else if (status === 'pending') {
+      query += ' AND a.completed = false';
+    }
+    if (due_before) {
+      query += ` AND a.due_date <= $${paramCount++}`;
+      params.push(due_before);
+    }
+    if (due_after) {
+      query += ` AND a.due_date >= $${paramCount++}`;
+      params.push(due_after);
+    }
+
+    query += ' ORDER BY a.completed ASC, a.due_date ASC NULLS LAST, a.created_at DESC';
+
+    const result = await db.query(query, params);
 
     const actionIds = result.rows.map(a => a.id);
     const assigneesMap = await fetchAssigneesForActions(actionIds);
@@ -92,7 +121,7 @@ router.get('/project/:projectId', authenticate, requireProjectAccess(), async (r
       FROM action_items a
       LEFT JOIN users u ON a.assigned_to = u.id
       LEFT JOIN categories c ON a.category_id = c.id
-      WHERE a.project_id = $1
+      WHERE a.project_id = $1 AND a.deleted_at IS NULL
       ORDER BY a.sort_order ASC, a.created_at ASC
     `, [req.params.projectId]);
 
@@ -114,7 +143,7 @@ router.get('/project/:projectId/progress', authenticate, requireProjectAccess(),
         COUNT(*) as total_tasks,
         COUNT(*) FILTER (WHERE completed = true) as completed_tasks
       FROM action_items
-      WHERE project_id = $1
+      WHERE project_id = $1 AND deleted_at IS NULL
     `, [req.params.projectId]);
 
     const { total_tasks, completed_tasks } = result.rows[0];
@@ -137,7 +166,7 @@ router.post('/project/:projectId', authenticate, requireProjectAccess(), sanitiz
   body('assignee_ids').optional().isArray(),
   body('assignee_ids.*').optional().isUUID(),
   body('category_id').optional({ nullable: true }).isUUID(),
-  body('parent_task_id').optional({ nullable: true }).isUUID()
+  body('priority').optional({ nullable: true }).isIn(['low', 'medium', 'high', 'urgent'])
 ], async (req, res, next) => {
   try {
     const errors = validationResult(req);
@@ -145,19 +174,8 @@ router.post('/project/:projectId', authenticate, requireProjectAccess(), sanitiz
       return res.status(400).json({ error: { message: 'Validation failed', details: errors.array() } });
     }
 
-    const { title, description, due_date, assigned_to, assignee_ids, category_id, parent_task_id } = req.body;
+    const { title, description, due_date, assigned_to, assignee_ids, category_id, priority } = req.body;
     const projectId = req.params.projectId;
-
-    // If parent_task_id is set, validate it belongs to the same project
-    if (parent_task_id) {
-      const parentCheck = await db.query(
-        'SELECT id FROM action_items WHERE id = $1 AND project_id = $2',
-        [parent_task_id, projectId]
-      );
-      if (parentCheck.rows.length === 0) {
-        return res.status(400).json({ error: { message: 'Parent task not found in this project' } });
-      }
-    }
 
     // Get max sort order
     const orderResult = await db.query(
@@ -166,8 +184,8 @@ router.post('/project/:projectId', authenticate, requireProjectAccess(), sanitiz
     );
 
     const result = await db.query(
-      'INSERT INTO action_items (project_id, title, description, due_date, assigned_to, category_id, sort_order, parent_task_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *',
-      [projectId, title, description || null, due_date || null, assigned_to || null, category_id || null, orderResult.rows[0].next_order, parent_task_id || null]
+      'INSERT INTO action_items (project_id, title, description, due_date, assigned_to, category_id, sort_order, priority) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *',
+      [projectId, title, description || null, due_date || null, assigned_to || null, category_id || null, orderResult.rows[0].next_order, priority || null]
     );
 
     const actionItem = result.rows[0];
@@ -273,70 +291,6 @@ router.put('/reorder', authenticate, [
   }
 });
 
-// Set parent task (make subtask) - used by drag-and-drop
-router.put('/:id/parent', authenticate, [
-  body('parent_task_id').optional({ nullable: true })
-], async (req, res, next) => {
-  try {
-    const { parent_task_id } = req.body;
-    const actionId = req.params.id;
-
-    const existing = await db.query('SELECT id, project_id FROM action_items WHERE id = $1', [actionId]);
-    if (existing.rows.length === 0) {
-      return res.status(404).json({ error: { message: 'Action item not found' } });
-    }
-
-    // Prevent circular reference
-    if (parent_task_id === actionId) {
-      return res.status(400).json({ error: { message: 'A task cannot be its own parent' } });
-    }
-
-    // Validate parent belongs to same project
-    if (parent_task_id) {
-      const parentCheck = await db.query(
-        'SELECT id, parent_task_id FROM action_items WHERE id = $1 AND project_id = $2',
-        [parent_task_id, existing.rows[0].project_id]
-      );
-      if (parentCheck.rows.length === 0) {
-        return res.status(400).json({ error: { message: 'Parent task not found in this project' } });
-      }
-      // Prevent nested subtasks (only one level deep)
-      if (parentCheck.rows[0].parent_task_id) {
-        return res.status(400).json({ error: { message: 'Cannot nest subtasks more than one level deep' } });
-      }
-    }
-
-    // Check if this task already has subtasks - if so, it cannot become a subtask itself
-    const childCheck = await db.query(
-      'SELECT id FROM action_items WHERE parent_task_id = $1 LIMIT 1',
-      [actionId]
-    );
-    if (childCheck.rows.length > 0 && parent_task_id) {
-      return res.status(400).json({ error: { message: 'A task with subtasks cannot become a subtask itself' } });
-    }
-
-    await db.query(
-      'UPDATE action_items SET parent_task_id = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
-      [parent_task_id || null, actionId]
-    );
-
-    const result = await db.query(`
-      SELECT a.*, u.name as assigned_name, c.name as category_name, c.color as category_color
-      FROM action_items a
-      LEFT JOIN users u ON a.assigned_to = u.id
-      LEFT JOIN categories c ON a.category_id = c.id
-      WHERE a.id = $1
-    `, [actionId]);
-
-    const assigneesMap = await fetchAssigneesForActions([actionId]);
-    const actions = attachAssignees(result.rows, assigneesMap);
-
-    res.json({ action: actions[0] });
-  } catch (error) {
-    next(error);
-  }
-});
-
 // Update action item
 router.put('/:id', authenticate, sanitizeBody('title'), [
   body('title').optional().trim().notEmpty().isLength({ max: 500 }),
@@ -347,7 +301,7 @@ router.put('/:id', authenticate, sanitizeBody('title'), [
   body('assignee_ids').optional().isArray(),
   body('assignee_ids.*').optional().isUUID(),
   body('category_id').optional({ nullable: true }).isUUID(),
-  body('parent_task_id').optional({ nullable: true })
+  body('priority').optional({ nullable: true }).isIn(['low', 'medium', 'high', 'urgent'])
 ], async (req, res, next) => {
   try {
     const errors = validationResult(req);
@@ -355,9 +309,9 @@ router.put('/:id', authenticate, sanitizeBody('title'), [
       return res.status(400).json({ error: { message: 'Validation failed', details: errors.array() } });
     }
 
-    const { title, description, completed, due_date, assigned_to, assignee_ids, category_id, parent_task_id } = req.body;
+    const { title, description, completed, due_date, assigned_to, assignee_ids, category_id, priority } = req.body;
 
-    const existing = await db.query('SELECT id, project_id FROM action_items WHERE id = $1', [req.params.id]);
+    const existing = await db.query('SELECT id, project_id FROM action_items WHERE id = $1 AND deleted_at IS NULL', [req.params.id]);
     if (existing.rows.length === 0) {
       return res.status(404).json({ error: { message: 'Action item not found' } });
     }
@@ -386,7 +340,7 @@ router.put('/:id', authenticate, sanitizeBody('title'), [
     if (due_date !== undefined) { updates.push(`due_date = $${paramCount++}`); values.push(due_date); }
     if (assigned_to !== undefined) { updates.push(`assigned_to = $${paramCount++}`); values.push(assigned_to); }
     if (category_id !== undefined) { updates.push(`category_id = $${paramCount++}`); values.push(category_id); }
-    if (parent_task_id !== undefined) { updates.push(`parent_task_id = $${paramCount++}`); values.push(parent_task_id); }
+    if (priority !== undefined) { updates.push(`priority = $${paramCount++}`); values.push(priority); }
 
     // Handle assignee_ids update separately
     let oldAssigneeIds = [];
@@ -470,7 +424,7 @@ router.put('/:id', authenticate, sanitizeBody('title'), [
 router.delete('/:id', authenticate, async (req, res, next) => {
   try {
     // Verify the action item exists and get its project_id
-    const existing = await db.query('SELECT project_id FROM action_items WHERE id = $1', [req.params.id]);
+    const existing = await db.query('SELECT project_id FROM action_items WHERE id = $1 AND deleted_at IS NULL', [req.params.id]);
     if (existing.rows.length === 0) {
       return res.status(404).json({ error: { message: 'Action item not found' } });
     }
@@ -487,7 +441,7 @@ router.delete('/:id', authenticate, async (req, res, next) => {
       return res.status(403).json({ error: { message: 'Access denied' } });
     }
 
-    await db.query('DELETE FROM action_items WHERE id = $1', [req.params.id]);
+    await db.query('UPDATE action_items SET deleted_at = NOW(), deleted_by = $1 WHERE id = $2', [req.user.id, req.params.id]);
 
     logAdminAction(req, 'delete_action_item', 'action_item', req.params.id, { project_id: existing.rows[0].project_id }, null);
     res.json({ message: 'Action item deleted successfully' });

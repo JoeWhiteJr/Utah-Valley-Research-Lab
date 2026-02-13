@@ -36,6 +36,12 @@ describe('Files API', () => {
     researcherToken = researcher.token;
     researcherUserId = researcher.id;
 
+    // Ensure soft-delete columns exist
+    await db.query(`ALTER TABLE files ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ`);
+    await db.query(`ALTER TABLE files ADD COLUMN IF NOT EXISTS deleted_by UUID`);
+    await db.query(`ALTER TABLE projects ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ`);
+    await db.query(`ALTER TABLE projects ADD COLUMN IF NOT EXISTS deleted_by UUID`);
+
     // Create a test project owned by the researcher
     const projectRes = await request(app)
       .post('/api/projects')
@@ -228,9 +234,10 @@ describe('Files API', () => {
       expect(res.status).toBe(200);
       expect(res.body.message).toBe('File deleted successfully');
 
-      // Verify file is gone
-      const check = await db.query('SELECT id FROM files WHERE id = $1', [fileToDeleteId]);
-      expect(check.rows.length).toBe(0);
+      // Verify file is soft-deleted (row exists but deleted_at is set)
+      const check = await db.query('SELECT id, deleted_at FROM files WHERE id = $1', [fileToDeleteId]);
+      expect(check.rows.length).toBe(1);
+      expect(check.rows[0].deleted_at).not.toBeNull();
     });
 
     it('should return 404 for non-existent file', async () => {

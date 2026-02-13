@@ -21,6 +21,12 @@ describe('Notes API', () => {
     authToken = user.token;
     testUserId = user.id;
 
+    // Ensure soft-delete columns exist
+    await db.query(`ALTER TABLE notes ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ`);
+    await db.query(`ALTER TABLE notes ADD COLUMN IF NOT EXISTS deleted_by UUID`);
+    await db.query(`ALTER TABLE projects ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ`);
+    await db.query(`ALTER TABLE projects ADD COLUMN IF NOT EXISTS deleted_by UUID`);
+
     // Create a test project
     const projectRes = await request(app)
       .post('/api/projects')

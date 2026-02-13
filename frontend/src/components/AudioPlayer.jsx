@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect } from 'react'
-import { Play, Pause, Volume2, VolumeX } from 'lucide-react'
+import { Play, Pause, Volume2, VolumeX, Loader2 } from 'lucide-react'
+import { meetingsApi } from '../services/api'
 
-export default function AudioPlayer({ src, className = '' }) {
+export default function AudioPlayer({ src, meetingId, className = '' }) {
   const audioRef = useRef(null)
   const progressRef = useRef(null)
 
@@ -12,6 +13,49 @@ export default function AudioPlayer({ src, className = '' }) {
   const [volume, setVolume] = useState(1)
   const [isMuted, setIsMuted] = useState(false)
   const [isLoaded, setIsLoaded] = useState(false)
+  const [blobUrl, setBlobUrl] = useState(null)
+  const [loadError, setLoadError] = useState(false)
+  const [isLoadingAudio, setIsLoadingAudio] = useState(false)
+
+  // Fetch audio blob for authenticated playback
+  useEffect(() => {
+    if (!meetingId && !src) return
+    if (src && !meetingId) {
+      // Direct URL (e.g., blob URL already provided)
+      setBlobUrl(src)
+      return
+    }
+
+    let cancelled = false
+    setIsLoadingAudio(true)
+    setLoadError(false)
+
+    meetingsApi.getAudio(meetingId)
+      .then(({ data }) => {
+        if (!cancelled) {
+          setBlobUrl(URL.createObjectURL(data))
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setLoadError(true)
+      })
+      .finally(() => {
+        if (!cancelled) setIsLoadingAudio(false)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [meetingId, src])
+
+  // Cleanup blob URL on unmount
+  useEffect(() => {
+    return () => {
+      if (blobUrl && meetingId) {
+        URL.revokeObjectURL(blobUrl)
+      }
+    }
+  }, [blobUrl, meetingId])
 
   useEffect(() => {
     const audio = audioRef.current
@@ -32,7 +76,6 @@ export default function AudioPlayer({ src, className = '' }) {
     }
 
     const handleError = () => {
-      /* error handled silently */
       setIsLoaded(false)
     }
 
@@ -47,7 +90,7 @@ export default function AudioPlayer({ src, className = '' }) {
       audio.removeEventListener('ended', handleEnded)
       audio.removeEventListener('error', handleError)
     }
-  }, [src])
+  }, [blobUrl])
 
   const togglePlay = () => {
     const audio = audioRef.current
@@ -116,13 +159,34 @@ export default function AudioPlayer({ src, className = '' }) {
   // Calculate progress percentage
   const progressPercent = duration ? (currentTime / duration) * 100 : 0
 
-  if (!src) {
+  if (!src && !meetingId) {
+    return null
+  }
+
+  if (isLoadingAudio) {
+    return (
+      <div className={`bg-gray-50 dark:bg-gray-800 rounded-lg p-3 flex items-center gap-2 text-sm text-text-secondary dark:text-gray-400 ${className}`}>
+        <Loader2 size={16} className="animate-spin" />
+        Loading audio...
+      </div>
+    )
+  }
+
+  if (loadError) {
+    return (
+      <div className={`bg-gray-50 dark:bg-gray-800 rounded-lg p-3 text-sm text-red-500 dark:text-red-400 ${className}`}>
+        Failed to load audio
+      </div>
+    )
+  }
+
+  if (!blobUrl) {
     return null
   }
 
   return (
     <div className={`bg-gray-50 dark:bg-gray-800 rounded-lg p-3 ${className}`}>
-      <audio ref={audioRef} src={src} preload="metadata" />
+      <audio ref={audioRef} src={blobUrl} preload="metadata" />
 
       <div className="flex items-center gap-3">
         {/* Play/Pause Button */}

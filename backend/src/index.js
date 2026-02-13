@@ -28,6 +28,7 @@ const contactRoutes = require('./routes/contact');
 const searchRoutes = require('./routes/search');
 const commentRoutes = require('./routes/comments');
 const activityRoutes = require('./routes/activity');
+const trashRoutes = require('./routes/trash');
 const { publicRouter: siteContentPublicRoutes, adminRouter: siteContentAdminRoutes } = require('./routes/siteContent');
 
 const app = express();
@@ -110,6 +111,7 @@ app.use('/api/contact', contactRoutes);
 app.use('/api/search', searchRoutes);
 app.use('/api/comments', commentRoutes);
 app.use('/api/activity', activityRoutes);
+app.use('/api/trash', trashRoutes);
 app.use('/api/public', siteContentPublicRoutes);
 app.use('/api/admin', siteContentAdminRoutes);
 
@@ -150,6 +152,22 @@ const SOCKET_CORS = process.env.CORS_ORIGIN && process.env.CORS_ORIGIN !== '*'
   ? process.env.CORS_ORIGIN.split(',').map(o => o.trim())
   : '*';
 socketService.initialize(server, SOCKET_CORS);
+
+// Graceful shutdown
+const gracefulShutdown = (signal) => {
+  logger.info({ signal }, 'Graceful shutdown initiated');
+  server.close(() => {
+    logger.info('HTTP server closed');
+    process.exit(0);
+  });
+  setTimeout(() => {
+    logger.error('Forced shutdown after timeout');
+    process.exit(1);
+  }, 30000);
+};
+
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 
 // Only start server if not in test environment
 if (process.env.NODE_ENV !== 'test') {

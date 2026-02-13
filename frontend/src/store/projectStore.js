@@ -228,20 +228,6 @@ export const useProjectStore = create((set, get) => ({
     }
   },
 
-  // Set parent task (make subtask via drag-and-drop)
-  setParentTask: async (actionId, parentTaskId) => {
-    try {
-      const { data } = await actionsApi.setParent(actionId, parentTaskId)
-      set((state) => ({
-        actions: state.actions.map((a) => (a.id === actionId ? data.action : a))
-      }))
-      return data.action
-    } catch (error) {
-      set({ error: error.response?.data?.error?.message || 'Failed to set parent task' })
-      return null
-    }
-  },
-
   // Files
   fetchFiles: async (projectId) => {
     try {

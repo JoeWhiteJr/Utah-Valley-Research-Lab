@@ -70,7 +70,7 @@ router.get('/project/:projectId', authenticate, requireProjectAccess(), async (r
     const offset = parseInt(req.query.offset) || 0;
 
     const countResult = await db.query(
-      'SELECT COUNT(*) FROM files WHERE project_id = $1',
+      'SELECT COUNT(*) FROM files WHERE project_id = $1 AND deleted_at IS NULL',
       [req.params.projectId]
     );
     const total = parseInt(countResult.rows[0].count);
@@ -79,7 +79,7 @@ router.get('/project/:projectId', authenticate, requireProjectAccess(), async (r
       SELECT f.*, u.name as uploader_name
       FROM files f
       JOIN users u ON f.uploaded_by = u.id
-      WHERE f.project_id = $1
+      WHERE f.project_id = $1 AND f.deleted_at IS NULL
       ORDER BY f.uploaded_at DESC
       LIMIT $2 OFFSET $3
     `, [req.params.projectId, limit, offset]);
@@ -124,7 +124,7 @@ router.post('/project/:projectId', authenticate, requireProjectAccess(), upload.
 // Download file
 router.get('/:id/download', authenticate, async (req, res, next) => {
   try {
-    const result = await db.query('SELECT * FROM files WHERE id = $1', [req.params.id]);
+    const result = await db.query('SELECT * FROM files WHERE id = $1 AND deleted_at IS NULL', [req.params.id]);
     if (result.rows.length === 0) {
       return res.status(404).json({ error: { message: 'File not found' } });
     }
@@ -156,7 +156,7 @@ router.get('/:id/download', authenticate, async (req, res, next) => {
 // Delete file
 router.delete('/:id', authenticate, async (req, res, next) => {
   try {
-    const result = await db.query('SELECT * FROM files WHERE id = $1', [req.params.id]);
+    const result = await db.query('SELECT * FROM files WHERE id = $1 AND deleted_at IS NULL', [req.params.id]);
     if (result.rows.length === 0) {
       return res.status(404).json({ error: { message: 'File not found' } });
     }
@@ -179,10 +179,7 @@ router.delete('/:id', authenticate, async (req, res, next) => {
       }
     }
 
-    await db.query('DELETE FROM files WHERE id = $1', [req.params.id]);
-    fs.unlink(file.storage_path, (err) => {
-      if (err) logger.error({ err }, 'Error deleting file');
-    });
+    await db.query('UPDATE files SET deleted_at = NOW(), deleted_by = $1 WHERE id = $2', [req.user.id, req.params.id]);
     logAdminAction(req, 'delete_file', 'file', req.params.id, { filename: file.original_filename, project_id: file.project_id }, null);
     res.json({ message: 'File deleted successfully' });
   } catch (error) {

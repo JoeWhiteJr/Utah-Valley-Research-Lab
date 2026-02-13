@@ -105,13 +105,12 @@ export const projectsApi = {
 
 // Actions
 export const actionsApi = {
-  my: () => api.get('/actions/my'),
+  my: (filters) => api.get('/actions/my', { params: filters }),
   list: (projectId) => api.get(`/actions/project/${projectId}`),
   create: (projectId, data) => api.post(`/actions/project/${projectId}`, data),
   update: (id, data) => api.put(`/actions/${id}`, data),
   delete: (id) => api.delete(`/actions/${id}`),
   reorder: (items) => api.put('/actions/reorder', { items }),
-  setParent: (id, parentTaskId) => api.put(`/actions/${id}/parent`, { parent_task_id: parentTaskId }),
   getProgress: (projectId) => api.get(`/actions/project/${projectId}/progress`)
 }
 
@@ -170,7 +169,8 @@ export const meetingsApi = {
   },
   update: (id, data) => api.put(`/meetings/${id}`, data),
   delete: (id) => api.delete(`/meetings/${id}`),
-  transcribe: (id) => api.post(`/meetings/${id}/transcribe`)
+  transcribe: (id) => api.post(`/meetings/${id}/transcribe`),
+  getAudio: (id) => api.get(`/meetings/${id}/audio`, { responseType: 'blob' })
 }
 
 // Users
@@ -340,6 +340,13 @@ export const commentsApi = {
   create: (actionId, content) => api.post(`/comments/actions/${actionId}/comments`, { content }),
   delete: (actionId, commentId) => api.delete(`/comments/actions/${actionId}/comments/${commentId}`),
   counts: (projectId) => api.get(`/comments/project/${projectId}/comment-counts`)
+}
+
+// Trash (admin)
+export const trashApi = {
+  list: () => api.get('/trash'),
+  restore: (type, id) => api.post(`/trash/${type}/${id}/restore`),
+  permanentDelete: (type, id) => api.delete(`/trash/${type}/${id}`)
 }
 
 // Activity

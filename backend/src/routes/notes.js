@@ -13,7 +13,7 @@ router.get('/project/:projectId', authenticate, requireProjectAccess(), async (r
     const offset = parseInt(req.query.offset) || 0;
 
     const countResult = await db.query(
-      'SELECT COUNT(*) FROM notes WHERE project_id = $1',
+      'SELECT COUNT(*) FROM notes WHERE project_id = $1 AND deleted_at IS NULL',
       [req.params.projectId]
     );
     const total = parseInt(countResult.rows[0].count);
@@ -22,7 +22,7 @@ router.get('/project/:projectId', authenticate, requireProjectAccess(), async (r
       SELECT n.*, u.name as creator_name
       FROM notes n
       JOIN users u ON n.created_by = u.id
-      WHERE n.project_id = $1
+      WHERE n.project_id = $1 AND n.deleted_at IS NULL
       ORDER BY n.updated_at DESC
       LIMIT $2 OFFSET $3
     `, [req.params.projectId, limit, offset]);
@@ -40,7 +40,7 @@ router.get('/:id', authenticate, async (req, res, next) => {
       SELECT n.*, u.name as creator_name
       FROM notes n
       JOIN users u ON n.created_by = u.id
-      WHERE n.id = $1
+      WHERE n.id = $1 AND n.deleted_at IS NULL
     `, [req.params.id]);
 
     if (result.rows.length === 0) {
@@ -90,7 +90,7 @@ router.put('/:id', authenticate, sanitizeBody('content'), [
 
     const { title, content } = req.body;
 
-    const existing = await db.query('SELECT id, project_id FROM notes WHERE id = $1', [req.params.id]);
+    const existing = await db.query('SELECT id, project_id FROM notes WHERE id = $1 AND deleted_at IS NULL', [req.params.id]);
     if (existing.rows.length === 0) {
       return res.status(404).json({ error: { message: 'Note not found' } });
     }
@@ -136,7 +136,7 @@ router.put('/:id', authenticate, sanitizeBody('content'), [
 router.delete('/:id', authenticate, async (req, res, next) => {
   try {
     // Verify the note exists and get its project_id
-    const existing = await db.query('SELECT project_id FROM notes WHERE id = $1', [req.params.id]);
+    const existing = await db.query('SELECT project_id FROM notes WHERE id = $1 AND deleted_at IS NULL', [req.params.id]);
     if (existing.rows.length === 0) {
       return res.status(404).json({ error: { message: 'Note not found' } });
     }
@@ -153,7 +153,7 @@ router.delete('/:id', authenticate, async (req, res, next) => {
       return res.status(403).json({ error: { message: 'Access denied' } });
     }
 
-    await db.query('DELETE FROM notes WHERE id = $1', [req.params.id]);
+    await db.query('UPDATE notes SET deleted_at = NOW(), deleted_by = $1 WHERE id = $2', [req.user.id, req.params.id]);
 
     res.json({ message: 'Note deleted successfully' });
   } catch (error) {

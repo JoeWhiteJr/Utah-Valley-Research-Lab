@@ -43,11 +43,12 @@ describe('Actions API', () => {
       )
     `);
 
-    // Ensure parent_task_id column exists
-    await db.query(`
-      ALTER TABLE action_items
-      ADD COLUMN IF NOT EXISTS parent_task_id UUID REFERENCES action_items(id) ON DELETE CASCADE
-    `);
+    // Ensure priority and soft-delete columns exist
+    await db.query(`ALTER TABLE action_items ADD COLUMN IF NOT EXISTS priority VARCHAR(10)`);
+    await db.query(`ALTER TABLE action_items ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ`);
+    await db.query(`ALTER TABLE action_items ADD COLUMN IF NOT EXISTS deleted_by UUID`);
+    await db.query(`ALTER TABLE projects ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ`);
+    await db.query(`ALTER TABLE projects ADD COLUMN IF NOT EXISTS deleted_by UUID`);
 
     // Create a test project
     const projectRes = await request(app)
@@ -64,6 +65,7 @@ describe('Actions API', () => {
   afterAll(async () => {
     await db.query("DELETE FROM action_item_assignees WHERE action_item_id IN (SELECT id FROM action_items WHERE project_id = $1)", [testProjectId]);
     await db.query("DELETE FROM action_items WHERE project_id = $1", [testProjectId]);
+    // Hard delete projects for cleanup (bypassing soft delete)
     await db.query("DELETE FROM projects WHERE created_by = $1", [testUserId]);
     await db.query("DELETE FROM users WHERE email LIKE '%actiontest%'");
   });
@@ -129,29 +131,17 @@ describe('Actions API', () => {
       expect(assigneeIds).toContain(secondUserId);
     });
 
-    it('should create a subtask with parent_task_id', async () => {
+    it('should create action item with priority', async () => {
       const res = await request(app)
         .post(`/api/actions/project/${testProjectId}`)
         .set('Authorization', `Bearer ${authToken}`)
         .send({
-          title: 'Subtask of test action',
-          parent_task_id: testActionId
+          title: 'High priority action',
+          priority: 'high'
         });
 
       expect(res.status).toBe(201);
-      expect(res.body.action.parent_task_id).toBe(testActionId);
-    });
-
-    it('should reject subtask with invalid parent', async () => {
-      const res = await request(app)
-        .post(`/api/actions/project/${testProjectId}`)
-        .set('Authorization', `Bearer ${authToken}`)
-        .send({
-          title: 'Bad subtask',
-          parent_task_id: '00000000-0000-0000-0000-000000000000'
-        });
-
-      expect(res.status).toBe(400);
+      expect(res.body.action.priority).toBe('high');
     });
 
     it('should reject action without title', async () => {
@@ -210,18 +200,6 @@ describe('Actions API', () => {
         expect(multiAssigned.assignees).toBeDefined();
         expect(Array.isArray(multiAssigned.assignees)).toBe(true);
         expect(multiAssigned.assignees.length).toBe(2);
-      }
-    });
-
-    it('should include parent_task_id for subtasks', async () => {
-      const res = await request(app)
-        .get(`/api/actions/project/${testProjectId}`)
-        .set('Authorization', `Bearer ${authToken}`);
-
-      expect(res.status).toBe(200);
-      const subtask = res.body.actions.find(a => a.title === 'Subtask of test action');
-      if (subtask) {
-        expect(subtask.parent_task_id).toBe(testActionId);
       }
     });
 
@@ -416,54 +394,6 @@ describe('Actions API', () => {
     });
   });
 
-  describe('PUT /api/actions/:id/parent', () => {
-    let parentActionId;
-    let childActionId;
-
-    beforeAll(async () => {
-      const res1 = await request(app)
-        .post(`/api/actions/project/${testProjectId}`)
-        .set('Authorization', `Bearer ${authToken}`)
-        .send({ title: 'Parent Task for Subtask Test' });
-      parentActionId = res1.body.action.id;
-
-      const res2 = await request(app)
-        .post(`/api/actions/project/${testProjectId}`)
-        .set('Authorization', `Bearer ${authToken}`)
-        .send({ title: 'Child Task for Subtask Test' });
-      childActionId = res2.body.action.id;
-    });
-
-    it('should set parent task', async () => {
-      const res = await request(app)
-        .put(`/api/actions/${childActionId}/parent`)
-        .set('Authorization', `Bearer ${authToken}`)
-        .send({ parent_task_id: parentActionId });
-
-      expect(res.status).toBe(200);
-      expect(res.body.action.parent_task_id).toBe(parentActionId);
-    });
-
-    it('should prevent self-reference', async () => {
-      const res = await request(app)
-        .put(`/api/actions/${parentActionId}/parent`)
-        .set('Authorization', `Bearer ${authToken}`)
-        .send({ parent_task_id: parentActionId });
-
-      expect(res.status).toBe(400);
-    });
-
-    it('should remove parent task (unset subtask)', async () => {
-      const res = await request(app)
-        .put(`/api/actions/${childActionId}/parent`)
-        .set('Authorization', `Bearer ${authToken}`)
-        .send({ parent_task_id: null });
-
-      expect(res.status).toBe(200);
-      expect(res.body.action.parent_task_id).toBeNull();
-    });
-  });
-
   describe('PUT /api/actions/reorder', () => {
     let action1Id, action2Id, action3Id;
 
@@ -565,29 +495,21 @@ describe('Actions API', () => {
       expect(res.status).toBe(404);
     });
 
-    it('should cascade delete subtasks when parent is deleted', async () => {
-      // Create parent
-      const parentRes = await request(app)
+    it('should soft delete an action (set deleted_at)', async () => {
+      const createRes = await request(app)
         .post(`/api/actions/project/${testProjectId}`)
         .set('Authorization', `Bearer ${authToken}`)
-        .send({ title: 'Parent to delete' });
-      const parentId = parentRes.body.action.id;
+        .send({ title: 'Soft delete test' });
+      const softDeleteId = createRes.body.action.id;
 
-      // Create subtask
-      const childRes = await request(app)
-        .post(`/api/actions/project/${testProjectId}`)
-        .set('Authorization', `Bearer ${authToken}`)
-        .send({ title: 'Child to cascade delete', parent_task_id: parentId });
-      const childId = childRes.body.action.id;
-
-      // Delete parent
       await request(app)
-        .delete(`/api/actions/${parentId}`)
+        .delete(`/api/actions/${softDeleteId}`)
         .set('Authorization', `Bearer ${authToken}`);
 
-      // Verify child is also deleted
-      const childCheck = await db.query('SELECT id FROM action_items WHERE id = $1', [childId]);
-      expect(childCheck.rows.length).toBe(0);
+      // Row still exists but has deleted_at set
+      const check = await db.query('SELECT id, deleted_at FROM action_items WHERE id = $1', [softDeleteId]);
+      expect(check.rows.length).toBe(1);
+      expect(check.rows[0].deleted_at).not.toBeNull();
     });
   });
 });
