@@ -87,4 +87,4 @@ INSERT INTO public_team_members (name, role, title, bio, category, email, linked
   ('Wyatt Richard', 'Project Member', NULL, '', 'member', NULL, NULL, 11),
   ('Zach Peterson', 'Project Member', NULL, '', 'member', NULL, NULL, 12),
   ('Vasu Chetty', 'Professional Acquaintance', NULL, 'Industry partner supporting Stats Lab initiatives.', 'partner', NULL, NULL, 1)
-ON CONFLICT DO NOTHING;
+ON CONFLICT (name, category) DO NOTHING;

@@ -142,9 +142,14 @@ adminRouter.post('/team-members', [
     const result = await db.query(
       `INSERT INTO public_team_members (name, role, title, bio, category, email, linkedin_url, photo_url, display_order, is_visible)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+       ON CONFLICT (name, category) DO NOTHING
        RETURNING *`,
       [name, role || null, title || null, bio || '', category, email || null, linkedin_url || null, photo_url || null, display_order || 0, is_visible !== false]
     );
+
+    if (result.rows.length === 0) {
+      return res.status(409).json({ error: { message: 'A team member with this name and category already exists' } });
+    }
 
     res.status(201).json({ member: result.rows[0] });
   } catch (error) {
