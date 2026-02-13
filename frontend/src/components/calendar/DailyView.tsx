@@ -1,6 +1,6 @@
-import { useCallback, useMemo, useRef } from 'react';
-import { DndContext, MouseSensor, TouchSensor, useSensor, useSensors } from '@dnd-kit/core';
-import type { DragEndEvent } from '@dnd-kit/core';
+import { useCallback, useMemo, useRef, useState } from 'react';
+import { DndContext, DragOverlay, MouseSensor, TouchSensor, useSensor, useSensors } from '@dnd-kit/core';
+import type { DragEndEvent, DragStartEvent } from '@dnd-kit/core';
 import { EventBlock } from './EventBlock';
 import type { CalendarEvent, CalendarScope, DeadlineEvent } from './types';
 import { TIME_CONFIG } from './types';
@@ -22,6 +22,8 @@ export function DailyView({
   selectedDate, events, deadlines, hourHeight,
   onTimeClick, onEditEvent, onMoveEvent, onTimeRangeSelect, scope,
 }: DailyViewProps) {
+  const [activeEvent, setActiveEvent] = useState<CalendarEvent | null>(null);
+
   const mouseSensor = useSensor(MouseSensor, { activationConstraint: { distance: 5 } });
   const touchSensor = useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 5 } });
   const sensors = useSensors(mouseSensor, touchSensor);
@@ -69,8 +71,14 @@ export function DailyView({
     [selectedDate, onTimeClick, hourHeight, justDraggedRef]
   );
 
+  const handleDragStart = useCallback((event: DragStartEvent) => {
+    const draggedEvent = dayEvents.find(e => e.id === event.active.id);
+    setActiveEvent(draggedEvent || null);
+  }, [dayEvents]);
+
   const handleDragEnd = useCallback(
     (event: DragEndEvent) => {
+      setActiveEvent(null);
       const { active, delta } = event;
       const blockId = active.id as string;
       const blockData = active.data.current as { startTime: string; endTime: string } | undefined;
@@ -101,7 +109,7 @@ export function DailyView({
   const previewStyle = getPreviewStyle();
 
   return (
-    <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+    <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
       <div className="flex relative" style={{ height: gridHeight }}>
         {/* Hour Labels */}
         <div className="w-14 flex-shrink-0 relative">
@@ -180,6 +188,23 @@ export function DailyView({
           )}
         </div>
       </div>
+      <DragOverlay>
+        {activeEvent && (
+          <div
+            className="rounded-lg px-2 py-1 shadow-lg opacity-80 pointer-events-none"
+            style={{
+              backgroundColor: `${activeEvent.category_color || '#6366f1'}30`,
+              borderLeft: `3px solid ${activeEvent.category_color || '#6366f1'}`,
+              width: '200px',
+            }}
+          >
+            <div className="font-medium text-gray-900 dark:text-gray-100 text-xs truncate">{activeEvent.title}</div>
+            <div className="text-[0.65rem] text-gray-500 dark:text-gray-400">
+              {new Date(activeEvent.start_time).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
+            </div>
+          </div>
+        )}
+      </DragOverlay>
     </DndContext>
   );
 }

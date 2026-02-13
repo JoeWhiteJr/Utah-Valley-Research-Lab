@@ -293,6 +293,7 @@ export const notificationsApi = {
   getUnreadCount: () => api.get('/notifications/unread-count'),
   getUnreadCountsByType: () => api.get('/notifications/unread-counts-by-type'),
   markRead: (id) => api.put(`/notifications/${id}/read`),
+  markReadByType: (referenceType) => api.put(`/notifications/read-by-type/${referenceType}`),
   markAllRead: () => api.put('/notifications/read-all'),
   delete: (id) => api.delete(`/notifications/${id}`)
 }

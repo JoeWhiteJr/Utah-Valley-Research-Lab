@@ -41,6 +41,28 @@ export const useNotificationStore = create((set, _get) => ({
     }
   },
 
+  markReadByType: async (referenceType) => {
+    try {
+      await notificationsApi.markReadByType(referenceType)
+      set((state) => ({
+        notifications: state.notifications.map((n) =>
+          n.reference_type === referenceType && !n.read_at
+            ? { ...n, read_at: new Date().toISOString() }
+            : n
+        ),
+        unreadCountsByType: {
+          ...state.unreadCountsByType,
+          [referenceType]: 0
+        }
+      }))
+      // Refresh overall unread count
+      _get().fetchUnreadCount()
+      return true
+    } catch (error) {
+      return false
+    }
+  },
+
   markRead: async (id) => {
     try {
       const { data } = await notificationsApi.markRead(id)

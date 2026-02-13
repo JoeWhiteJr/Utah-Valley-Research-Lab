@@ -1,7 +1,7 @@
-import { useMemo, useCallback, useRef } from 'react';
+import { useMemo, useCallback, useRef, useState } from 'react';
 import { startOfWeek, addDays, isSameDay, isToday, format } from 'date-fns';
-import { DndContext, MouseSensor, TouchSensor, useSensor, useSensors } from '@dnd-kit/core';
-import type { DragEndEvent } from '@dnd-kit/core';
+import { DndContext, DragOverlay, MouseSensor, TouchSensor, useSensor, useSensors } from '@dnd-kit/core';
+import type { DragEndEvent, DragStartEvent } from '@dnd-kit/core';
 import { EventBlock } from './EventBlock';
 import type { CalendarEvent, CalendarScope, DeadlineEvent } from './types';
 import { TIME_CONFIG } from './types';
@@ -94,13 +94,22 @@ export function WeeklyView({
     [hourHeight, onTimeClick, justDraggedRef]
   );
 
+  const [activeEvent, setActiveEvent] = useState<CalendarEvent | null>(null);
+
   // Drag-and-drop sensors
   const mouseSensor = useSensor(MouseSensor, { activationConstraint: { distance: 5 } });
   const touchSensor = useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 5 } });
   const sensors = useSensors(mouseSensor, touchSensor);
 
+  const handleDragStart = useCallback((event: DragStartEvent) => {
+    const allEvents = blocksByDay.flatMap(d => d.blocks);
+    const draggedEvent = allEvents.find(e => e.id === event.active.id);
+    setActiveEvent(draggedEvent || null);
+  }, [blocksByDay]);
+
   const handleDragEnd = useCallback(
     (event: DragEndEvent) => {
+      setActiveEvent(null);
       const { active, delta } = event;
       const blockId = active.id as string;
       const blockData = active.data.current as { startTime: string; endTime: string } | undefined;
@@ -168,7 +177,7 @@ export function WeeklyView({
 
       {/* Time Grid */}
       <div className="flex-1 overflow-auto">
-        <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+        <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
         <div className="flex relative" ref={gridRef} style={{ height: gridHeight }}>
           {/* Hour Labels */}
           <div className="w-14 flex-shrink-0 relative">
@@ -252,6 +261,23 @@ export function WeeklyView({
             );
           })}
         </div>
+        <DragOverlay>
+          {activeEvent && (
+            <div
+              className="rounded-lg px-2 py-1 shadow-lg opacity-80 pointer-events-none"
+              style={{
+                backgroundColor: `${activeEvent.category_color || '#6366f1'}30`,
+                borderLeft: `3px solid ${activeEvent.category_color || '#6366f1'}`,
+                width: '150px',
+              }}
+            >
+              <div className="font-medium text-gray-900 dark:text-gray-100 text-xs truncate">{activeEvent.title}</div>
+              <div className="text-[0.65rem] text-gray-500 dark:text-gray-400">
+                {new Date(activeEvent.start_time).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
+              </div>
+            </div>
+          )}
+        </DragOverlay>
         </DndContext>
       </div>
     </div>

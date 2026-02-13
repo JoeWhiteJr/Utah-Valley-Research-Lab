@@ -95,6 +95,26 @@ router.get('/unread-count', authenticate, async (req, res, next) => {
   }
 });
 
+// Mark all notifications of a given reference_type as read
+router.put('/read-by-type/:referenceType', authenticate, async (req, res, next) => {
+  try {
+    const result = await db.query(
+      `UPDATE notifications
+       SET read_at = CURRENT_TIMESTAMP
+       WHERE user_id = $1 AND read_at IS NULL AND reference_type = $2
+       RETURNING id`,
+      [req.user.id, req.params.referenceType]
+    );
+
+    res.json({
+      message: `Notifications of type '${req.params.referenceType}' marked as read`,
+      count: result.rows.length
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 // Mark single notification as read
 router.put('/:id/read', authenticate, async (req, res, next) => {
   try {

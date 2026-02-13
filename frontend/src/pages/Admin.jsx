@@ -21,7 +21,7 @@ export default function Admin() {
   const { user } = useAuthStore()
   const { projects, fetchProjects } = useProjectStore()
   const { publishedProjects, fetchPublishedProjects, publishProject, updatePublishedProject, unpublishProject } = usePublishStore()
-  const { unreadCountsByType, fetchUnreadCountsByType } = useNotificationStore()
+  const { unreadCountsByType, fetchUnreadCountsByType, markReadByType } = useNotificationStore()
 
   const tabNotifications = {
     applications: (unreadCountsByType.application || 0) > 0,
@@ -75,7 +75,14 @@ export default function Admin() {
       if (activeTab === 'publish') fetchPublishedProjects()
       if (activeTab === 'projects') loadTeam()
     }
-  }, [activeTab, fetchProjects, fetchPublishedProjects, loadTeam])
+    // Mark relevant notifications as read when switching to the tab
+    if (activeTab === 'applications') {
+      markReadByType('application')
+    }
+    if (activeTab === 'projects') {
+      markReadByType('join_request')
+    }
+  }, [activeTab, fetchProjects, fetchPublishedProjects, loadTeam, markReadByType])
 
   const handleRoleChange = async (userId, newRole) => {
     try {

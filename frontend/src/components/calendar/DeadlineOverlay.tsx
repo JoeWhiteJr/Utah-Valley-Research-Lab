@@ -6,7 +6,15 @@ interface DeadlineOverlayProps {
 }
 
 export function DeadlineOverlay({ deadlines }: DeadlineOverlayProps) {
-  if (deadlines.length === 0) return null;
+  const now = new Date();
+  now.setHours(0, 0, 0, 0); // Start of today
+  const activeDeadlines = deadlines.filter((dl) => {
+    const dueDate = new Date(dl.due_date);
+    dueDate.setHours(0, 0, 0, 0);
+    return dueDate >= now || dl.completed;
+  });
+
+  if (activeDeadlines.length === 0) return null;
 
   return (
     <div className="flex flex-wrap gap-2 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-xl mb-4">
@@ -14,7 +22,7 @@ export function DeadlineOverlay({ deadlines }: DeadlineOverlayProps) {
         <AlertTriangle size={14} />
         Upcoming Deadlines
       </div>
-      {deadlines.slice(0, 5).map((dl) => (
+      {activeDeadlines.slice(0, 5).map((dl) => (
         <div
           key={dl.id}
           className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs ${
@@ -29,8 +37,8 @@ export function DeadlineOverlay({ deadlines }: DeadlineOverlayProps) {
           )}
         </div>
       ))}
-      {deadlines.length > 5 && (
-        <span className="text-xs text-amber-500 dark:text-amber-400">+{deadlines.length - 5} more</span>
+      {activeDeadlines.length > 5 && (
+        <span className="text-xs text-amber-500 dark:text-amber-400">+{activeDeadlines.length - 5} more</span>
       )}
     </div>
   );
