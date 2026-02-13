@@ -375,10 +375,15 @@ export default function MyDashboard() {
             (taskFilters.status ? myTasks : myTasks.filter(t => !t.completed)).map((task) => {
               const isNew = highlightedTaskIds.has(task.id)
               const isExpanded = expandedTaskId === task.id
+              const isOverdue = task.due_date && !task.completed && isPast(parseISO(task.due_date))
               return (
               <div key={task.id}>
                 <div
-                  className={`flex items-center gap-4 p-4 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors cursor-pointer ${isNew ? 'bg-primary-50 dark:bg-primary-900/20 border-l-4 border-l-primary-500' : ''}`}
+                  className={`flex items-center gap-4 p-4 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors cursor-pointer ${
+                    isNew ? 'bg-primary-50 dark:bg-primary-900/20 border-l-4 border-l-primary-500'
+                    : isOverdue ? 'bg-red-50/30 dark:bg-red-900/10 border-l-4 border-l-red-500'
+                    : ''
+                  }`}
                   onMouseEnter={isNew ? () => handleTaskHover(task.id) : undefined}
                   onClick={() => setExpandedTaskId(isExpanded ? null : task.id)}
                 >

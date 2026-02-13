@@ -1,5 +1,7 @@
 import { useMemo, useCallback, useRef } from 'react';
 import { startOfWeek, addDays, isSameDay, isToday, format } from 'date-fns';
+import { DndContext, MouseSensor, TouchSensor, useSensor, useSensors } from '@dnd-kit/core';
+import type { DragEndEvent } from '@dnd-kit/core';
 import { EventBlock } from './EventBlock';
 import type { CalendarEvent, CalendarScope, DeadlineEvent } from './types';
 import { TIME_CONFIG } from './types';
@@ -92,6 +94,40 @@ export function WeeklyView({
     [hourHeight, onTimeClick, justDraggedRef]
   );
 
+  // Drag-and-drop sensors
+  const mouseSensor = useSensor(MouseSensor, { activationConstraint: { distance: 5 } });
+  const touchSensor = useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 5 } });
+  const sensors = useSensors(mouseSensor, touchSensor);
+
+  const handleDragEnd = useCallback(
+    (event: DragEndEvent) => {
+      const { active, delta } = event;
+      const blockId = active.id as string;
+      const blockData = active.data.current as { startTime: string; endTime: string } | undefined;
+
+      if (blockData && (delta.y !== 0 || delta.x !== 0)) {
+        const deltaMinutes = (delta.y / hourHeight) * 60;
+
+        // Calculate day change from horizontal delta
+        const gridEl = gridRef.current;
+        const gridWidth = gridEl ? gridEl.getBoundingClientRect().width : 700;
+        const columnWidth = (gridWidth - 56) / 7; // 56px gutter for hour labels
+        const dayChange = Math.round(delta.x / columnWidth);
+
+        const oldStart = new Date(blockData.startTime);
+        const oldEnd = new Date(blockData.endTime);
+        const duration = oldEnd.getTime() - oldStart.getTime();
+
+        const newStart = new Date(oldStart.getTime() + deltaMinutes * 60000);
+        newStart.setDate(newStart.getDate() + dayChange);
+        const newEnd = new Date(newStart.getTime() + duration);
+
+        onMoveEvent(blockId, newStart.toISOString(), newEnd.toISOString());
+      }
+    },
+    [hourHeight, onMoveEvent, gridRef]
+  );
+
   // Current time indicator
   const now = new Date();
 
@@ -132,6 +168,7 @@ export function WeeklyView({
 
       {/* Time Grid */}
       <div className="flex-1 overflow-auto">
+        <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
         <div className="flex relative" ref={gridRef} style={{ height: gridHeight }}>
           {/* Hour Labels */}
           <div className="w-14 flex-shrink-0 relative">
@@ -156,7 +193,10 @@ export function WeeklyView({
                 key={dayIndex}
                 ref={(el) => { columnRefs.current[dayIndex] = el; }}
                 onClick={(e) => handleColumnClick(e, date)}
-                onMouseDown={(e) => onMouseDown(e, dayIndex)}
+                onMouseDown={(e) => {
+                  if ((e.target as HTMLElement).closest('[data-event-block]')) return;
+                  onMouseDown(e, dayIndex);
+                }}
                 className={`flex-1 relative border-l border-gray-100 dark:border-gray-800 cursor-pointer ${selected ? 'bg-indigo-50/30 dark:bg-indigo-900/20' : ''}`}
               >
                 {/* Hour lines */}
@@ -212,6 +252,7 @@ export function WeeklyView({
             );
           })}
         </div>
+        </DndContext>
       </div>
     </div>
   );

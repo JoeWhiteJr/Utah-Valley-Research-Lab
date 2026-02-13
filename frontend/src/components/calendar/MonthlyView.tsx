@@ -1,5 +1,7 @@
-import { useMemo, useRef } from 'react';
+import { useMemo, useRef, useState, useCallback } from 'react';
 import { startOfMonth, startOfWeek, addDays, isSameDay, isToday, isSameMonth, format } from 'date-fns';
+import { DndContext, DragOverlay, MouseSensor, TouchSensor, useSensor, useSensors, useDroppable, useDraggable } from '@dnd-kit/core';
+import type { DragEndEvent, DragStartEvent } from '@dnd-kit/core';
 import type { CalendarEvent, DeadlineEvent } from './types';
 import { DAYS_SHORT } from './types';
 import { useDateRangeDrag } from '../../hooks/useDateRangeDrag';
@@ -11,14 +13,53 @@ interface MonthlyViewProps {
   onSelectDate: (date: Date) => void;
   onSwitchToDaily: (date: Date) => void;
   onEditEvent: (event: CalendarEvent) => void;
+  onMoveEvent: (id: string, start_time: string, end_time: string) => void;
   onTimeClick?: (time: Date) => void;
   onTimeRangeSelect?: (startTime: Date, endTime: Date) => void;
   scope: 'lab' | 'personal';
 }
 
+function DraggableEventPill({ event, onEditEvent }: { event: CalendarEvent; onEditEvent: (e: CalendarEvent) => void }) {
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+    id: event.id,
+    data: { startTime: event.start_time, endTime: event.end_time },
+  });
+
+  const style: React.CSSProperties = {
+    backgroundColor: `${event.category_color || '#6366f1'}20`,
+    ...(transform ? { transform: `translate(${transform.x}px, ${transform.y}px)` } : {}),
+    opacity: isDragging ? 0.5 : 1,
+    cursor: 'grab',
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      {...listeners}
+      {...attributes}
+      data-event-item
+      className="text-[0.55rem] truncate px-1 py-0.5 rounded text-gray-900 dark:text-gray-100"
+      style={style}
+      onClick={(e) => { e.stopPropagation(); onEditEvent(event); }}
+    >
+      {event.title}
+    </div>
+  );
+}
+
+function DroppableDayCell({ dayISO, children }: { dayISO: string; children: React.ReactNode }) {
+  const { setNodeRef, isOver } = useDroppable({ id: dayISO });
+
+  return (
+    <div ref={setNodeRef} className={`flex-1 space-y-0.5 overflow-hidden ${isOver ? 'ring-2 ring-indigo-400 rounded' : ''}`}>
+      {children}
+    </div>
+  );
+}
+
 export function MonthlyView({
   selectedDate, events, deadlines,
-  onSelectDate, onSwitchToDaily, onEditEvent, onTimeClick, onTimeRangeSelect,
+  onSelectDate, onSwitchToDaily, onEditEvent, onMoveEvent, onTimeClick, onTimeRangeSelect,
 }: MonthlyViewProps) {
   const justDraggedRef = useRef(false);
 
@@ -34,6 +75,41 @@ export function MonthlyView({
     },
     enabled: !!onTimeRangeSelect,
   });
+
+  // Drag-and-drop sensors
+  const mouseSensor = useSensor(MouseSensor, { activationConstraint: { distance: 5 } });
+  const touchSensor = useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 5 } });
+  const sensors = useSensors(mouseSensor, touchSensor);
+
+  const [activeEvent, setActiveEvent] = useState<CalendarEvent | null>(null);
+
+  const handleDragStart = useCallback((event: DragStartEvent) => {
+    const found = events.find((e) => e.id === event.active.id);
+    setActiveEvent(found || null);
+  }, [events]);
+
+  const handleDragEnd = useCallback((event: DragEndEvent) => {
+    setActiveEvent(null);
+    const { active, over } = event;
+    if (!over) return;
+
+    const eventId = active.id as string;
+    const targetDayISO = over.id as string;
+    const found = events.find((e) => e.id === eventId);
+    if (!found) return;
+
+    const oldStart = new Date(found.start_time);
+    const oldEnd = new Date(found.end_time);
+    const duration = oldEnd.getTime() - oldStart.getTime();
+    const targetDay = new Date(targetDayISO);
+
+    // Keep the same time, change only the date
+    const newStart = new Date(targetDay);
+    newStart.setHours(oldStart.getHours(), oldStart.getMinutes(), oldStart.getSeconds(), oldStart.getMilliseconds());
+    const newEnd = new Date(newStart.getTime() + duration);
+
+    onMoveEvent(eventId, newStart.toISOString(), newEnd.toISOString());
+  }, [events, onMoveEvent]);
 
   const calendarDays = useMemo(() => {
     const monthStart = startOfMonth(selectedDate);
@@ -83,6 +159,7 @@ export function MonthlyView({
       </div>
 
       {/* Calendar Grid */}
+      <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
       <div className="flex-1 grid grid-rows-6">
         {weeks.map((week, weekIndex) => (
           <div key={weekIndex} className="grid grid-cols-7 border-b border-gray-100 dark:border-gray-800">
@@ -93,6 +170,7 @@ export function MonthlyView({
               const dayEvents = getEventsForDay(day);
               const dayDeadlines = getDeadlinesForDay(day);
               const inDragRange = isInRange(day);
+              const dayISO = format(day, 'yyyy-MM-dd');
 
               return (
                 <div
@@ -119,19 +197,9 @@ export function MonthlyView({
                     {format(day, 'd')}
                   </div>
 
-                  <div className="flex-1 space-y-0.5 overflow-hidden">
+                  <DroppableDayCell dayISO={dayISO}>
                     {dayEvents.slice(0, 3).map((event) => (
-                      <div
-                        key={event.id}
-                        data-event-item
-                        className="text-[0.55rem] truncate px-1 py-0.5 rounded text-gray-900 dark:text-gray-100"
-                        style={{
-                          backgroundColor: `${event.category_color || '#6366f1'}20`,
-                        }}
-                        onClick={(e) => { e.stopPropagation(); onEditEvent(event); }}
-                      >
-                        {event.title}
-                      </div>
+                      <DraggableEventPill key={event.id} event={event} onEditEvent={onEditEvent} />
                     ))}
                     {dayEvents.length > 3 && (
                       <div className="text-[0.5rem] px-1 text-gray-400 dark:text-gray-500">
@@ -146,13 +214,25 @@ export function MonthlyView({
                         {dl.title}
                       </div>
                     ))}
-                  </div>
+                  </DroppableDayCell>
                 </div>
               );
             })}
           </div>
         ))}
       </div>
+
+      <DragOverlay>
+        {activeEvent ? (
+          <div
+            className="text-[0.55rem] truncate px-1 py-0.5 rounded text-gray-900 dark:text-gray-100 shadow-lg"
+            style={{ backgroundColor: `${activeEvent.category_color || '#6366f1'}40` }}
+          >
+            {activeEvent.title}
+          </div>
+        ) : null}
+      </DragOverlay>
+      </DndContext>
     </div>
   );
 }

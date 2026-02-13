@@ -4,6 +4,7 @@ import { useApplicationStore } from '../store/applicationStore'
 import { useAuthStore } from '../store/authStore'
 import { useProjectStore } from '../store/projectStore'
 import { usePublishStore } from '../store/publishStore'
+import { useNotificationStore } from '../store/notificationStore'
 import { usersApi, projectsApi } from '../services/api'
 import { toast } from '../store/toastStore'
 import Button from '../components/Button'
@@ -20,6 +21,12 @@ export default function Admin() {
   const { user } = useAuthStore()
   const { projects, fetchProjects } = useProjectStore()
   const { publishedProjects, fetchPublishedProjects, publishProject, updatePublishedProject, unpublishProject } = usePublishStore()
+  const { unreadCountsByType, fetchUnreadCountsByType } = useNotificationStore()
+
+  const tabNotifications = {
+    applications: (unreadCountsByType.application || 0) > 0,
+    projects: (unreadCountsByType.join_request || 0) > 0,
+  }
 
   // Team state
   const [teamMembers, setTeamMembers] = useState([])
@@ -46,7 +53,7 @@ export default function Admin() {
     document.title = 'Admin - Stats Lab'
   }, [])
 
-  useEffect(() => { fetchStats(); fetchApplications() }, [fetchStats, fetchApplications])
+  useEffect(() => { fetchStats(); fetchApplications(); fetchUnreadCountsByType() }, [fetchStats, fetchApplications, fetchUnreadCountsByType])
 
   const loadTeam = useCallback(async () => {
     setIsLoadingTeam(true)
@@ -190,6 +197,9 @@ export default function Admin() {
         {[['dashboard', 'Dashboard', LayoutDashboard], ['applications', 'Applications', Users], ['team', 'Team', Users], ['projects', 'Projects', FolderKanban], ['publish', 'Publish', Globe], ['trash', 'Trash', Trash2], ['site-content', 'Site Content', FileEdit], ['public-team', 'Public Team', UserCircle]].map(([id, label, Icon]) => (
           <button key={id} onClick={() => setActiveTab(id)} className={`flex items-center gap-2 px-4 py-3 border-b-2 text-text-secondary dark:text-gray-400 ${activeTab === id ? 'border-primary-500 text-primary-600 dark:text-primary-400' : 'border-transparent'}`}>
             <Icon size={18} />{label}
+            {tabNotifications[id] && (
+              <span className="w-2 h-2 rounded-full bg-red-500 ml-1 flex-shrink-0" />
+            )}
           </button>
         ))}
       </div>
@@ -297,8 +307,8 @@ export default function Admin() {
                     <Sparkles size={14} />
                     AI Review
                   </button>
-                  <button onClick={() => approveApplication(app.id, 'researcher')} className="px-3 py-1 bg-green-500 text-white rounded-lg text-sm">Approve</button>
-                  <button onClick={() => rejectApplication(app.id)} className="px-3 py-1 bg-red-500 text-white rounded-lg text-sm">Reject</button>
+                  <button onClick={() => { approveApplication(app.id, 'researcher').then(() => fetchUnreadCountsByType()) }} className="px-3 py-1 bg-green-500 text-white rounded-lg text-sm">Approve</button>
+                  <button onClick={() => { rejectApplication(app.id).then(() => fetchUnreadCountsByType()) }} className="px-3 py-1 bg-red-500 text-white rounded-lg text-sm">Reject</button>
                 </div>
               )}
               {app.status !== 'pending' && <span className={`px-2 py-1 rounded text-xs ${app.status === 'approved' ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300' : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300'}`}>{app.status}</span>}

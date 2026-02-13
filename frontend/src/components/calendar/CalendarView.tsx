@@ -248,6 +248,7 @@ export function CalendarView({ scope, compact = false, projectId }: CalendarView
             onSelectDate={setSelectedDate}
             onSwitchToDaily={handleSwitchToDaily}
             onEditEvent={handleEditEvent}
+            onMoveEvent={handleMoveEvent}
             onTimeClick={handleTimeClick}
             onTimeRangeSelect={handleTimeRangeSelect}
             scope={scope}

@@ -73,6 +73,8 @@ const ActionItem = memo(function ActionItem({
     }
   }, [showComments, comments.length, fetchComments])
 
+  const isOverdue = action.due_date && !action.completed && new Date(action.due_date) < new Date()
+
   return (
     <div>
       <div
@@ -81,6 +83,8 @@ const ActionItem = memo(function ActionItem({
         className={`group flex items-start gap-3 p-3 rounded-lg border transition-colors ${
           action.completed
             ? 'bg-gray-50 dark:bg-gray-800/50 border-gray-200 dark:border-gray-700'
+            : isOverdue
+            ? 'bg-red-50/50 dark:bg-red-900/20 border-red-300 dark:border-red-700 hover:border-red-400 dark:hover:border-red-600'
             : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:border-primary-200 dark:hover:border-primary-700'
         }`}
         onMouseEnter={() => setIsHovered(true)}

@@ -1296,7 +1296,7 @@ export default function ProjectDetail() {
             <label className="block text-sm font-medium text-text-primary dark:text-gray-100 mb-1.5">
               <span className="flex items-center gap-1.5">
                 <Users size={14} />
-                Assign to (select multiple)
+                Assign to (optional)
               </span>
             </label>
             <div className="border border-gray-300 dark:border-gray-600 rounded-organic p-2 max-h-40 overflow-y-auto bg-white dark:bg-gray-800">
@@ -1331,7 +1331,7 @@ export default function ProjectDetail() {
           </div>
           {categories.length > 0 && (
             <div>
-              <label className="block text-sm font-medium text-text-primary dark:text-gray-100 mb-1.5">Category</label>
+              <label className="block text-sm font-medium text-text-primary dark:text-gray-100 mb-1.5">Category (optional)</label>
               <select
                 value={newAction.category_id}
                 onChange={(e) => setNewAction({ ...newAction, category_id: e.target.value })}
@@ -1392,7 +1392,7 @@ export default function ProjectDetail() {
           </div>
           {categories.length > 0 && (
             <div>
-              <label className="block text-sm font-medium text-text-primary dark:text-gray-100 mb-1.5">Category</label>
+              <label className="block text-sm font-medium text-text-primary dark:text-gray-100 mb-1.5">Category (optional)</label>
               <select
                 value={editForm.category_id}
                 onChange={(e) => setEditForm({...editForm, category_id: e.target.value})}
@@ -1406,7 +1406,7 @@ export default function ProjectDetail() {
             </div>
           )}
           <div>
-            <label className="block text-sm font-medium text-text-primary dark:text-gray-100 mb-1.5">Priority</label>
+            <label className="block text-sm font-medium text-text-primary dark:text-gray-100 mb-1.5">Priority (optional)</label>
             <select
               value={editForm.priority}
               onChange={(e) => setEditForm({...editForm, priority: e.target.value})}
@@ -1420,7 +1420,7 @@ export default function ProjectDetail() {
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium text-text-primary dark:text-gray-100 mb-1.5">Assignees</label>
+            <label className="block text-sm font-medium text-text-primary dark:text-gray-100 mb-1.5">Assignees (optional)</label>
             <div className="max-h-32 overflow-y-auto border border-gray-300 dark:border-gray-600 rounded-organic">
               {teamMembers.map(u => (
                 <label key={u.id} className="flex items-center gap-2 px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer">

@@ -148,17 +148,14 @@ export default function Layout() {
               )}
             </NavLink>
           ))}
-        </nav>
-
-        <div className="absolute bottom-20 left-0 right-0 px-4">
           <a
             href="/"
-            className="flex items-center gap-2 px-4 py-2.5 text-sm text-text-secondary dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-organic transition-colors"
+            className="flex items-center gap-3 px-4 py-3 rounded-organic text-sm font-medium text-text-secondary dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 hover:text-primary-600 dark:hover:text-primary-400 transition-colors"
           >
-            <ExternalLink size={16} />
+            <ExternalLink size={20} />
             View Public Site
           </a>
-        </div>
+        </nav>
 
         <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-gray-100 dark:border-gray-700">
           <div className="flex items-center gap-3 px-4 py-3">

@@ -124,7 +124,10 @@ export function DailyView({
             <div
               key={hour}
               onClick={(e) => handleTimeClick(e, hour)}
-              onMouseDown={(e) => onMouseDown(e)}
+              onMouseDown={(e) => {
+                if ((e.target as HTMLElement).closest('[data-event-block]')) return;
+                onMouseDown(e);
+              }}
               className="absolute left-0 right-0 border-t border-gray-100 dark:border-gray-800 cursor-pointer hover:bg-indigo-50/30 dark:hover:bg-indigo-900/20"
               style={{ top: (hour - TIME_CONFIG.START_HOUR) * hourHeight, height: hourHeight }}
             />
