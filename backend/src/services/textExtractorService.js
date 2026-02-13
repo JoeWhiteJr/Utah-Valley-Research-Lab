@@ -1,4 +1,5 @@
 const fs = require('fs');
+const logger = require('../config/logger');
 
 /**
  * Extract text content from a file based on its MIME type.

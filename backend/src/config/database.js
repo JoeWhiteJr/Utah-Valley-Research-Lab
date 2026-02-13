@@ -1,5 +1,4 @@
 const { Pool } = require('pg');
-const pgvector = require('pgvector/pg');
 const logger = require('./logger');
 
 const pool = new Pool({
@@ -9,8 +8,15 @@ const pool = new Pool({
   connectionTimeoutMillis: 2000,
 });
 
-// Register pgvector type with pg
-pgvector.registerType(pool);
+// Register pgvector type with pg (non-blocking, won't crash if extension isn't available)
+try {
+  const pgvector = require('pgvector/pg');
+  pgvector.registerType(pool).catch(() => {
+    logger.warn('pgvector extension not available — RAG features disabled');
+  });
+} catch {
+  logger.warn('pgvector module not loaded — RAG features disabled');
+}
 
 pool.on('error', (err) => {
   logger.error({ err }, 'Unexpected database pool error');
