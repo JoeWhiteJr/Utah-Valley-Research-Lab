@@ -110,6 +110,7 @@ export default function Chat() {
   const [mediaViewerRoomId, setMediaViewerRoomId] = useState(null)
   const [showArchived, setShowArchived] = useState(false)
   const [showBlockConfirm, setShowBlockConfirm] = useState(null)
+  const [showMembersModal, setShowMembersModal] = useState(false)
   const [memberSearchQuery, setMemberSearchQuery] = useState('')
   const [allProjects, setAllProjects] = useState([])
   const [selectedProjectId, setSelectedProjectId] = useState('')
@@ -681,22 +682,43 @@ export default function Chat() {
                 >
                   <ArrowLeft size={20} />
                 </button>
-                <ChatRoomAvatar room={currentRoom} currentUserId={user?.id} size={36} />
-                <div>
-                  <h2 className="font-semibold dark:text-gray-100">
-                    {currentRoom.type === 'direct'
-                      ? (currentRoom.members?.find(m => m.id !== user?.id)?.name || 'Chat')
-                      : (currentRoom.name || 'Group Chat')
-                    }
-                  </h2>
-                  <p className="text-xs text-text-secondary dark:text-gray-400">
-                    {currentRoom.members?.length || 0} members
-                    {(() => {
-                      const onlineCount = currentRoom.members?.filter(m => onlineUserIds.includes(m.id)).length || 0
-                      return onlineCount > 0 ? ` \u00b7 ${onlineCount} online` : ''
-                    })()}
-                  </p>
-                </div>
+                {currentRoom.type !== 'direct' ? (
+                  <button
+                    onClick={() => setShowMembersModal(true)}
+                    className="flex items-center gap-3 hover:opacity-80 transition-opacity cursor-pointer text-left"
+                    title="View members"
+                  >
+                    <ChatRoomAvatar room={currentRoom} currentUserId={user?.id} size={36} />
+                    <div>
+                      <h2 className="font-semibold dark:text-gray-100">
+                        {currentRoom.name || 'Group Chat'}
+                      </h2>
+                      <p className="text-xs text-text-secondary dark:text-gray-400">
+                        {currentRoom.members?.length || 0} members
+                        {(() => {
+                          const onlineCount = currentRoom.members?.filter(m => onlineUserIds.includes(m.id)).length || 0
+                          return onlineCount > 0 ? ` · ${onlineCount} online` : ''
+                        })()}
+                      </p>
+                    </div>
+                  </button>
+                ) : (
+                  <div className="flex items-center gap-3">
+                    <ChatRoomAvatar room={currentRoom} currentUserId={user?.id} size={36} />
+                    <div>
+                      <h2 className="font-semibold dark:text-gray-100">
+                        {currentRoom.members?.find(m => m.id !== user?.id)?.name || 'Chat'}
+                      </h2>
+                      <p className="text-xs text-text-secondary dark:text-gray-400">
+                        {currentRoom.members?.length || 0} members
+                        {(() => {
+                          const onlineCount = currentRoom.members?.filter(m => onlineUserIds.includes(m.id)).length || 0
+                          return onlineCount > 0 ? ` · ${onlineCount} online` : ''
+                        })()}
+                      </p>
+                    </div>
+                  </div>
+                )}
               </div>
               <div className="flex items-center gap-1.5">
                 <button
@@ -1184,6 +1206,51 @@ export default function Chat() {
           <Button variant="danger" onClick={confirmBlockUser}>
             Block User
           </Button>
+        </div>
+      </Modal>
+
+      {/* Members Modal */}
+      <Modal
+        isOpen={showMembersModal}
+        onClose={() => setShowMembersModal(false)}
+        title={`${currentRoom?.name || 'Chat'} — ${currentRoom?.members?.length || 0} members`}
+        size="md"
+      >
+        <div className="max-h-96 overflow-y-auto -mx-2">
+          {currentRoom?.members?.map(member => {
+            const isOnline = onlineUserIds.includes(member.id)
+            const isCurrentUser = member.id === user?.id
+            const initials = (member.name || '?').split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)
+            return (
+              <div key={member.id} className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                <div className="relative flex-shrink-0">
+                  {member.avatar_url ? (
+                    <img src={getUploadUrl(member.avatar_url)} alt={member.name} className="w-8 h-8 rounded-full object-cover" />
+                  ) : (
+                    <div className="w-8 h-8 rounded-full bg-primary-100 dark:bg-primary-900/30 flex items-center justify-center text-xs font-semibold text-primary-700 dark:text-primary-300">
+                      {initials}
+                    </div>
+                  )}
+                  {isOnline && (
+                    <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-500 border-2 border-white dark:border-gray-800 rounded-full" />
+                  )}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <span className="font-medium text-sm dark:text-gray-100 truncate">
+                    {member.name}
+                    {isCurrentUser && <span className="ml-1 text-text-secondary dark:text-gray-400 font-normal">(You)</span>}
+                  </span>
+                </div>
+                <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                  member.role === 'admin'
+                    ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
+                    : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400'
+                }`}>
+                  {member.role === 'admin' ? 'Admin' : 'Member'}
+                </span>
+              </div>
+            )
+          })}
         </div>
       </Modal>
 
