@@ -222,9 +222,9 @@ export default function MyDashboard() {
       {/* AI Daily Plan title (standalone above grid) */}
       <h2 className="font-display font-bold text-xl text-text-primary dark:text-gray-100">AI Daily Plan</h2>
 
-      {/* Row 2: DailyPlanCard (left) + Tasks & Projects (right) */}
+      {/* Main grid: Plan + Calendar (left) | Tasks & Projects (right) */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
-        <div className="lg:col-span-2">
+        <div className="lg:col-span-2 space-y-6">
           {plan ? (
             <DailyPlanCard
               plan={plan}
@@ -239,6 +239,18 @@ export default function MyDashboard() {
               isGenerating={isGenerating}
             />
           )}
+
+          {/* Weekly Review (expanded view when exists) */}
+          {weeklyReview && (
+            <WeeklyReviewCard
+              review={weeklyReview}
+              onGenerate={generateWeeklyReview}
+              isGenerating={isGenerating && !plan}
+            />
+          )}
+
+          {/* Calendar */}
+          <CalendarView scope="dashboard" compact />
         </div>
         <div className="space-y-6">
           {/* Collapsible My Tasks */}
@@ -555,18 +567,6 @@ export default function MyDashboard() {
           </section>
         </div>
       </div>
-
-      {/* Weekly Review (expanded view when exists) */}
-      {weeklyReview && (
-        <WeeklyReviewCard
-          review={weeklyReview}
-          onGenerate={generateWeeklyReview}
-          isGenerating={isGenerating && !plan}
-        />
-      )}
-
-      {/* Calendar — full width */}
-      <CalendarView scope="dashboard" compact />
     </div>
   )
 }
