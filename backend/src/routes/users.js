@@ -186,6 +186,52 @@ router.get('/streak', authenticate, async (req, res, next) => {
   }
 });
 
+// Get blocked users list
+router.get('/blocks', authenticate, async (req, res, next) => {
+  try {
+    const result = await db.query(
+      `SELECT ub.id, ub.blocked_id, ub.created_at, u.name, u.avatar_url
+       FROM user_blocks ub
+       JOIN users u ON ub.blocked_id = u.id
+       WHERE ub.blocker_id = $1
+       ORDER BY ub.created_at DESC`,
+      [req.user.id]
+    );
+    res.json({ blocks: result.rows });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Block a user
+router.post('/:userId/block', authenticate, async (req, res, next) => {
+  try {
+    if (req.params.userId === req.user.id) {
+      return res.status(400).json({ error: { message: 'Cannot block yourself' } });
+    }
+    await db.query(
+      'INSERT INTO user_blocks (blocker_id, blocked_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+      [req.user.id, req.params.userId]
+    );
+    res.json({ message: 'User blocked' });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Unblock a user
+router.delete('/:userId/block', authenticate, async (req, res, next) => {
+  try {
+    await db.query(
+      'DELETE FROM user_blocks WHERE blocker_id = $1 AND blocked_id = $2',
+      [req.user.id, req.params.userId]
+    );
+    res.json({ message: 'User unblocked' });
+  } catch (error) {
+    next(error);
+  }
+});
+
 // Get user by ID
 router.get('/:id', authenticate, async (req, res, next) => {
   try {

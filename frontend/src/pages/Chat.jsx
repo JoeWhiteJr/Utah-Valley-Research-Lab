@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { useParams, useNavigate, Link } from 'react-router-dom'
+import { useParams, useNavigate } from 'react-router-dom'
 import { useChatStore } from '../store/chatStore'
 import { useAuthStore } from '../store/authStore'
-import { usersApi, getUploadUrl, fetchAuthenticatedBlobUrl } from '../services/api'
+import { usersApi, getUploadUrl, fetchAuthenticatedBlobUrl, projectsApi } from '../services/api'
 import socket from '../services/socket'
 import Modal from '../components/Modal'
 import Button from '../components/Button'
@@ -12,10 +12,14 @@ import ChatFileUpload, { FileAttachment, LinkPreview } from '../components/chat/
 import EmojiPicker from '../components/chat/EmojiPicker'
 import MessageReactions from '../components/chat/MessageReactions'
 import MentionAutocomplete from '../components/chat/MentionAutocomplete'
+import ChatRoomItem from '../components/chat/ChatRoomItem'
+import ChatRoomAvatar from '../components/chat/ChatRoomAvatar'
+import ChatSearchBar from '../components/chat/ChatSearchBar'
+import MediaViewer from '../components/chat/MediaViewer'
 import { useChatNotifications } from '../components/chat/useChatNotifications'
 import { chatApi } from '../services/api'
 import { toast } from '../store/toastStore'
-import { MessageCircle, Plus, Sparkles, Send, Trash2, Smile, Pencil, Reply, X, ArrowLeft } from 'lucide-react'
+import { MessageCircle, Plus, Sparkles, Send, Trash2, Smile, Pencil, Reply, X, ArrowLeft, Search, Image, Archive } from 'lucide-react'
 import { format, isToday, isYesterday, formatDistanceToNow } from 'date-fns'
 
 // Detect URLs in text
@@ -69,10 +73,11 @@ export default function Chat() {
   const { roomId } = useParams()
   const navigate = useNavigate()
   const {
-    rooms, currentRoom, messages, readReceipts, hasMore, isLoading,
+    rooms, archivedRooms, currentRoom, messages, readReceipts, hasMore, isLoading,
     fetchRooms, fetchRoom, fetchMessages, sendMessage, deleteMessage, markRead,
     clearCurrentRoom, createRoom, summarizeChat,
-    toggleReaction, sendAudioMessage, sendFileMessage, deleteRoom
+    toggleReaction, sendAudioMessage, sendFileMessage, deleteRoom,
+    toggleMute, markUnread, togglePin, toggleArchive, fetchArchivedRooms
   } = useChatStore()
   const { user } = useAuthStore()
 
@@ -101,6 +106,14 @@ export default function Chat() {
 
   const [typingUsers, setTypingUsers] = useState([])
   const [onlineUserIds, setOnlineUserIds] = useState([])
+  const [showSearchBar, setShowSearchBar] = useState(false)
+  const [showMediaViewer, setShowMediaViewer] = useState(false)
+  const [mediaViewerRoomId, setMediaViewerRoomId] = useState(null)
+  const [showArchived, setShowArchived] = useState(false)
+  const [showBlockConfirm, setShowBlockConfirm] = useState(null)
+  const [memberSearchQuery, setMemberSearchQuery] = useState('')
+  const [allProjects, setAllProjects] = useState([])
+  const [selectedProjectId, setSelectedProjectId] = useState('')
 
   // Mobile: track whether viewing room list or conversation
   const [mobileShowChat, setMobileShowChat] = useState(false)
@@ -173,9 +186,15 @@ export default function Chat() {
     setChatName('')
     setChatType('group')
     setSelectedMembers([])
+    setMemberSearchQuery('')
+    setSelectedProjectId('')
     try {
-      const { data } = await usersApi.team()
-      setAllUsers(data.users.filter(u => u.id !== user.id))
+      const [usersRes, projectsRes] = await Promise.all([
+        usersApi.team(),
+        projectsApi.list('active').catch(() => ({ data: { projects: [] } }))
+      ])
+      setAllUsers(usersRes.data.users.filter(u => u.id !== user.id))
+      setAllProjects(projectsRes.data.projects || [])
     } catch {
       toast.error('Failed to load users')
     }
@@ -191,8 +210,16 @@ export default function Chat() {
       return
     }
 
+    // Auto-detect type: 1 member = DM, 2+ = group
+    const autoType = selectedMembers.length === 1 ? 'direct' : 'group'
+
     setIsCreating(true)
-    const room = await createRoom(chatType, selectedMembers, chatName || undefined)
+    const room = await createRoom(
+      autoType,
+      selectedMembers,
+      autoType === 'group' ? (chatName || undefined) : undefined,
+      autoType === 'group' ? (selectedProjectId || undefined) : undefined
+    )
     setIsCreating(false)
 
     if (room) {
@@ -446,13 +473,106 @@ export default function Chat() {
     setMobileShowChat(false)
   }
 
+  // New feature handlers
+  const handleRoomNavigate = (id) => {
+    navigate(`/dashboard/chat/${id}`)
+  }
+
+  const handleRoomPin = async (id) => {
+    await togglePin(id)
+  }
+
+  const handleRoomMute = async (id) => {
+    const muted = await toggleMute(id)
+    if (muted !== null) toast.success(muted ? 'Chat muted' : 'Chat unmuted')
+  }
+
+  const handleRoomMarkUnread = async (id) => {
+    await markUnread(id)
+  }
+
+  const handleRoomArchive = async (id) => {
+    const archived = await toggleArchive(id)
+    if (archived) {
+      toast.success('Chat archived')
+      if (roomId === id) navigate('/dashboard/chat')
+    } else {
+      toast.success('Chat unarchived')
+    }
+  }
+
+  const handleRoomMediaViewer = (id) => {
+    setMediaViewerRoomId(id)
+    setShowMediaViewer(true)
+  }
+
+  const handleBlockUser = (userId) => {
+    setShowBlockConfirm(userId)
+  }
+
+  const confirmBlockUser = async () => {
+    if (!showBlockConfirm) return
+    try {
+      await usersApi.blockUser(showBlockConfirm)
+      toast.success('User blocked')
+      setShowBlockConfirm(null)
+      fetchRooms() // Refresh to hide blocked DM
+      if (currentRoom?.type === 'direct') {
+        navigate('/dashboard/chat')
+      }
+    } catch {
+      toast.error('Failed to block user')
+    }
+  }
+
+  const handleRoomDelete = async (id) => {
+    const success = await deleteRoom(id)
+    if (success) {
+      toast.success('Chat deleted')
+      if (roomId === id) navigate('/dashboard/chat')
+    }
+  }
+
+  const handleSearchResultClick = (msg) => {
+    // Scroll to message in the chat
+    const el = document.getElementById(`msg-${msg.id}`)
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      el.classList.add('bg-yellow-50', 'dark:bg-yellow-900/20')
+      setTimeout(() => el.classList.remove('bg-yellow-50', 'dark:bg-yellow-900/20'), 2000)
+    }
+  }
+
+  const handleToggleArchived = async () => {
+    if (!showArchived) await fetchArchivedRooms()
+    setShowArchived(!showArchived)
+  }
+
+  const filteredUsers = allUsers.filter(u =>
+    u.name?.toLowerCase().includes(memberSearchQuery.toLowerCase())
+  )
+
+  // Split rooms into pinned and regular
+  const pinnedRooms = rooms.filter(r => r.pinned_at)
+  const regularRooms = rooms.filter(r => !r.pinned_at)
+  const displayRooms = showArchived ? archivedRooms : rooms
+
   return (
     <div className="h-[calc(100vh-7rem)] flex bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
       {/* Sidebar - Room list */}
       <div className={`w-full lg:w-80 border-r border-gray-200 dark:border-gray-700 flex flex-col ${mobileShowChat ? 'hidden lg:flex' : 'flex'}`}>
         <div className="p-4 border-b border-gray-200 dark:border-gray-700 font-semibold flex items-center justify-between dark:text-gray-100">
-          <span>Messages</span>
-          {isAdmin && (
+          <span>{showArchived ? 'Archived' : 'Messages'}</span>
+          <div className="flex items-center gap-1">
+            {showArchived && (
+              <button
+                onClick={() => setShowArchived(false)}
+                className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-text-secondary dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400"
+                title="Back to messages"
+              >
+                <ArrowLeft size={20} />
+              </button>
+            )}
             <button
               onClick={handleOpenCreate}
               className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-text-secondary dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400"
@@ -460,39 +580,93 @@ export default function Chat() {
             >
               <Plus size={20} />
             </button>
-          )}
+          </div>
         </div>
         <div className="flex-1 overflow-y-auto">
-          {rooms.length === 0 ? (
+          {showArchived ? (
+            archivedRooms.length === 0 ? (
+              <div className="p-4 text-center text-sm text-text-secondary dark:text-gray-400">No archived conversations</div>
+            ) : (
+              archivedRooms.map((room) => (
+                <ChatRoomItem
+                  key={room.id}
+                  room={room}
+                  isActive={currentRoom?.id === room.id}
+                  currentUserId={user?.id}
+                  isAdmin={isAdmin}
+                  onNavigate={handleRoomNavigate}
+                  onPin={handleRoomPin}
+                  onMute={handleRoomMute}
+                  onMarkUnread={handleRoomMarkUnread}
+                  onArchive={handleRoomArchive}
+                  onMediaViewer={handleRoomMediaViewer}
+                  onBlock={handleBlockUser}
+                  onDelete={handleRoomDelete}
+                />
+              ))
+            )
+          ) : rooms.length === 0 ? (
             <div className="p-4 text-center text-sm text-text-secondary dark:text-gray-400">No conversations yet</div>
           ) : (
-            rooms.map((room) => (
-              <Link
-                key={room.id}
-                to={`/dashboard/chat/${room.id}`}
-                className={`block px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-700 border-b border-gray-100 dark:border-gray-700 ${currentRoom?.id === room.id ? 'bg-primary-50 dark:bg-primary-900/30' : ''}`}
-              >
-                <div className="flex items-center justify-between">
-                  <div className="font-medium text-sm truncate flex items-center gap-1.5 dark:text-gray-100">
-                    {room.name || 'Chat'}
-                    {onlineUserIds.some(uid => room.members?.some(m => m.user_id === uid && uid !== user?.id)) && (
-                      <span className="w-2 h-2 rounded-full bg-green-400 flex-shrink-0"></span>
-                    )}
+            <>
+              {pinnedRooms.length > 0 && (
+                <>
+                  <div className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 bg-gray-50 dark:bg-gray-800/50">
+                    Pinned
                   </div>
-                  {room.unread_count > 0 && (
-                    <span className="ml-2 px-1.5 py-0.5 text-xs bg-primary-500 text-white rounded-full min-w-[20px] text-center">
-                      {room.unread_count}
-                    </span>
-                  )}
+                  {pinnedRooms.map((room) => (
+                    <ChatRoomItem
+                      key={room.id}
+                      room={room}
+                      isActive={currentRoom?.id === room.id}
+                      currentUserId={user?.id}
+                      isAdmin={isAdmin}
+                      onNavigate={handleRoomNavigate}
+                      onPin={handleRoomPin}
+                      onMute={handleRoomMute}
+                      onMarkUnread={handleRoomMarkUnread}
+                      onArchive={handleRoomArchive}
+                      onMediaViewer={handleRoomMediaViewer}
+                      onBlock={handleBlockUser}
+                      onDelete={handleRoomDelete}
+                    />
+                  ))}
+                </>
+              )}
+              {regularRooms.length > 0 && pinnedRooms.length > 0 && (
+                <div className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 bg-gray-50 dark:bg-gray-800/50">
+                  Recent
                 </div>
-                <div className="text-xs text-text-secondary dark:text-gray-400 truncate mt-0.5">
-                  {room.last_message?.sender_name && <span className="font-medium">{room.last_message.sender_name}: </span>}
-                  {room.last_message?.content || 'No messages yet'}
-                </div>
-              </Link>
-            ))
+              )}
+              {regularRooms.map((room) => (
+                <ChatRoomItem
+                  key={room.id}
+                  room={room}
+                  isActive={currentRoom?.id === room.id}
+                  currentUserId={user?.id}
+                  isAdmin={isAdmin}
+                  onNavigate={handleRoomNavigate}
+                  onPin={handleRoomPin}
+                  onMute={handleRoomMute}
+                  onMarkUnread={handleRoomMarkUnread}
+                  onArchive={handleRoomArchive}
+                  onMediaViewer={handleRoomMediaViewer}
+                  onBlock={handleBlockUser}
+                  onDelete={handleRoomDelete}
+                />
+              ))}
+            </>
           )}
         </div>
+        {!showArchived && (
+          <button
+            onClick={handleToggleArchived}
+            className="px-4 py-2.5 border-t border-gray-200 dark:border-gray-700 text-sm text-text-secondary dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2"
+          >
+            <Archive size={16} />
+            Archived chats
+          </button>
+        )}
       </div>
 
       {/* Main chat area */}
@@ -510,18 +684,38 @@ export default function Chat() {
                 >
                   <ArrowLeft size={20} />
                 </button>
+                <ChatRoomAvatar room={currentRoom} currentUserId={user?.id} size={36} />
                 <div>
-                  <h2 className="font-semibold dark:text-gray-100">{currentRoom.name || 'Chat'}</h2>
+                  <h2 className="font-semibold dark:text-gray-100">
+                    {currentRoom.type === 'direct'
+                      ? (currentRoom.members?.find(m => m.id !== user?.id)?.name || 'Chat')
+                      : (currentRoom.name || 'Group Chat')
+                    }
+                  </h2>
                   <p className="text-xs text-text-secondary dark:text-gray-400">
                     {currentRoom.members?.length || 0} members
                     {(() => {
-                      const onlineCount = currentRoom.members?.filter(m => onlineUserIds.includes(m.user_id)).length || 0
+                      const onlineCount = currentRoom.members?.filter(m => onlineUserIds.includes(m.id)).length || 0
                       return onlineCount > 0 ? ` \u00b7 ${onlineCount} online` : ''
                     })()}
                   </p>
                 </div>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5">
+                <button
+                  onClick={() => setShowSearchBar(!showSearchBar)}
+                  className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-text-secondary dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400"
+                  title="Search messages"
+                >
+                  <Search size={18} />
+                </button>
+                <button
+                  onClick={() => handleRoomMediaViewer(currentRoom.id)}
+                  className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-text-secondary dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400"
+                  title="Media & Files"
+                >
+                  <Image size={18} />
+                </button>
                 <Button
                   variant="secondary"
                   size="sm"
@@ -544,6 +738,15 @@ export default function Chat() {
                 )}
               </div>
             </div>
+
+            {/* Search bar (conditionally shown) */}
+            {showSearchBar && (
+              <ChatSearchBar
+                roomId={currentRoom.id}
+                onClose={() => setShowSearchBar(false)}
+                onResultClick={handleSearchResultClick}
+              />
+            )}
 
             {/* Messages area */}
             <div ref={messagesContainerRef} className="flex-1 overflow-y-auto p-4 space-y-3 dark:bg-gray-900">
@@ -585,7 +788,23 @@ export default function Chat() {
                 const isEditing = editingMessage?.id === msg.id
 
                 return (
-                  <div key={msg.id} className={`flex ${isOwn ? 'justify-end' : 'justify-start'}`}>
+                  <div key={msg.id} id={`msg-${msg.id}`} className={`flex ${isOwn ? 'justify-end' : 'justify-start'} transition-colors duration-500`}>
+                    {/* Avatar for non-own messages */}
+                    {!isOwn && (
+                      <div className="flex-shrink-0 mr-2 mt-5">
+                        {msg.sender_avatar ? (
+                          <img
+                            src={getUploadUrl(msg.sender_avatar)}
+                            alt={msg.sender_name}
+                            className="w-8 h-8 rounded-full object-cover"
+                          />
+                        ) : (
+                          <div className="w-8 h-8 rounded-full bg-gray-300 dark:bg-gray-600 flex items-center justify-center text-xs font-semibold text-white">
+                            {msg.sender_name?.charAt(0)?.toUpperCase() || '?'}
+                          </div>
+                        )}
+                      </div>
+                    )}
                     <div className={`max-w-[70%] group ${isOwn ? 'items-end' : 'items-start'}`}>
                       {!isOwn && (
                         <p className="text-xs font-medium text-text-secondary dark:text-gray-400 mb-1 px-1">
@@ -823,30 +1042,35 @@ export default function Chat() {
       {/* Create Chat Modal */}
       <Modal isOpen={showCreateModal} onClose={() => setShowCreateModal(false)} title="New Chat">
         <form onSubmit={handleCreateChat} className="space-y-5">
-          <Input
-            label="Chat Name"
-            value={chatName}
-            onChange={(e) => setChatName(e.target.value)}
-            placeholder="e.g., Project Discussion"
-          />
-          <div>
-            <label className="block text-sm font-medium text-text-primary dark:text-gray-100 mb-1.5">Type</label>
-            <select
-              value={chatType}
-              onChange={(e) => setChatType(e.target.value)}
-              className="w-full px-4 py-2.5 rounded-organic border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-text-primary dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-primary-300"
-            >
-              <option value="direct">Direct Message</option>
-              <option value="group">Group Chat</option>
-            </select>
-          </div>
           <div>
             <label className="block text-sm font-medium text-text-primary dark:text-gray-100 mb-1.5">Members</label>
-            <div className="max-h-48 overflow-y-auto border border-gray-300 dark:border-gray-600 rounded-organic">
-              {allUsers.map((u) => (
+            <input
+              type="text"
+              value={memberSearchQuery}
+              onChange={(e) => setMemberSearchQuery(e.target.value)}
+              placeholder="Search members..."
+              className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-text-primary dark:text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-primary-300 mb-2"
+            />
+            {selectedMembers.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 mb-2">
+                {selectedMembers.map(id => {
+                  const u = allUsers.find(u => u.id === id)
+                  return u ? (
+                    <span key={id} className="inline-flex items-center gap-1 px-2 py-1 bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300 rounded-full text-xs">
+                      {u.name}
+                      <button type="button" onClick={() => toggleMember(id)} className="hover:text-primary-900 dark:hover:text-primary-100">
+                        <X size={12} />
+                      </button>
+                    </span>
+                  ) : null
+                })}
+              </div>
+            )}
+            <div className="max-h-48 overflow-y-auto border border-gray-300 dark:border-gray-600 rounded-lg">
+              {filteredUsers.map((u) => (
                 <label
                   key={u.id}
-                  className="flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer"
+                  className="flex items-center gap-3 px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer"
                 >
                   <input
                     type="checkbox"
@@ -854,12 +1078,53 @@ export default function Chat() {
                     onChange={() => toggleMember(u.id)}
                     className="rounded border-gray-300 dark:border-gray-600 text-primary-600 focus:ring-primary-300"
                   />
-                  <span className="text-sm dark:text-gray-100">{u.name}</span>
-                  <span className="text-xs text-text-secondary dark:text-gray-400 capitalize ml-auto">{u.role?.replace(/_/g, ' ')}</span>
+                  <div className="flex items-center gap-2 flex-1 min-w-0">
+                    {u.avatar_url ? (
+                      <img src={getUploadUrl(u.avatar_url)} alt="" className="w-6 h-6 rounded-full object-cover" />
+                    ) : (
+                      <div className="w-6 h-6 rounded-full bg-gray-300 dark:bg-gray-600 flex items-center justify-center text-[10px] font-semibold text-white">
+                        {u.name?.charAt(0)?.toUpperCase()}
+                      </div>
+                    )}
+                    <span className="text-sm dark:text-gray-100 truncate">{u.name}</span>
+                  </div>
+                  <span className="text-xs text-text-secondary dark:text-gray-400 capitalize">{u.role?.replace(/_/g, ' ')}</span>
                 </label>
               ))}
+              {filteredUsers.length === 0 && (
+                <div className="p-3 text-center text-sm text-gray-400 dark:text-gray-500">No users found</div>
+              )}
             </div>
+            <p className="text-xs text-text-secondary dark:text-gray-400 mt-1.5">
+              {selectedMembers.length === 1 ? 'Direct message' : selectedMembers.length > 1 ? 'Group chat' : 'Select members'}
+            </p>
           </div>
+
+          {selectedMembers.length > 1 && (
+            <>
+              <Input
+                label="Group Name"
+                value={chatName}
+                onChange={(e) => setChatName(e.target.value)}
+                placeholder="e.g., Project Discussion"
+              />
+              {allProjects.length > 0 && (
+                <div>
+                  <label className="block text-sm font-medium text-text-primary dark:text-gray-100 mb-1.5">Link to Project (optional)</label>
+                  <select
+                    value={selectedProjectId}
+                    onChange={(e) => setSelectedProjectId(e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-text-primary dark:text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-primary-300"
+                  >
+                    <option value="">No project</option>
+                    {allProjects.map(p => (
+                      <option key={p.id} value={p.id}>{p.title}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+            </>
+          )}
 
           {createError && (
             <div className="p-3 rounded-lg text-sm bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400">
@@ -869,7 +1134,9 @@ export default function Chat() {
 
           <div className="flex justify-end gap-3 pt-2">
             <Button type="button" variant="secondary" onClick={() => setShowCreateModal(false)}>Cancel</Button>
-            <Button type="submit" loading={isCreating}>Create Chat</Button>
+            <Button type="submit" loading={isCreating}>
+              {selectedMembers.length === 1 ? 'Start Chat' : 'Create Group'}
+            </Button>
           </div>
         </form>
       </Modal>
@@ -909,6 +1176,26 @@ export default function Chat() {
           </Button>
         </div>
       </Modal>
+
+      {/* Block User Confirmation Modal */}
+      <Modal isOpen={!!showBlockConfirm} onClose={() => setShowBlockConfirm(null)} title="Block User" size="sm">
+        <p className="text-text-secondary dark:text-gray-400 mb-4">
+          Are you sure you want to block this user? You will no longer see DMs from them.
+        </p>
+        <div className="flex justify-end gap-3">
+          <Button variant="secondary" onClick={() => setShowBlockConfirm(null)}>Cancel</Button>
+          <Button variant="danger" onClick={confirmBlockUser}>
+            Block User
+          </Button>
+        </div>
+      </Modal>
+
+      {/* Media Viewer Modal */}
+      <MediaViewer
+        roomId={mediaViewerRoomId}
+        isOpen={showMediaViewer}
+        onClose={() => { setShowMediaViewer(false); setMediaViewerRoomId(null) }}
+      />
     </div>
   )
 }

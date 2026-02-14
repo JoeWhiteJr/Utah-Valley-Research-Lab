@@ -185,6 +185,9 @@ export const usersApi = {
   getPreferences: () => api.get('/users/preferences'),
   updatePreferences: (data) => api.put('/users/preferences', data),
   getStreak: () => api.get('/users/streak'),
+  blockUser: (userId) => api.post(`/users/${userId}/block`),
+  unblockUser: (userId) => api.delete(`/users/${userId}/block`),
+  getBlocks: () => api.get('/users/blocks'),
   uploadAvatar: (file) => {
     const formData = new FormData()
     formData.append('avatar', file)
@@ -212,6 +215,20 @@ export const chatApi = {
     api.delete(`/chats/${roomId}/members/${userId}`),
   markRead: (roomId) => api.put(`/chats/${roomId}/read`),
   deleteRoom: (roomId) => api.delete(`/chats/${roomId}`),
+  toggleMute: (roomId) => api.put(`/chats/${roomId}/mute`),
+  markUnread: (roomId) => api.put(`/chats/${roomId}/mark-unread`),
+  togglePin: (roomId) => api.put(`/chats/${roomId}/pin`),
+  toggleArchive: (roomId) => api.put(`/chats/${roomId}/archive`),
+  searchMessages: (roomId, query) => api.get(`/chats/${roomId}/messages/search`, { params: { q: query } }),
+  getMedia: (roomId, type) => api.get(`/chats/${roomId}/media`, { params: { type } }),
+  listArchivedRooms: () => api.get('/chats', { params: { archived: true } }),
+  uploadRoomImage: (roomId, file) => {
+    const formData = new FormData()
+    formData.append('image', file)
+    return api.post(`/chats/${roomId}/image`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    })
+  },
   // Reactions
   toggleReaction: (roomId, messageId, emoji) =>
     api.post(`/chats/${roomId}/messages/${messageId}/reactions`, { emoji }),
