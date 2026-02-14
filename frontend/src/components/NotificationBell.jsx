@@ -49,8 +49,8 @@ export default function NotificationBell() {
       navigate('/dashboard/admin')
     } else if (n.reference_type === 'project' && n.reference_id) {
       navigate(`/dashboard/projects/${n.reference_id}`)
-    } else if ((n.reference_type === 'message' || n.reference_type === 'chat') && n.reference_id) {
-      navigate('/dashboard/chat')
+    } else if ((n.reference_type === 'message' || n.reference_type === 'chat' || n.reference_type === 'chat_message' || n.reference_type === 'chat_room') && n.reference_id) {
+      navigate(`/dashboard/chat/${n.reference_id}`)
     } else if (n.reference_id) {
       // Default: try to navigate to project if we have a reference_id
       navigate(`/dashboard/projects/${n.reference_id}`)

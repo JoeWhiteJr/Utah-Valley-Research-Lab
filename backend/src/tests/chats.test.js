@@ -52,17 +52,20 @@ describe('Chats API', () => {
       roomId = res.body.room.id;
     });
 
-    it('should prevent non-admin from creating group chat', async () => {
+    it('should allow non-admin to create group chat', async () => {
       const res = await request(app)
         .post('/api/chats')
         .set('Authorization', `Bearer ${memberUser.token}`)
         .send({
           type: 'group',
-          name: 'Should Fail',
+          name: 'Member Created Chat',
           memberIds: [adminUser.id]
         });
 
-      expect(res.status).toBe(403);
+      expect(res.status).toBe(201);
+      expect(res.body.room).toBeDefined();
+      expect(res.body.room.name).toBe('Member Created Chat');
+      expect(res.body.room.type).toBe('group');
     });
 
     it('should reject invalid data', async () => {

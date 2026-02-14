@@ -57,11 +57,20 @@ router.get('/', authenticate, async (req, res, next) => {
   try {
     const limit = Math.min(parseInt(req.query.limit) || 50, 100);
     const offset = Math.max(parseInt(req.query.offset) || 0, 0);
+    const showArchived = req.query.archived === 'true';
+
+    const archiveFilter = showArchived ? 'AND cm.archived_at IS NOT NULL' : 'AND cm.archived_at IS NULL';
+    const blockFilter = `AND NOT EXISTS (
+      SELECT 1 FROM user_blocks ub
+      WHERE cr.type = 'direct'
+      AND ((ub.blocker_id = $1 AND ub.blocked_id IN (SELECT cm3.user_id FROM chat_members cm3 WHERE cm3.room_id = cr.id AND cm3.user_id != $1))
+        OR (ub.blocked_id = $1 AND ub.blocker_id IN (SELECT cm3.user_id FROM chat_members cm3 WHERE cm3.room_id = cr.id AND cm3.user_id != $1)))
+    )`;
 
     const countResult = await db.query(
       `SELECT COUNT(*) FROM chat_rooms cr
        JOIN chat_members cm ON cr.id = cm.room_id
-       WHERE cm.user_id = $1 AND cr.deleted_at IS NULL`,
+       WHERE cm.user_id = $1 AND cr.deleted_at IS NULL ${archiveFilter} ${blockFilter}`,
       [req.user.id]
     );
     const total = parseInt(countResult.rows[0].count);
@@ -70,6 +79,10 @@ router.get('/', authenticate, async (req, res, next) => {
       SELECT
         cr.*,
         cm.last_read_at,
+        cm.muted,
+        cm.pinned_at,
+        cm.archived_at,
+        cm.marked_unread,
         (
           SELECT COUNT(*)
           FROM messages m
@@ -87,7 +100,7 @@ router.get('/', authenticate, async (req, res, next) => {
           LIMIT 1
         ) as last_message,
         (
-          SELECT json_agg(json_build_object('id', u.id, 'name', u.name, 'role', cm2.role))
+          SELECT json_agg(json_build_object('id', u.id, 'name', u.name, 'role', cm2.role, 'avatar_url', u.avatar_url))
           FROM chat_members cm2
           JOIN users u ON cm2.user_id = u.id
           WHERE cm2.room_id = cr.id
@@ -96,9 +109,12 @@ router.get('/', authenticate, async (req, res, next) => {
       JOIN chat_members cm ON cr.id = cm.room_id
       WHERE cm.user_id = $1
         AND cr.deleted_at IS NULL
-      ORDER BY (
-        SELECT MAX(m.created_at) FROM messages m WHERE m.room_id = cr.id
-      ) DESC NULLS LAST
+        ${archiveFilter}
+        ${blockFilter}
+      ORDER BY
+        CASE WHEN cm.pinned_at IS NOT NULL THEN 0 ELSE 1 END,
+        cm.pinned_at ASC NULLS LAST,
+        (SELECT MAX(m.created_at) FROM messages m WHERE m.room_id = cr.id) DESC NULLS LAST
       LIMIT $2 OFFSET $3
     `, [req.user.id, limit, offset]);
 
@@ -113,7 +129,8 @@ router.post('/', authenticate, [
   body('type').isIn(['direct', 'group']),
   body('name').optional().trim(),
   body('memberIds').isArray({ min: 1 }),
-  body('memberIds.*').isUUID()
+  body('memberIds.*').isUUID(),
+  body('projectId').optional().isUUID()
 ], async (req, res, next) => {
   const client = await db.getClient();
   try {
@@ -122,19 +139,23 @@ router.post('/', authenticate, [
       return res.status(400).json({ error: { message: 'Validation failed', details: errors.array() } });
     }
 
-    const { type, name, memberIds } = req.body;
+    const { type, name, memberIds, projectId } = req.body;
 
-    // Only admins can create group chats
-    if (type === 'group' && req.user.role !== 'admin') {
-      return res.status(403).json({ error: { message: 'Only admins can create group chats' } });
-    }
-
-    // For direct chats, check if one already exists between these users
+    // For direct chats, check block status
     if (type === 'direct' && memberIds.length === 1) {
+      const blockCheck = await db.query(
+        'SELECT 1 FROM user_blocks WHERE (blocker_id = $1 AND blocked_id = $2) OR (blocker_id = $2 AND blocked_id = $1)',
+        [req.user.id, memberIds[0]]
+      );
+      if (blockCheck.rows.length > 0) {
+        return res.status(403).json({ error: { message: 'Cannot create DM with this user' } });
+      }
+
       const existingDirect = await db.query(`
         SELECT cr.id
         FROM chat_rooms cr
         WHERE cr.type = 'direct'
+          AND cr.deleted_at IS NULL
           AND EXISTS (SELECT 1 FROM chat_members WHERE room_id = cr.id AND user_id = $1)
           AND EXISTS (SELECT 1 FROM chat_members WHERE room_id = cr.id AND user_id = $2)
           AND (SELECT COUNT(*) FROM chat_members WHERE room_id = cr.id) = 2
@@ -145,7 +166,7 @@ router.post('/', authenticate, [
         const roomId = existingDirect.rows[0].id;
         const roomResult = await db.query(`
           SELECT cr.*,
-            (SELECT json_agg(json_build_object('id', u.id, 'name', u.name, 'role', cm.role))
+            (SELECT json_agg(json_build_object('id', u.id, 'name', u.name, 'role', cm.role, 'avatar_url', u.avatar_url))
              FROM chat_members cm JOIN users u ON cm.user_id = u.id WHERE cm.room_id = cr.id) as members
           FROM chat_rooms cr WHERE cr.id = $1
         `, [roomId]);
@@ -157,8 +178,8 @@ router.post('/', authenticate, [
 
     // Create the room
     const roomResult = await client.query(
-      'INSERT INTO chat_rooms (name, type, created_by) VALUES ($1, $2, $3) RETURNING *',
-      [name || null, type, req.user.id]
+      'INSERT INTO chat_rooms (name, type, created_by, project_id) VALUES ($1, $2, $3, $4) RETURNING *',
+      [name || null, type, req.user.id, projectId || null]
     );
     const room = roomResult.rows[0];
 
@@ -183,7 +204,7 @@ router.post('/', authenticate, [
     // Fetch complete room data
     const fullRoom = await db.query(`
       SELECT cr.*,
-        (SELECT json_agg(json_build_object('id', u.id, 'name', u.name, 'role', cm.role))
+        (SELECT json_agg(json_build_object('id', u.id, 'name', u.name, 'role', cm.role, 'avatar_url', u.avatar_url))
          FROM chat_members cm JOIN users u ON cm.user_id = u.id WHERE cm.room_id = cr.id) as members
       FROM chat_rooms cr WHERE cr.id = $1
     `, [room.id]);
@@ -224,7 +245,7 @@ router.get('/:id/messages', authenticate, [
     const before = req.query.before;
 
     let messagesQuery = `
-      SELECT m.*, u.name as sender_name,
+      SELECT m.*, u.name as sender_name, u.avatar_url as sender_avatar,
         CASE WHEN m.deleted_at IS NOT NULL THEN 'Message deleted' ELSE m.content END as content,
         rm.content as reply_to_content,
         rm.sender_id as reply_to_sender_id,
@@ -304,7 +325,7 @@ router.post('/:id/messages', authenticate, sanitizeBody('content'), [
     const result = await db.query(
       `INSERT INTO messages (room_id, sender_id, content, type, file_url, file_name, reply_to_id)
        VALUES ($1, $2, $3, $4, $5, $6, $7)
-       RETURNING *, (SELECT name FROM users WHERE id = $2) as sender_name`,
+       RETURNING *, (SELECT name FROM users WHERE id = $2) as sender_name, (SELECT avatar_url FROM users WHERE id = $2) as sender_avatar`,
       [req.params.id, req.user.id, content, type, file_url || null, file_name || null, reply_to_id || null]
     );
 
@@ -314,9 +335,9 @@ router.post('/:id/messages', authenticate, sanitizeBody('content'), [
     // Emit to room via socket for real-time update
     socketService.emitToRoom(req.params.id, 'new_message', result.rows[0]);
 
-    // Create notifications for other members
+    // Create notifications for other non-muted members
     const members = await db.query(
-      'SELECT user_id FROM chat_members WHERE room_id = $1 AND user_id != $2',
+      'SELECT user_id FROM chat_members WHERE room_id = $1 AND user_id != $2 AND muted = false',
       [req.params.id, req.user.id]
     );
 
@@ -501,7 +522,7 @@ router.post('/:id/audio', authenticate, chatUpload.single('audio'), async (req, 
     const result = await db.query(
       `INSERT INTO messages (room_id, sender_id, content, type, audio_url, audio_duration)
        VALUES ($1, $2, $3, $4, $5, $6)
-       RETURNING *, (SELECT name FROM users WHERE id = $2) as sender_name`,
+       RETURNING *, (SELECT name FROM users WHERE id = $2) as sender_name, (SELECT avatar_url FROM users WHERE id = $2) as sender_avatar`,
       [req.params.id, req.user.id, 'Audio message', 'audio', audioUrl, duration]
     );
 
@@ -511,9 +532,9 @@ router.post('/:id/audio', authenticate, chatUpload.single('audio'), async (req, 
     // Emit to room
     socketService.emitToRoom(req.params.id, 'new_message', result.rows[0]);
 
-    // Create notifications for other members
+    // Create notifications for other non-muted members
     const members = await db.query(
-      'SELECT user_id FROM chat_members WHERE room_id = $1 AND user_id != $2',
+      'SELECT user_id FROM chat_members WHERE room_id = $1 AND user_id != $2 AND muted = false',
       [req.params.id, req.user.id]
     );
     const senderName = result.rows[0].sender_name;
@@ -562,7 +583,7 @@ router.post('/:id/upload', authenticate, chatUpload.single('file'), async (req, 
     const result = await db.query(
       `INSERT INTO messages (room_id, sender_id, content, type, file_url, file_name)
        VALUES ($1, $2, $3, $4, $5, $6)
-       RETURNING *, (SELECT name FROM users WHERE id = $2) as sender_name`,
+       RETURNING *, (SELECT name FROM users WHERE id = $2) as sender_name, (SELECT avatar_url FROM users WHERE id = $2) as sender_avatar`,
       [req.params.id, req.user.id, fileName, 'file', fileUrl, fileName]
     );
 
@@ -572,9 +593,9 @@ router.post('/:id/upload', authenticate, chatUpload.single('file'), async (req, 
     // Emit to room
     socketService.emitToRoom(req.params.id, 'new_message', result.rows[0]);
 
-    // Create notifications for other members
+    // Create notifications for other non-muted members
     const members = await db.query(
-      'SELECT user_id FROM chat_members WHERE room_id = $1 AND user_id != $2',
+      'SELECT user_id FROM chat_members WHERE room_id = $1 AND user_id != $2 AND muted = false',
       [req.params.id, req.user.id]
     );
     const senderName = result.rows[0].sender_name;
@@ -708,7 +729,7 @@ router.delete('/:id/members/:userId', authenticate, async (req, res, next) => {
 router.put('/:id/read', authenticate, async (req, res, next) => {
   try {
     const result = await db.query(
-      'UPDATE chat_members SET last_read_at = CURRENT_TIMESTAMP WHERE room_id = $1 AND user_id = $2 RETURNING last_read_at',
+      'UPDATE chat_members SET last_read_at = CURRENT_TIMESTAMP, marked_unread = false WHERE room_id = $1 AND user_id = $2 RETURNING last_read_at',
       [req.params.id, req.user.id]
     );
 
@@ -721,6 +742,180 @@ router.put('/:id/read', authenticate, async (req, res, next) => {
     });
 
     res.json({ message: 'Marked as read' });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Toggle mute for a chat room
+router.put('/:id/mute', authenticate, async (req, res, next) => {
+  try {
+    const result = await db.query(
+      'UPDATE chat_members SET muted = NOT muted WHERE room_id = $1 AND user_id = $2 RETURNING muted',
+      [req.params.id, req.user.id]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: { message: 'Not a member of this chat' } });
+    }
+    res.json({ muted: result.rows[0].muted });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Mark chat as unread
+router.put('/:id/mark-unread', authenticate, async (req, res, next) => {
+  try {
+    const result = await db.query(
+      'UPDATE chat_members SET marked_unread = true WHERE room_id = $1 AND user_id = $2 RETURNING marked_unread',
+      [req.params.id, req.user.id]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: { message: 'Not a member of this chat' } });
+    }
+    res.json({ marked_unread: true });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Toggle pin for a chat room
+router.put('/:id/pin', authenticate, async (req, res, next) => {
+  try {
+    const result = await db.query(
+      'UPDATE chat_members SET pinned_at = CASE WHEN pinned_at IS NULL THEN NOW() ELSE NULL END WHERE room_id = $1 AND user_id = $2 RETURNING pinned_at',
+      [req.params.id, req.user.id]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: { message: 'Not a member of this chat' } });
+    }
+    res.json({ pinned_at: result.rows[0].pinned_at });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Toggle archive for a chat room
+router.put('/:id/archive', authenticate, async (req, res, next) => {
+  try {
+    const result = await db.query(
+      'UPDATE chat_members SET archived_at = CASE WHEN archived_at IS NULL THEN NOW() ELSE NULL END WHERE room_id = $1 AND user_id = $2 RETURNING archived_at',
+      [req.params.id, req.user.id]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: { message: 'Not a member of this chat' } });
+    }
+    res.json({ archived_at: result.rows[0].archived_at });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Search messages in a chat room
+router.get('/:id/messages/search', authenticate, async (req, res, next) => {
+  try {
+    const membership = await db.query(
+      'SELECT user_id FROM chat_members WHERE room_id = $1 AND user_id = $2',
+      [req.params.id, req.user.id]
+    );
+    if (membership.rows.length === 0) {
+      return res.status(403).json({ error: { message: 'Not a member of this chat' } });
+    }
+
+    const q = req.query.q;
+    if (!q || q.trim().length === 0) {
+      return res.json({ messages: [] });
+    }
+
+    const result = await db.query(`
+      SELECT m.id, m.content, m.created_at, m.sender_id, u.name as sender_name, u.avatar_url as sender_avatar
+      FROM messages m
+      JOIN users u ON m.sender_id = u.id
+      WHERE m.room_id = $1
+        AND m.deleted_at IS NULL
+        AND m.content ILIKE $2
+      ORDER BY m.created_at DESC
+      LIMIT 50
+    `, [req.params.id, `%${q.trim()}%`]);
+
+    res.json({ messages: result.rows });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Get media/files for a chat room
+router.get('/:id/media', authenticate, async (req, res, next) => {
+  try {
+    const membership = await db.query(
+      'SELECT user_id FROM chat_members WHERE room_id = $1 AND user_id = $2',
+      [req.params.id, req.user.id]
+    );
+    if (membership.rows.length === 0) {
+      return res.status(403).json({ error: { message: 'Not a member of this chat' } });
+    }
+
+    const type = req.query.type || 'media';
+    let result;
+
+    if (type === 'media') {
+      result = await db.query(`
+        SELECT m.id, m.file_url, m.file_name, m.audio_url, m.type, m.created_at, u.name as sender_name
+        FROM messages m
+        JOIN users u ON m.sender_id = u.id
+        WHERE m.room_id = $1
+          AND m.deleted_at IS NULL
+          AND (
+            (m.file_url IS NOT NULL AND m.file_name ~* '\\.(jpg|jpeg|png|gif|webp|mp4|webm)$')
+            OR m.type = 'audio'
+          )
+        ORDER BY m.created_at DESC
+        LIMIT 100
+      `, [req.params.id]);
+    } else {
+      result = await db.query(`
+        SELECT m.id, m.file_url, m.file_name, m.type, m.created_at, u.name as sender_name
+        FROM messages m
+        JOIN users u ON m.sender_id = u.id
+        WHERE m.room_id = $1
+          AND m.deleted_at IS NULL
+          AND m.file_url IS NOT NULL
+          AND m.file_name !~* '\\.(jpg|jpeg|png|gif|webp|mp4|webm)$'
+        ORDER BY m.created_at DESC
+        LIMIT 100
+      `, [req.params.id]);
+    }
+
+    res.json({ items: result.rows });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Upload chat room image
+router.post('/:id/image', authenticate, chatUpload.single('image'), async (req, res, next) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: { message: 'No image provided' } });
+    }
+
+    // Check membership (admin of room or site admin)
+    const membership = await db.query(
+      'SELECT role FROM chat_members WHERE room_id = $1 AND user_id = $2',
+      [req.params.id, req.user.id]
+    );
+    if (membership.rows.length === 0) {
+      return res.status(403).json({ error: { message: 'Not a member of this chat' } });
+    }
+
+    const imageUrl = `/uploads/chat/${req.file.filename}`;
+    const result = await db.query(
+      'UPDATE chat_rooms SET image_url = $1 WHERE id = $2 RETURNING *',
+      [imageUrl, req.params.id]
+    );
+
+    socketService.emitToRoom(req.params.id, 'room_updated', result.rows[0]);
+    res.json({ room: result.rows[0] });
   } catch (error) {
     next(error);
   }
@@ -773,7 +968,7 @@ router.get('/:id', authenticate, async (req, res, next) => {
 
     const result = await db.query(`
       SELECT cr.*,
-        (SELECT json_agg(json_build_object('id', u.id, 'name', u.name, 'role', cm.role))
+        (SELECT json_agg(json_build_object('id', u.id, 'name', u.name, 'role', cm.role, 'avatar_url', u.avatar_url))
          FROM chat_members cm JOIN users u ON cm.user_id = u.id WHERE cm.room_id = cr.id) as members
       FROM chat_rooms cr WHERE cr.id = $1
     `, [req.params.id]);

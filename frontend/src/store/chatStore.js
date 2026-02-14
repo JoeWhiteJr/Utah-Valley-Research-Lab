@@ -4,9 +4,12 @@ import { useAuthStore } from './authStore'
 
 export const useChatStore = create((set, get) => ({
   rooms: [],
+  archivedRooms: [],
   currentRoom: null,
   messages: [],
   readReceipts: [],
+  searchResults: [],
+  isSearching: false,
   hasMore: false,
   isLoading: false,
   error: null,
@@ -22,9 +25,9 @@ export const useChatStore = create((set, get) => ({
     }
   },
 
-  createRoom: async (type, memberIds, name) => {
+  createRoom: async (type, memberIds, name, projectId) => {
     try {
-      const { data } = await chatApi.createRoom({ type, memberIds, name })
+      const { data } = await chatApi.createRoom({ type, memberIds, name, projectId })
       if (!data.existing) {
         set((state) => ({ rooms: [data.room, ...state.rooms] }))
       }
@@ -144,7 +147,7 @@ export const useChatStore = create((set, get) => ({
       await chatApi.markRead(roomId)
       set((state) => ({
         rooms: state.rooms.map((r) =>
-          r.id === roomId ? { ...r, unread_count: 0 } : r
+          r.id === roomId ? { ...r, unread_count: 0, marked_unread: false } : r
         )
       }))
     } catch (error) {
@@ -169,12 +172,19 @@ export const useChatStore = create((set, get) => ({
           ? {
               ...r,
               last_message: { content: message.content, sender_name: message.sender_name, created_at: message.created_at },
-              unread_count: (isOwnMessage || isCurrentRoom) ? (r.unread_count || 0) : (r.unread_count || 0) + 1
+              unread_count: (isOwnMessage || isCurrentRoom) ? (r.unread_count || 0) : (r.unread_count || 0) + 1,
+              marked_unread: isCurrentRoom ? false : r.marked_unread
             }
           : r
       )
-      // Re-sort rooms so the most recently active room appears first
+      // Re-sort rooms: pinned first (by pin date), then by last message
       updatedRooms.sort((a, b) => {
+        const aPinned = a.pinned_at ? 0 : 1
+        const bPinned = b.pinned_at ? 0 : 1
+        if (aPinned !== bPinned) return aPinned - bPinned
+        if (aPinned === 0 && bPinned === 0) {
+          return new Date(a.pinned_at) - new Date(b.pinned_at)
+        }
         const aTime = new Date(a.last_message?.created_at || 0)
         const bTime = new Date(b.last_message?.created_at || 0)
         return bTime - aTime
@@ -287,6 +297,124 @@ export const useChatStore = create((set, get) => ({
     }
   },
 
-  clearCurrentRoom: () => set({ currentRoom: null, messages: [], readReceipts: [], hasMore: false }),
+  // New chat feature actions
+  toggleMute: async (roomId) => {
+    try {
+      const { data } = await chatApi.toggleMute(roomId)
+      set((state) => ({
+        rooms: state.rooms.map((r) => r.id === roomId ? { ...r, muted: data.muted } : r)
+      }))
+      return data.muted
+    } catch (error) {
+      set({ error: error.response?.data?.error?.message || 'Failed to toggle mute' })
+      return null
+    }
+  },
+
+  markUnread: async (roomId) => {
+    try {
+      await chatApi.markUnread(roomId)
+      set((state) => ({
+        rooms: state.rooms.map((r) => r.id === roomId ? { ...r, marked_unread: true } : r)
+      }))
+    } catch (error) {
+      set({ error: error.response?.data?.error?.message || 'Failed to mark as unread' })
+    }
+  },
+
+  togglePin: async (roomId) => {
+    try {
+      const { data } = await chatApi.togglePin(roomId)
+      set((state) => {
+        const updatedRooms = state.rooms.map((r) =>
+          r.id === roomId ? { ...r, pinned_at: data.pinned_at } : r
+        )
+        updatedRooms.sort((a, b) => {
+          const aPinned = a.pinned_at ? 0 : 1
+          const bPinned = b.pinned_at ? 0 : 1
+          if (aPinned !== bPinned) return aPinned - bPinned
+          if (aPinned === 0 && bPinned === 0) return new Date(a.pinned_at) - new Date(b.pinned_at)
+          const aTime = new Date(a.last_message?.created_at || 0)
+          const bTime = new Date(b.last_message?.created_at || 0)
+          return bTime - aTime
+        })
+        return { rooms: updatedRooms }
+      })
+      return data.pinned_at
+    } catch (error) {
+      set({ error: error.response?.data?.error?.message || 'Failed to toggle pin' })
+      return null
+    }
+  },
+
+  toggleArchive: async (roomId) => {
+    try {
+      const { data } = await chatApi.toggleArchive(roomId)
+      if (data.archived_at) {
+        // Move from rooms to archivedRooms
+        set((state) => {
+          const room = state.rooms.find(r => r.id === roomId)
+          return {
+            rooms: state.rooms.filter(r => r.id !== roomId),
+            archivedRooms: room ? [{ ...room, archived_at: data.archived_at }, ...state.archivedRooms] : state.archivedRooms
+          }
+        })
+      } else {
+        // Move from archivedRooms to rooms
+        set((state) => {
+          const room = state.archivedRooms.find(r => r.id === roomId)
+          return {
+            archivedRooms: state.archivedRooms.filter(r => r.id !== roomId),
+            rooms: room ? [{ ...room, archived_at: null }, ...state.rooms] : state.rooms
+          }
+        })
+      }
+      return data.archived_at
+    } catch (error) {
+      set({ error: error.response?.data?.error?.message || 'Failed to toggle archive' })
+      return null
+    }
+  },
+
+  fetchArchivedRooms: async () => {
+    try {
+      const { data } = await chatApi.listArchivedRooms()
+      set({ archivedRooms: data.rooms })
+    } catch (error) {
+      set({ error: error.response?.data?.error?.message || 'Failed to fetch archived rooms' })
+    }
+  },
+
+  searchMessages: async (roomId, query) => {
+    if (!query || !query.trim()) {
+      set({ searchResults: [], isSearching: false })
+      return
+    }
+    set({ isSearching: true })
+    try {
+      const { data } = await chatApi.searchMessages(roomId, query)
+      set({ searchResults: data.messages, isSearching: false })
+    } catch (error) {
+      set({ searchResults: [], isSearching: false })
+    }
+  },
+
+  clearSearch: () => set({ searchResults: [], isSearching: false }),
+
+  uploadRoomImage: async (roomId, file) => {
+    try {
+      const { data } = await chatApi.uploadRoomImage(roomId, file)
+      set((state) => ({
+        rooms: state.rooms.map(r => r.id === roomId ? { ...r, image_url: data.room.image_url } : r),
+        currentRoom: state.currentRoom?.id === roomId ? { ...state.currentRoom, image_url: data.room.image_url } : state.currentRoom
+      }))
+      return data.room
+    } catch (error) {
+      set({ error: error.response?.data?.error?.message || 'Failed to upload room image' })
+      return null
+    }
+  },
+
+  clearCurrentRoom: () => set({ currentRoom: null, messages: [], readReceipts: [], searchResults: [], isSearching: false, hasMore: false }),
   clearError: () => set({ error: null })
 }))

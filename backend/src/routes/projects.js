@@ -202,6 +202,21 @@ router.post('/', authenticate, requireRole('admin', 'project_lead'), [
       [result.rows[0].id, req.user.id, 'lead']
     );
 
+    // Auto-create project chat room
+    try {
+      const chatResult = await db.query(
+        "INSERT INTO chat_rooms (name, type, created_by, project_id, image_url) VALUES ($1, 'group', $2, $3, $4) RETURNING *",
+        [title, req.user.id, result.rows[0].id, header_image || null]
+      );
+      await db.query(
+        "INSERT INTO chat_members (room_id, user_id, role) VALUES ($1, $2, 'admin')",
+        [chatResult.rows[0].id, req.user.id]
+      );
+    } catch (chatError) {
+      // Non-critical: project still created even if chat fails
+      logger.error({ err: chatError }, 'Failed to create project chat room');
+    }
+
     logAdminAction(req, 'create_project', 'project', result.rows[0].id, null, { title, description });
     res.status(201).json({ project: result.rows[0] });
   } catch (error) {
@@ -395,6 +410,22 @@ router.post('/:id/members', authenticate, [
       client.release();
     }
 
+    // Auto-add to project chat room
+    try {
+      const projectChat = await db.query(
+        'SELECT id FROM chat_rooms WHERE project_id = $1 AND deleted_at IS NULL LIMIT 1', [req.params.id]
+      );
+      if (projectChat.rows.length > 0) {
+        await db.query(
+          "INSERT INTO chat_members (room_id, user_id, role) VALUES ($1, $2, 'member') ON CONFLICT DO NOTHING",
+          [projectChat.rows[0].id, user_id]
+        );
+        socketService.addUserToRoom(user_id, projectChat.rows[0].id);
+      }
+    } catch (chatError) {
+      logger.error({ err: chatError }, 'Failed to add user to project chat');
+    }
+
     // Notify the added user (outside transaction — non-critical)
     try {
       const project = await db.query('SELECT title FROM projects WHERE id = $1', [req.params.id]);
@@ -584,21 +615,38 @@ router.put('/:id/join-requests/:reqId', authenticate, [
 
     // If approved, add user as member and notify them
     if (action === 'approve') {
+      const approvedUserId = result.rows[0].user_id;
       await db.query(
         "INSERT INTO project_members (project_id, user_id, role) VALUES ($1, $2, 'member') ON CONFLICT DO NOTHING",
-        [req.params.id, result.rows[0].user_id]
+        [req.params.id, approvedUserId]
       );
+
+      // Auto-add to project chat room
+      try {
+        const projectChat = await db.query(
+          'SELECT id FROM chat_rooms WHERE project_id = $1 AND deleted_at IS NULL LIMIT 1', [req.params.id]
+        );
+        if (projectChat.rows.length > 0) {
+          await db.query(
+            "INSERT INTO chat_members (room_id, user_id, role) VALUES ($1, $2, 'member') ON CONFLICT DO NOTHING",
+            [projectChat.rows[0].id, approvedUserId]
+          );
+          socketService.addUserToRoom(approvedUserId, projectChat.rows[0].id);
+        }
+      } catch (chatError) {
+        logger.error({ err: chatError }, 'Failed to add user to project chat');
+      }
 
       try {
         const project = await db.query('SELECT title FROM projects WHERE id = $1', [req.params.id]);
         const projectTitle = project.rows[0]?.title || 'a project';
         const notification = await createNotification(
-          result.rows[0].user_id, 'system',
+          approvedUserId, 'system',
           `Welcome to ${projectTitle}`,
           'Your join request was approved.',
           req.params.id, 'member_accepted'
         );
-        if (notification) socketService.emitToUser(result.rows[0].user_id, 'notification', notification);
+        if (notification) socketService.emitToUser(approvedUserId, 'notification', notification);
       } catch (notifError) {
         logger.error({ err: notifError }, 'Failed to send member accepted notification');
       }
