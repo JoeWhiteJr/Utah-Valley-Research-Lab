@@ -121,7 +121,7 @@ export default function Layout() {
           >
             <Search size={16} />
             <span>Search...</span>
-            <span className="ml-auto text-xs text-gray-400 dark:text-gray-500">⌘K</span>
+
           </button>
           <button
             onClick={() => setSearchOpen(true)}
