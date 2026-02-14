@@ -2,15 +2,15 @@ import { format } from 'date-fns'
 import { RefreshCw, Sparkles } from 'lucide-react'
 import PlanStep from './PlanStep'
 
-export default function DailyPlanCard({ plan, steps, onToggleStep, onRegenerate, isGenerating }) {
+export default function DailyPlanCard({ plan, steps, onToggleStep, onRegenerate, isGenerating, embedded }) {
   const completedCount = steps.filter(s => s.completed).length
   const totalCount = steps.length
   const progress = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0
   const totalMinutes = steps.reduce((sum, s) => sum + (s.estimated_minutes || 0), 0)
   const completedMinutes = steps.filter(s => s.completed).reduce((sum, s) => sum + (s.estimated_minutes || 0), 0)
 
-  return (
-    <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+  const content = (
+    <>
       {/* Header */}
       <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-700">
         <div className="flex items-center justify-between mb-3">
@@ -63,6 +63,14 @@ export default function DailyPlanCard({ plan, steps, onToggleStep, onRegenerate,
           <PlanStep key={step.id} step={step} onToggle={onToggleStep} />
         ))}
       </div>
+    </>
+  )
+
+  if (embedded) return content
+
+  return (
+    <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+      {content}
     </div>
   )
 }

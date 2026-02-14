@@ -37,6 +37,7 @@ export default function MyDashboard() {
   const [tasksExpanded, setTasksExpanded] = useState(false)
   const [projectsExpanded, setProjectsExpanded] = useState(false)
   const [editingDescription, setEditingDescription] = useState({})
+  const [plannerTab, setPlannerTab] = useState('daily')
 
   const loadMyTasks = useCallback(async () => {
     setLoadingTasks(true)
@@ -195,17 +196,12 @@ export default function MyDashboard() {
               </div>
             </div>
           </div>
-          {/* Bottom row: Streak + Weekly Review beneath subtitle */}
+          {/* Bottom row: Streak beneath subtitle */}
           <div className="flex items-center gap-3 mt-3">
             <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/60 dark:bg-white/10 backdrop-blur-sm">
               <Zap size={14} className="text-amber-400" />
               <span className="text-sm font-medium text-text-primary dark:text-white">{streak} day streak</span>
             </div>
-            <WeeklyReviewCard
-              review={weeklyReview}
-              onGenerate={generateWeeklyReview}
-              isGenerating={isGenerating && !plan}
-            />
           </div>
         </div>
       </div>
@@ -219,35 +215,75 @@ export default function MyDashboard() {
         />
       )}
 
-      {/* AI Daily Plan title (standalone above grid) */}
-      <h2 className="font-display font-bold text-xl text-text-primary dark:text-gray-100">AI Daily Plan</h2>
+      {/* AI Planner title (standalone above grid) */}
+      <h2 className="font-display font-bold text-xl text-text-primary dark:text-gray-100">AI Planner</h2>
 
       {/* Main grid: Plan + Calendar (left) | Tasks & Projects (right) */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
         <div className="lg:col-span-2 space-y-6">
-          {plan ? (
-            <DailyPlanCard
-              plan={plan}
-              steps={planSteps}
-              onToggleStep={toggleStep}
-              onRegenerate={() => generatePlan(true)}
-              isGenerating={isGenerating}
-            />
-          ) : (
-            <PlannerEmptyState
-              onGenerate={() => generatePlan(false)}
-              isGenerating={isGenerating}
-            />
-          )}
+          <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+            {/* Tab bar */}
+            <div className="flex border-b border-gray-200 dark:border-gray-700">
+              <button
+                onClick={() => setPlannerTab('daily')}
+                className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
+                  plannerTab === 'daily'
+                    ? 'text-primary-700 dark:text-primary-300 border-b-2 border-primary-500'
+                    : 'text-text-secondary dark:text-gray-400 hover:text-text-primary dark:hover:text-gray-200'
+                }`}
+              >
+                Daily
+              </button>
+              <button
+                onClick={() => setPlannerTab('weekly')}
+                className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
+                  plannerTab === 'weekly'
+                    ? 'text-primary-700 dark:text-primary-300 border-b-2 border-primary-500'
+                    : 'text-text-secondary dark:text-gray-400 hover:text-text-primary dark:hover:text-gray-200'
+                }`}
+              >
+                Weekly
+              </button>
+            </div>
 
-          {/* Weekly Review (expanded view when exists) */}
-          {weeklyReview && (
-            <WeeklyReviewCard
-              review={weeklyReview}
-              onGenerate={generateWeeklyReview}
-              isGenerating={isGenerating && !plan}
-            />
-          )}
+            {/* Tab content — scrollable */}
+            <div className="overflow-y-auto" style={{ maxHeight: '600px' }}>
+              {plannerTab === 'daily' ? (
+                plan ? (
+                  <DailyPlanCard
+                    plan={plan}
+                    steps={planSteps}
+                    onToggleStep={toggleStep}
+                    onRegenerate={() => generatePlan(true)}
+                    isGenerating={isGenerating}
+                    embedded
+                  />
+                ) : (
+                  <PlannerEmptyState
+                    onGenerate={() => generatePlan(false)}
+                    isGenerating={isGenerating}
+                  />
+                )
+              ) : (
+                weeklyReview ? (
+                  <WeeklyReviewCard
+                    review={weeklyReview}
+                    onGenerate={generateWeeklyReview}
+                    isGenerating={isGenerating && !plan}
+                    embedded
+                  />
+                ) : (
+                  <PlannerEmptyState
+                    onGenerate={generateWeeklyReview}
+                    isGenerating={isGenerating && !plan}
+                    title="AI Weekly Review"
+                    description="Get an AI-generated summary of your week including accomplishments, missed items, and insights for next week."
+                    buttonLabel="Generate My Weekly Review"
+                  />
+                )
+              )}
+            </div>
+          </div>
 
           {/* Calendar */}
           <CalendarView scope="dashboard" compact />

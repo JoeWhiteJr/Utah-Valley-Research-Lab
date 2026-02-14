@@ -1,11 +1,11 @@
 import { useState } from 'react'
 import { BarChart3, RefreshCw, ChevronDown, ChevronRight } from 'lucide-react'
 
-export default function WeeklyReviewCard({ review, onGenerate, isGenerating }) {
+export default function WeeklyReviewCard({ review, onGenerate, isGenerating, embedded }) {
   const [expanded, setExpanded] = useState(false)
   const stats = review?.stats || {}
 
-  if (!review) {
+  if (!review && !embedded) {
     return (
       <button
         onClick={onGenerate}
@@ -24,6 +24,64 @@ export default function WeeklyReviewCard({ review, onGenerate, isGenerating }) {
           </>
         )}
       </button>
+    )
+  }
+
+  if (!review && embedded) return null
+
+  if (embedded) {
+    return (
+      <>
+        {/* Header with title + regenerate */}
+        <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <BarChart3 size={18} className="text-violet-500" />
+            <span className="font-display font-semibold text-text-primary dark:text-gray-100">Weekly Review</span>
+            {stats.completion_rate != null && (
+              <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300">
+                {stats.completion_rate}% completion
+              </span>
+            )}
+          </div>
+          <button
+            onClick={onGenerate}
+            disabled={isGenerating}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-gray-100 dark:bg-gray-700 text-text-secondary dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors disabled:opacity-50"
+          >
+            <RefreshCw size={12} className={isGenerating ? 'animate-spin' : ''} />
+            {isGenerating ? 'Regenerating...' : 'Regenerate'}
+          </button>
+        </div>
+
+        {/* Content — stats + markdown */}
+        <div className="px-5 pb-5">
+          {stats.days_planned != null && (
+            <div className="flex gap-4 py-3 text-xs text-text-secondary dark:text-gray-400">
+              <span>{stats.days_planned} days planned</span>
+              <span>{stats.completed_steps}/{stats.total_steps} steps done</span>
+              <span>{stats.tasks_completed} tasks completed</span>
+            </div>
+          )}
+
+          <div className="prose prose-sm dark:prose-invert max-w-none text-sm">
+            {review.ai_summary?.split('\n').map((line, i) => {
+              if (line.startsWith('## ')) {
+                return <h4 key={i} className="text-sm font-semibold text-text-primary dark:text-gray-100 mt-4 mb-2">{line.replace('## ', '')}</h4>
+              }
+              if (line.startsWith('- ')) {
+                return <p key={i} className="text-text-secondary dark:text-gray-400 pl-4 my-0.5">&bull; {line.replace('- ', '')}</p>
+              }
+              if (line.startsWith('**') && line.endsWith('**')) {
+                return <p key={i} className="font-medium text-text-primary dark:text-gray-200 mt-2">{line.replace(/\*\*/g, '')}</p>
+              }
+              if (line.trim()) {
+                return <p key={i} className="text-text-secondary dark:text-gray-400 my-0.5">{line}</p>
+              }
+              return null
+            })}
+          </div>
+        </div>
+      </>
     )
   }
 
