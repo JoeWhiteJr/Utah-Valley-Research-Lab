@@ -4,7 +4,7 @@ import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, us
 import { SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy, arrayMove } from '@dnd-kit/sortable'
 import { useAuthStore } from '../store/authStore'
 import { useProjectStore } from '../store/projectStore'
-import { usersApi, filesApi, aiApi, meetingsApi } from '../services/api'
+import { usersApi, filesApi, aiApi, meetingsApi, getUploadUrl } from '../services/api'
 import Button from '../components/Button'
 import Modal from '../components/Modal'
 import Input from '../components/Input'
@@ -521,10 +521,10 @@ export default function ProjectDetail() {
         Back to Projects
       </button>
 
-      {/* Title and actions — always visible */}
+      {/* Title, description, and actions — always visible */}
       <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-3">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-3 flex-wrap">
             <h1 className="font-display font-bold text-2xl md:text-3xl text-text-primary dark:text-gray-100">
               {currentProject.title}
             </h1>
@@ -537,18 +537,14 @@ export default function ProjectDetail() {
               {currentProject.status}
             </span>
           </div>
-          {/* Subtitle/description/progress only on overview */}
-          {activeTab === 'overview' && (
-            <>
-              {currentProject.subheader && (
-                <p className="mt-1 text-text-secondary dark:text-gray-400">{currentProject.subheader}</p>
-              )}
-              {currentProject.description && (
-                <p className="mt-2 text-text-secondary dark:text-gray-400 max-w-2xl">{currentProject.description}</p>
-              )}
-            </>
+          {currentProject.subheader && (
+            <p className="mt-1 text-text-secondary dark:text-gray-400">{currentProject.subheader}</p>
           )}
         </div>
+
+        {currentProject.description && (
+          <p className="flex-1 text-sm text-text-secondary dark:text-gray-400 md:text-right md:max-w-md lg:max-w-lg">{currentProject.description}</p>
+        )}
 
         {canEdit && (
           <div className="flex gap-2 items-center flex-shrink-0">
@@ -617,7 +613,19 @@ export default function ProjectDetail() {
       <div className="min-h-[400px]">
         {/* Overview with right sidebar */}
         {activeTab === 'overview' && (
-          <div className="flex gap-6">
+          <div className="space-y-6">
+            {/* Project header image — overview only */}
+            {currentProject.header_image && (
+              <div className="rounded-xl overflow-hidden border border-gray-200 dark:border-gray-700 h-48 md:h-64">
+                <img
+                  src={getUploadUrl(currentProject.header_image)}
+                  alt={currentProject.title}
+                  className="w-full h-full object-cover"
+                />
+              </div>
+            )}
+
+            <div className="flex gap-6">
             {/* Main content */}
             <div className="flex-1 space-y-6 min-w-0">
               <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
@@ -764,6 +772,7 @@ export default function ProjectDetail() {
                 </div>
               )}
             </div>
+          </div>
           </div>
         )}
 
