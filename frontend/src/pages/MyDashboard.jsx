@@ -4,16 +4,20 @@ import { useAuthStore } from '../store/authStore'
 import { useProjectStore } from '../store/projectStore'
 import { useNotificationStore } from '../store/notificationStore'
 import { usePlannerStore } from '../store/plannerStore'
-import { actionsApi, usersApi, notificationsApi } from '../services/api'
+import { actionsApi, usersApi, notificationsApi, personalNotesApi } from '../services/api'
 import { toast } from '../store/toastStore'
 import { CalendarView } from '../components/calendar/CalendarView'
+import Modal from '../components/Modal'
+import RichTextEditor from '../components/RichTextEditor'
+import Button from '../components/Button'
 import DailyPlanCard from '../components/planner/DailyPlanCard'
 import PlannerEmptyState from '../components/planner/PlannerEmptyState'
 import CheckinModal from '../components/planner/CheckinModal'
 import WeeklyReviewCard from '../components/planner/WeeklyReviewCard'
 import {
   CheckCircle2, Circle, Calendar, ArrowUpRight,
-  FolderKanban, Zap, Target, Award, ChevronDown, ChevronRight, Filter, X, Pencil
+  FolderKanban, Zap, Target, Award, ChevronDown, ChevronRight, Filter, X, Pencil,
+  StickyNote, Plus, Trash2
 } from 'lucide-react'
 import { format, isToday, isPast, parseISO } from 'date-fns'
 
@@ -38,6 +42,12 @@ export default function MyDashboard() {
   const [projectsExpanded, setProjectsExpanded] = useState(false)
   const [editingDescription, setEditingDescription] = useState({})
   const [plannerTab, setPlannerTab] = useState('daily')
+  const [personalNotes, setPersonalNotes] = useState([])
+  const [loadingNotes, setLoadingNotes] = useState(true)
+  const [notesExpanded, setNotesExpanded] = useState(false)
+  const [showNoteModal, setShowNoteModal] = useState(false)
+  const [editingNote, setEditingNote] = useState(null)
+  const [noteData, setNoteData] = useState({ title: '', content: '' })
 
   const loadMyTasks = useCallback(async () => {
     setLoadingTasks(true)
@@ -57,6 +67,14 @@ export default function MyDashboard() {
     setLoadingTasks(false)
   }, [taskFilters])
 
+  const loadPersonalNotes = useCallback(async () => {
+    try {
+      const { data } = await personalNotesApi.list()
+      setPersonalNotes(data.notes)
+    } catch { /* silent */ }
+    finally { setLoadingNotes(false) }
+  }, [])
+
   useEffect(() => {
     document.title = 'My Dashboard - Stats Lab'
   }, [])
@@ -64,6 +82,7 @@ export default function MyDashboard() {
   useEffect(() => {
     fetchProjects()
     loadMyTasks()
+    loadPersonalNotes()
     fetchToday()
     fetchWeeklyReview()
     // Load streak
@@ -75,7 +94,7 @@ export default function MyDashboard() {
       const taskNotifs = (data.notifications || []).filter(n => n.reference_type === 'task_assigned' && !n.read_at)
       setTaskNotifications(taskNotifs)
     }).catch(() => { /* notifications non-critical */ })
-  }, [fetchProjects, loadMyTasks, fetchToday, fetchWeeklyReview])
+  }, [fetchProjects, loadMyTasks, loadPersonalNotes, fetchToday, fetchWeeklyReview])
 
   // Build highlighted task map when both tasks and notifications are loaded
   useEffect(() => {
@@ -139,6 +158,43 @@ export default function MyDashboard() {
       })
     }, 300)
   }, [highlightedTaskIds, markRead])
+
+  const handleOpenNewNote = () => {
+    setEditingNote(null)
+    setNoteData({ title: '', content: '' })
+    setShowNoteModal(true)
+  }
+
+  const handleOpenEditNote = (note) => {
+    setEditingNote(note)
+    setNoteData({ title: note.title, content: note.content || '' })
+    setShowNoteModal(true)
+  }
+
+  const handleSaveNote = async () => {
+    if (!noteData.title.trim()) return
+    try {
+      if (editingNote) {
+        await personalNotesApi.update(editingNote.id, noteData)
+      } else {
+        await personalNotesApi.create(noteData)
+      }
+      loadPersonalNotes()
+      setShowNoteModal(false)
+    } catch {
+      toast.error('Failed to save note')
+    }
+  }
+
+  const handleDeleteNote = async (e, id) => {
+    e.stopPropagation()
+    try {
+      await personalNotesApi.delete(id)
+      setPersonalNotes(prev => prev.filter(n => n.id !== id))
+    } catch {
+      toast.error('Failed to delete note')
+    }
+  }
 
   const completedCount = myTasks.filter(t => t.completed).length
   const pendingTasks = myTasks.filter(t => !t.completed).length
@@ -600,8 +656,111 @@ export default function MyDashboard() {
               </div>
             )}
           </section>
+
+          {/* Collapsible My Notes */}
+          <section className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+            <div className="w-full flex items-center justify-between p-4">
+              <button
+                onClick={() => setNotesExpanded(!notesExpanded)}
+                className="flex items-center gap-2 flex-1 hover:opacity-80 transition-opacity"
+              >
+                <h2 className="font-display font-bold text-lg text-text-primary dark:text-gray-100">My Notes</h2>
+                <div className="flex items-center gap-2">
+                  {personalNotes.length > 0 && <span className="text-xs font-medium bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300 px-2 py-0.5 rounded-full">{personalNotes.length}</span>}
+                  {notesExpanded ? <ChevronDown size={18} className="text-gray-400" /> : <ChevronRight size={18} className="text-gray-400" />}
+                </div>
+              </button>
+              <button
+                onClick={handleOpenNewNote}
+                className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-400 hover:text-primary-500 transition-colors"
+                title="New note"
+              >
+                <Plus size={16} />
+              </button>
+            </div>
+            {notesExpanded && (
+              <div className="border-t border-gray-100 dark:border-gray-700">
+                <div className="divide-y divide-gray-100 dark:divide-gray-700">
+                  {loadingNotes ? (
+                    <div className="p-6 text-center">
+                      <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary-500 mx-auto"></div>
+                      <p className="text-text-secondary dark:text-gray-400 mt-2 text-sm">Loading notes...</p>
+                    </div>
+                  ) : personalNotes.length > 0 ? (
+                    personalNotes.map(note => (
+                      <div
+                        key={note.id}
+                        onClick={() => handleOpenEditNote(note)}
+                        className="group flex items-center gap-3 p-3 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors cursor-pointer"
+                      >
+                        <StickyNote size={16} className="text-amber-500 flex-shrink-0" />
+                        <span className="text-sm font-medium text-text-primary dark:text-gray-100 truncate flex-1">{note.title}</span>
+                        <span className="text-xs text-text-secondary dark:text-gray-400 flex-shrink-0">
+                          {format(parseISO(note.updated_at), 'MMM d')}
+                        </span>
+                        <button
+                          onClick={(e) => handleDeleteNote(e, note.id)}
+                          className="p-1 rounded opacity-0 group-hover:opacity-100 hover:bg-red-100 dark:hover:bg-red-900/30 text-gray-400 hover:text-red-500 transition-all flex-shrink-0"
+                          title="Delete note"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="p-6 text-center">
+                      <div className="w-10 h-10 mx-auto mb-2 rounded-xl bg-gradient-to-br from-amber-100 dark:from-amber-900/30 to-orange-100 dark:to-orange-900/30 flex items-center justify-center">
+                        <StickyNote size={18} className="text-amber-500" />
+                      </div>
+                      <h3 className="font-display font-semibold text-sm text-text-primary dark:text-gray-100 mb-1">
+                        No notes yet
+                      </h3>
+                      <p className="text-text-secondary dark:text-gray-400 text-xs">
+                        Click + to create a personal note.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </section>
         </div>
       </div>
+
+      {/* Personal Note Modal */}
+      <Modal
+        isOpen={showNoteModal}
+        onClose={() => setShowNoteModal(false)}
+        title={editingNote ? 'Edit Note' : 'New Note'}
+        size="full"
+      >
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-text-primary dark:text-gray-200 mb-1">Title</label>
+            <input
+              type="text"
+              value={noteData.title}
+              onChange={(e) => setNoteData(prev => ({ ...prev, title: e.target.value }))}
+              placeholder="Note title..."
+              className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-text-primary dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-primary-300"
+              autoFocus
+            />
+          </div>
+          <div>
+            <RichTextEditor
+              label="Content"
+              value={noteData.content}
+              onChange={(val) => setNoteData(prev => ({ ...prev, content: val }))}
+              placeholder="Write your note..."
+              minHeight="400px"
+            />
+          </div>
+          <div className="flex justify-end gap-3 pt-2">
+            <Button variant="secondary" onClick={() => setShowNoteModal(false)}>Cancel</Button>
+            <Button onClick={handleSaveNote} disabled={!noteData.title.trim()}>Save</Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   )
 }

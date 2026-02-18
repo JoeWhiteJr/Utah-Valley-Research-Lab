@@ -155,6 +155,14 @@ export const foldersApi = {
   delete: (id) => api.delete(`/folders/${id}`)
 }
 
+// Personal Notes (private, not project-scoped)
+export const personalNotesApi = {
+  list: () => api.get('/personal-notes'),
+  create: (data) => api.post('/personal-notes', data),
+  update: (id, data) => api.put(`/personal-notes/${id}`, data),
+  delete: (id) => api.delete(`/personal-notes/${id}`),
+}
+
 // Notes
 export const notesApi = {
   list: (projectId, search) => api.get(`/notes/project/${projectId}`, { params: search ? { search } : undefined }),

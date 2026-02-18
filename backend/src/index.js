@@ -32,6 +32,7 @@ const trashRoutes = require('./routes/trash');
 const folderRoutes = require('./routes/folders');
 const plannerRoutes = require('./routes/planner');
 const assistantRoutes = require('./routes/assistant');
+const personalNoteRoutes = require('./routes/personalNotes');
 const { publicRouter: siteContentPublicRoutes, adminRouter: siteContentAdminRoutes } = require('./routes/siteContent');
 
 const app = express();
@@ -118,6 +119,7 @@ app.use('/api/trash', trashRoutes);
 app.use('/api/folders', folderRoutes);
 app.use('/api/planner', plannerRoutes);
 app.use('/api/assistant', assistantRoutes);
+app.use('/api/personal-notes', personalNoteRoutes);
 app.use('/api/public', siteContentPublicRoutes);
 app.use('/api/admin', siteContentAdminRoutes);
 
