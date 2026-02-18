@@ -100,9 +100,8 @@ export default function MyDashboard() {
     if (map.size > 0) setHighlightedTaskIds(map)
   }, [taskNotifications, myTasks])
 
-  // Filter projects where user is creator or has assigned tasks
   const myProjects = projects.filter(
-    (p) => p.created_by === user?.id || p.status === 'active'
+    (p) => p.membership_status === 'member'
   ).slice(0, 6)
 
   const getGreeting = () => {

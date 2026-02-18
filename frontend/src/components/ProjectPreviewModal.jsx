@@ -3,9 +3,9 @@ import Modal from './Modal'
 import Button from './Button'
 import { useProjectStore } from '../store/projectStore'
 import { projectsApi } from '../services/api'
-import { CheckCircle2, Mail, User, Info } from 'lucide-react'
+import { CheckCircle2, Mail, User } from 'lucide-react'
 
-export default function ProjectPreviewModal({ project, onClose, showImportantInfo }) {
+export default function ProjectPreviewModal({ project, onClose }) {
   const [phase, setPhase] = useState('preview') // 'preview' | 'requested'
   const [isRequesting, setIsRequesting] = useState(false)
   const [members, setMembers] = useState([])
@@ -70,21 +70,6 @@ export default function ProjectPreviewModal({ project, onClose, showImportantInf
               <p className="text-sm text-text-secondary dark:text-gray-400 leading-relaxed">
                 {project.description}
               </p>
-            )}
-
-            {/* Important Information */}
-            {showImportantInfo && project.important_info && (
-              <div className="rounded-lg border border-amber-200 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 p-4">
-                <div className="flex items-center gap-2 mb-2">
-                  <Info size={16} className="text-amber-600 dark:text-amber-400" />
-                  <p className="text-xs font-medium text-amber-700 dark:text-amber-300 uppercase tracking-wide">
-                    Important Information
-                  </p>
-                </div>
-                <p className="text-sm text-amber-800 dark:text-amber-200 leading-relaxed">
-                  {project.important_info}
-                </p>
-              </div>
             )}
 
             {/* Project lead card */}
