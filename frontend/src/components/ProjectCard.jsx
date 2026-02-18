@@ -39,14 +39,15 @@ const ProjectCard = memo(function ProjectCard({ project, onClick, pendingJoinReq
         {onTogglePin && (
           <button
             onClick={(e) => { e.stopPropagation(); onTogglePin(project.id) }}
-            className={`absolute top-3 left-3 p-1.5 rounded-full transition-all ${
+            className={`absolute top-3 left-3 flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium transition-all ${
               isPinned
                 ? 'bg-white/90 dark:bg-gray-800/90 text-primary-600 dark:text-primary-400'
-                : 'bg-white/70 dark:bg-gray-800/70 text-gray-400 dark:text-gray-500 opacity-0 group-hover:opacity-100'
+                : 'bg-white/70 dark:bg-gray-800/70 text-gray-500 dark:text-gray-400 opacity-0 group-hover:opacity-100'
             }`}
             title={isPinned ? 'Unpin project' : 'Pin project'}
           >
-            <Pin size={14} className={isPinned ? 'fill-current' : ''} />
+            <Pin size={13} className={isPinned ? 'fill-current' : ''} />
+            {isPinned ? 'Unpin' : 'Pin'}
           </button>
         )}
         <div className="absolute top-3 right-3 flex items-center gap-2">
@@ -63,10 +64,11 @@ const ProjectCard = memo(function ProjectCard({ project, onClick, pendingJoinReq
         {onPreview && (
           <button
             onClick={(e) => { e.stopPropagation(); onPreview(project) }}
-            className="absolute bottom-3 right-3 p-1.5 rounded-full bg-white/70 dark:bg-gray-800/70 text-gray-400 dark:text-gray-500 opacity-0 group-hover:opacity-100 transition-all hover:bg-white/90 dark:hover:bg-gray-800/90 hover:text-primary-600 dark:hover:text-primary-400"
+            className="absolute bottom-3 right-3 flex items-center gap-1 px-2 py-1 rounded-full bg-white/70 dark:bg-gray-800/70 text-gray-500 dark:text-gray-400 text-xs font-medium opacity-0 group-hover:opacity-100 transition-all hover:bg-white/90 dark:hover:bg-gray-800/90 hover:text-primary-600 dark:hover:text-primary-400"
             title="Preview project"
           >
-            <Eye size={14} />
+            <Eye size={13} />
+            Preview
           </button>
         )}
       </div>
