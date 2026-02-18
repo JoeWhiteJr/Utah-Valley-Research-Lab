@@ -11,21 +11,44 @@ router.get('/project/:projectId', authenticate, requireProjectAccess(), async (r
   try {
     const limit = Math.min(parseInt(req.query.limit) || 50, 200);
     const offset = parseInt(req.query.offset) || 0;
+    const search = req.query.search;
 
-    const countResult = await db.query(
-      'SELECT COUNT(*) FROM notes WHERE project_id = $1 AND deleted_at IS NULL',
-      [req.params.projectId]
-    );
+    let countQuery = 'SELECT COUNT(*) FROM notes WHERE project_id = $1 AND deleted_at IS NULL';
+    let countParams = [req.params.projectId];
+
+    if (search) {
+      countQuery += ' AND (title ILIKE $2 OR regexp_replace(content, \'<[^>]*>\', \'\', \'g\') ILIKE $2)';
+      countParams.push(`%${search}%`);
+    }
+
+    const countResult = await db.query(countQuery, countParams);
     const total = parseInt(countResult.rows[0].count);
 
-    const result = await db.query(`
-      SELECT n.*, u.name as creator_name
+    let selectQuery = `
+      SELECT n.*, u.name as creator_name,
+        CASE WHEN np.id IS NOT NULL THEN true ELSE false END as is_pinned,
+        n.pinned_for_project
       FROM notes n
       JOIN users u ON n.created_by = u.id
+      LEFT JOIN note_pins np ON np.note_id = n.id AND np.user_id = $2
       WHERE n.project_id = $1 AND n.deleted_at IS NULL
-      ORDER BY n.updated_at DESC
-      LIMIT $2 OFFSET $3
-    `, [req.params.projectId, limit, offset]);
+    `;
+    let selectParams = [req.params.projectId, req.user.id];
+
+    if (search) {
+      selectQuery += ` AND (n.title ILIKE $4 OR regexp_replace(n.content, '<[^>]*>', '', 'g') ILIKE $4)`;
+      selectQuery += `
+      ORDER BY n.pinned_for_project DESC NULLS LAST, CASE WHEN np.id IS NOT NULL THEN 0 ELSE 1 END, n.updated_at DESC
+      LIMIT $3 OFFSET $5`;
+      selectParams.push(limit, `%${search}%`, offset);
+    } else {
+      selectQuery += `
+      ORDER BY n.pinned_for_project DESC NULLS LAST, CASE WHEN np.id IS NOT NULL THEN 0 ELSE 1 END, n.updated_at DESC
+      LIMIT $3 OFFSET $4`;
+      selectParams.push(limit, offset);
+    }
+
+    const result = await db.query(selectQuery, selectParams);
 
     res.json({ notes: result.rows, total, limit, offset });
   } catch (error) {
@@ -156,6 +179,62 @@ router.delete('/:id', authenticate, async (req, res, next) => {
     await db.query('UPDATE notes SET deleted_at = NOW(), deleted_by = $1 WHERE id = $2', [req.user.id, req.params.id]);
 
     res.json({ message: 'Note deleted successfully' });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Toggle personal pin
+router.post('/:id/pin', authenticate, async (req, res, next) => {
+  try {
+    const noteCheck = await db.query('SELECT id FROM notes WHERE id = $1 AND deleted_at IS NULL', [req.params.id]);
+    if (noteCheck.rows.length === 0) {
+      return res.status(404).json({ error: { message: 'Note not found' } });
+    }
+
+    const existing = await db.query(
+      'SELECT id FROM note_pins WHERE user_id = $1 AND note_id = $2',
+      [req.user.id, req.params.id]
+    );
+
+    if (existing.rows.length > 0) {
+      await db.query('DELETE FROM note_pins WHERE user_id = $1 AND note_id = $2', [req.user.id, req.params.id]);
+      res.json({ pinned: false });
+    } else {
+      await db.query('INSERT INTO note_pins (user_id, note_id) VALUES ($1, $2)', [req.user.id, req.params.id]);
+      res.json({ pinned: true });
+    }
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Toggle project pin (admin/lead only)
+router.post('/:id/pin-project', authenticate, async (req, res, next) => {
+  try {
+    const note = await db.query('SELECT id, project_id, pinned_for_project FROM notes WHERE id = $1 AND deleted_at IS NULL', [req.params.id]);
+    if (note.rows.length === 0) {
+      return res.status(404).json({ error: { message: 'Note not found' } });
+    }
+
+    // Check permission - must be admin or project lead
+    if (req.user.role !== 'admin') {
+      const projectMember = await db.query(
+        'SELECT role FROM project_members WHERE project_id = $1 AND user_id = $2',
+        [note.rows[0].project_id, req.user.id]
+      );
+      if (projectMember.rows.length === 0 || projectMember.rows[0].role !== 'lead') {
+        return res.status(403).json({ error: { message: 'Only project leads or admins can pin notes for the project' } });
+      }
+    }
+
+    const newPinned = !note.rows[0].pinned_for_project;
+    await db.query(
+      'UPDATE notes SET pinned_for_project = $1, pinned_by = $2, pinned_at = $3 WHERE id = $4',
+      [newPinned, newPinned ? req.user.id : null, newPinned ? new Date() : null, req.params.id]
+    );
+
+    res.json({ pinned_for_project: newPinned });
   } catch (error) {
     next(error);
   }

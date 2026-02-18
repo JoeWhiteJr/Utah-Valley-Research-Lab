@@ -125,7 +125,7 @@ export const categoriesApi = {
 
 // Files
 export const filesApi = {
-  list: (projectId) => api.get(`/files/project/${projectId}`),
+  list: (projectId, folderId) => api.get(`/files/project/${projectId}`, { params: folderId ? { folder_id: folderId } : undefined }),
   upload: (projectId, file, onUploadProgress) => {
     const formData = new FormData()
     formData.append('file', file)
@@ -142,16 +142,28 @@ export const filesApi = {
     })
   },
   download: (id) => api.get(`/files/${id}/download`, { responseType: 'blob' }),
-  delete: (id) => api.delete(`/files/${id}`)
+  delete: (id) => api.delete(`/files/${id}`),
+  move: (fileId, folderId) => api.put(`/files/${fileId}/move`, { folder_id: folderId })
+}
+
+// Folders
+export const foldersApi = {
+  list: (projectId) => api.get(`/folders/project/${projectId}`),
+  create: (projectId, data) => api.post(`/folders/project/${projectId}`, data),
+  rename: (id, name) => api.put(`/folders/${id}`, { name }),
+  move: (id, parentId) => api.put(`/folders/${id}/move`, { parent_id: parentId }),
+  delete: (id) => api.delete(`/folders/${id}`)
 }
 
 // Notes
 export const notesApi = {
-  list: (projectId) => api.get(`/notes/project/${projectId}`),
+  list: (projectId, search) => api.get(`/notes/project/${projectId}`, { params: search ? { search } : undefined }),
   get: (id) => api.get(`/notes/${id}`),
   create: (projectId, data) => api.post(`/notes/project/${projectId}`, data),
   update: (id, data) => api.put(`/notes/${id}`, data),
-  delete: (id) => api.delete(`/notes/${id}`)
+  delete: (id) => api.delete(`/notes/${id}`),
+  togglePin: (noteId) => api.post(`/notes/${noteId}/pin`),
+  toggleProjectPin: (noteId) => api.post(`/notes/${noteId}/pin-project`)
 }
 
 // Meetings
@@ -171,7 +183,14 @@ export const meetingsApi = {
   update: (id, data) => api.put(`/meetings/${id}`, data),
   delete: (id) => api.delete(`/meetings/${id}`),
   transcribe: (id) => api.post(`/meetings/${id}/transcribe`),
-  getAudio: (id) => api.get(`/meetings/${id}/audio`, { responseType: 'blob' })
+  getAudio: (id) => api.get(`/meetings/${id}/audio`, { responseType: 'blob' }),
+  uploadAudio: (id, audioFile) => {
+    const formData = new FormData()
+    formData.append('audio', audioFile)
+    return api.put(`/meetings/${id}/audio`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    })
+  }
 }
 
 // Users
@@ -262,7 +281,9 @@ export const chatApi = {
   },
   // Push notifications
   pushSubscribe: (subscription) => api.post('/chats/push-subscribe', subscription),
-  pushUnsubscribe: (endpoint) => api.post('/chats/push-unsubscribe', { endpoint })
+  pushUnsubscribe: (endpoint) => api.post('/chats/push-unsubscribe', { endpoint }),
+  // Project chat room
+  getProjectRoom: (projectId) => api.get(`/chats/project/${projectId}`)
 }
 
 // Applications

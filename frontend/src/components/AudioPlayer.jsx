@@ -104,18 +104,54 @@ export default function AudioPlayer({ src, meetingId, className = '' }) {
     setIsPlaying(!isPlaying)
   }
 
-  const handleProgressClick = (e) => {
+  const [isDragging, setIsDragging] = useState(false)
+
+  const seekToPosition = (clientX) => {
     const audio = audioRef.current
     const progress = progressRef.current
     if (!audio || !progress || !duration) return
 
     const rect = progress.getBoundingClientRect()
-    const clickX = e.clientX - rect.left
+    const clickX = Math.max(0, Math.min(clientX - rect.left, rect.width))
     const percent = clickX / rect.width
     const newTime = percent * duration
 
     audio.currentTime = newTime
     setCurrentTime(newTime)
+  }
+
+  const handleProgressClick = (e) => {
+    if (isDragging) return
+    seekToPosition(e.clientX)
+  }
+
+  const handleMouseDown = (e) => {
+    e.preventDefault()
+    setIsDragging(true)
+    seekToPosition(e.clientX)
+
+    const handleMouseMove = (e) => seekToPosition(e.clientX)
+    const handleMouseUp = () => {
+      setIsDragging(false)
+      document.removeEventListener('mousemove', handleMouseMove)
+      document.removeEventListener('mouseup', handleMouseUp)
+    }
+
+    document.addEventListener('mousemove', handleMouseMove)
+    document.addEventListener('mouseup', handleMouseUp)
+  }
+
+  const handleTouchStart = (e) => {
+    setIsDragging(true)
+    seekToPosition(e.touches[0].clientX)
+  }
+
+  const handleTouchMove = (e) => {
+    if (isDragging) seekToPosition(e.touches[0].clientX)
+  }
+
+  const handleTouchEnd = () => {
+    setIsDragging(false)
   }
 
   const handleSpeedChange = (e) => {
@@ -214,17 +250,21 @@ export default function AudioPlayer({ src, meetingId, className = '' }) {
           <div
             ref={progressRef}
             onClick={handleProgressClick}
-            className="flex-1 h-2 bg-gray-200 dark:bg-gray-600 rounded-full cursor-pointer relative group"
+            onMouseDown={handleMouseDown}
+            onTouchStart={handleTouchStart}
+            onTouchMove={handleTouchMove}
+            onTouchEnd={handleTouchEnd}
+            className="flex-1 h-2 bg-gray-200 dark:bg-gray-600 rounded-full cursor-pointer relative group select-none touch-none"
           >
             {/* Progress Fill */}
             <div
-              className="absolute top-0 left-0 h-full bg-primary-500 rounded-full transition-all"
+              className={`absolute top-0 left-0 h-full bg-primary-500 rounded-full ${isDragging ? '' : 'transition-all'}`}
               style={{ width: `${progressPercent}%` }}
             />
-            {/* Hover indicator */}
+            {/* Hover/drag indicator */}
             <div
-              className="absolute top-1/2 -translate-y-1/2 w-3 h-3 bg-primary-600 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
-              style={{ left: `calc(${progressPercent}% - 6px)` }}
+              className={`absolute top-1/2 -translate-y-1/2 w-3.5 h-3.5 bg-primary-600 rounded-full shadow-sm ${isDragging ? 'opacity-100 scale-110' : 'opacity-0 group-hover:opacity-100'} transition-opacity`}
+              style={{ left: `calc(${progressPercent}% - 7px)` }}
             />
           </div>
 

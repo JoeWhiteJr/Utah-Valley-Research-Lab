@@ -92,11 +92,15 @@ const MeetingCard = memo(function MeetingCard({ meeting, onView, onDelete, onEdi
         </div>
       )}
 
-      {/* Summary preview */}
-      {hasSummary && (
-        <p className="mt-3 text-sm text-text-secondary dark:text-gray-400 line-clamp-2">
-          {meeting.summary}
-        </p>
+      {/* Generate Summary button when no summary */}
+      {!hasSummary && (
+        <button
+          onClick={(e) => { e.stopPropagation(); onView?.(meeting) }}
+          className="mt-3 flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-900/20 rounded-lg hover:bg-purple-100 dark:hover:bg-purple-900/30 transition-colors"
+        >
+          <Sparkles size={12} />
+          Generate Summary
+        </button>
       )}
 
       {/* Expandable notes section */}

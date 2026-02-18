@@ -82,7 +82,8 @@ export default function Modal({ isOpen, onClose, title, children, size = 'md' })
     sm: 'max-w-md',
     md: 'max-w-lg',
     lg: 'max-w-2xl',
-    xl: 'max-w-4xl'
+    xl: 'max-w-4xl',
+    full: 'max-w-[90vw] w-[90vw]'
   }
 
   return (

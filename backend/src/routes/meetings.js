@@ -289,6 +289,46 @@ router.post('/:id/transcribe', authenticate, async (req, res, next) => {
   }
 });
 
+// Upload audio to existing meeting
+router.put('/:id/audio', authenticate, upload.single('audio'), async (req, res, next) => {
+  try {
+    const existing = await db.query('SELECT id, project_id FROM meetings WHERE id = $1 AND deleted_at IS NULL', [req.params.id]);
+    if (existing.rows.length === 0) {
+      if (req.file) fs.unlink(req.file.path, () => {});
+      return res.status(404).json({ error: { message: 'Meeting not found' } });
+    }
+
+    if (!req.file) {
+      return res.status(400).json({ error: { message: 'No audio file provided' } });
+    }
+
+    // Verify project access
+    if (req.user.role !== 'admin') {
+      const projectAccess = await db.query(
+        `SELECT id FROM projects WHERE id = $1 AND (
+          created_by = $2 OR
+          EXISTS (SELECT 1 FROM project_members WHERE project_id = $1 AND user_id = $2)
+        )`,
+        [existing.rows[0].project_id, req.user.id]
+      );
+      if (projectAccess.rows.length === 0) {
+        fs.unlink(req.file.path, () => {});
+        return res.status(403).json({ error: { message: 'Access denied' } });
+      }
+    }
+
+    const result = await db.query(
+      'UPDATE meetings SET audio_path = $1 WHERE id = $2 RETURNING *',
+      [req.file.path, req.params.id]
+    );
+
+    res.json({ meeting: result.rows[0] });
+  } catch (error) {
+    if (req.file) fs.unlink(req.file.path, () => {});
+    next(error);
+  }
+});
+
 // Delete meeting
 router.delete('/:id', authenticate, async (req, res, next) => {
   try {

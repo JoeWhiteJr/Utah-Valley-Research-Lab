@@ -69,21 +69,32 @@ router.get('/project/:projectId', authenticate, requireProjectAccess(), async (r
   try {
     const limit = Math.min(parseInt(req.query.limit) || 50, 200);
     const offset = parseInt(req.query.offset) || 0;
+    const folderId = req.query.folder_id;
 
     const countResult = await db.query(
-      'SELECT COUNT(*) FROM files WHERE project_id = $1 AND deleted_at IS NULL',
-      [req.params.projectId]
+      folderId
+        ? 'SELECT COUNT(*) FROM files WHERE project_id = $1 AND deleted_at IS NULL AND folder_id = $2'
+        : 'SELECT COUNT(*) FROM files WHERE project_id = $1 AND deleted_at IS NULL AND folder_id IS NULL',
+      folderId ? [req.params.projectId, folderId] : [req.params.projectId]
     );
     const total = parseInt(countResult.rows[0].count);
 
-    const result = await db.query(`
-      SELECT f.*, u.name as uploader_name
-      FROM files f
-      JOIN users u ON f.uploaded_by = u.id
-      WHERE f.project_id = $1 AND f.deleted_at IS NULL
-      ORDER BY f.uploaded_at DESC
-      LIMIT $2 OFFSET $3
-    `, [req.params.projectId, limit, offset]);
+    const result = await db.query(
+      folderId
+        ? `SELECT f.*, u.name as uploader_name
+           FROM files f
+           JOIN users u ON f.uploaded_by = u.id
+           WHERE f.project_id = $1 AND f.deleted_at IS NULL AND f.folder_id = $4
+           ORDER BY f.uploaded_at DESC
+           LIMIT $2 OFFSET $3`
+        : `SELECT f.*, u.name as uploader_name
+           FROM files f
+           JOIN users u ON f.uploaded_by = u.id
+           WHERE f.project_id = $1 AND f.deleted_at IS NULL AND f.folder_id IS NULL
+           ORDER BY f.uploaded_at DESC
+           LIMIT $2 OFFSET $3`,
+      folderId ? [req.params.projectId, limit, offset, folderId] : [req.params.projectId, limit, offset]
+    );
 
     res.json({ files: result.rows, total, limit, offset });
   } catch (error) {
@@ -189,6 +200,35 @@ router.delete('/:id', authenticate, async (req, res, next) => {
     await db.query('UPDATE files SET deleted_at = NOW(), deleted_by = $1 WHERE id = $2 AND deleted_at IS NULL', [req.user.id, req.params.id]);
     logAdminAction(req, 'delete_file', 'file', req.params.id, { filename: file.original_filename, project_id: file.project_id }, null);
     res.json({ message: 'File deleted successfully' });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Move file to folder
+router.put('/:id/move', authenticate, async (req, res, next) => {
+  try {
+    const { folder_id } = req.body;
+
+    const existing = await db.query('SELECT * FROM files WHERE id = $1 AND deleted_at IS NULL', [req.params.id]);
+    if (existing.rows.length === 0) {
+      return res.status(404).json({ error: { message: 'File not found' } });
+    }
+
+    // If folder_id provided, verify folder exists
+    if (folder_id) {
+      const folder = await db.query('SELECT id FROM folders WHERE id = $1 AND deleted_at IS NULL', [folder_id]);
+      if (folder.rows.length === 0) {
+        return res.status(404).json({ error: { message: 'Folder not found' } });
+      }
+    }
+
+    const result = await db.query(
+      'UPDATE files SET folder_id = $1 WHERE id = $2 RETURNING *',
+      [folder_id || null, req.params.id]
+    );
+
+    res.json({ file: result.rows[0] });
   } catch (error) {
     next(error);
   }

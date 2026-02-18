@@ -1010,6 +1010,93 @@ router.delete('/:id', authenticate, async (req, res, next) => {
   }
 });
 
+// Get or create a project's chat room
+router.get('/project/:projectId', authenticate, async (req, res, next) => {
+  try {
+    // Find existing project chat room
+    let room = await db.query(`
+      SELECT cr.*,
+        (SELECT json_agg(json_build_object('id', u.id, 'name', u.name, 'role', cm.role, 'avatar_url', u.avatar_url))
+         FROM chat_members cm JOIN users u ON cm.user_id = u.id WHERE cm.room_id = cr.id) as members
+      FROM chat_rooms cr
+      WHERE cr.project_id = $1 AND cr.deleted_at IS NULL
+      LIMIT 1
+    `, [req.params.projectId]);
+
+    if (room.rows.length > 0) {
+      // Ensure current user is a member
+      const membership = await db.query(
+        'SELECT user_id FROM chat_members WHERE room_id = $1 AND user_id = $2',
+        [room.rows[0].id, req.user.id]
+      );
+      if (membership.rows.length === 0) {
+        await db.query(
+          'INSERT INTO chat_members (room_id, user_id, role) VALUES ($1, $2, $3)',
+          [room.rows[0].id, req.user.id, 'member']
+        );
+        // Re-fetch with updated members
+        room = await db.query(`
+          SELECT cr.*,
+            (SELECT json_agg(json_build_object('id', u.id, 'name', u.name, 'role', cm.role, 'avatar_url', u.avatar_url))
+             FROM chat_members cm JOIN users u ON cm.user_id = u.id WHERE cm.room_id = cr.id) as members
+          FROM chat_rooms cr
+          WHERE cr.id = $1
+        `, [room.rows[0].id]);
+      }
+      return res.json({ room: room.rows[0] });
+    }
+
+    // No room exists — create one
+    const project = await db.query('SELECT title FROM projects WHERE id = $1', [req.params.projectId]);
+    if (project.rows.length === 0) {
+      return res.status(404).json({ error: { message: 'Project not found' } });
+    }
+
+    const projectTitle = project.rows[0].title;
+
+    // Get all project members
+    const projectMembers = await db.query(
+      'SELECT user_id FROM project_members WHERE project_id = $1',
+      [req.params.projectId]
+    );
+    const memberIds = projectMembers.rows.map(m => m.user_id);
+
+    // Ensure current user is included
+    if (!memberIds.includes(req.user.id)) {
+      memberIds.push(req.user.id);
+    }
+
+    // Create room
+    const newRoom = await db.query(
+      'INSERT INTO chat_rooms (name, type, created_by, project_id) VALUES ($1, $2, $3, $4) RETURNING *',
+      [`${projectTitle} Chat`, 'group', req.user.id, req.params.projectId]
+    );
+
+    const roomId = newRoom.rows[0].id;
+
+    // Add all members
+    for (const memberId of memberIds) {
+      const role = memberId === req.user.id ? 'admin' : 'member';
+      await db.query(
+        'INSERT INTO chat_members (room_id, user_id, role) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING',
+        [roomId, memberId, role]
+      );
+    }
+
+    // Fetch full room data
+    const fullRoom = await db.query(`
+      SELECT cr.*,
+        (SELECT json_agg(json_build_object('id', u.id, 'name', u.name, 'role', cm.role, 'avatar_url', u.avatar_url))
+         FROM chat_members cm JOIN users u ON cm.user_id = u.id WHERE cm.room_id = cr.id) as members
+      FROM chat_rooms cr WHERE cr.id = $1
+    `, [roomId]);
+
+    res.json({ room: fullRoom.rows[0] });
+  } catch (error) {
+    next(error);
+  }
+});
+
 // Get single room details
 router.get('/:id', authenticate, async (req, res, next) => {
   try {

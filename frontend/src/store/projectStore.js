@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { projectsApi, actionsApi, categoriesApi, filesApi, notesApi, meetingsApi } from '../services/api'
+import { projectsApi, actionsApi, categoriesApi, filesApi, foldersApi, notesApi, meetingsApi } from '../services/api'
 
 export const useProjectStore = create((set, get) => ({
   projects: [],
@@ -290,10 +290,70 @@ export const useProjectStore = create((set, get) => ({
     }
   },
 
-  // Notes
-  fetchNotes: async (projectId) => {
+  // Folders
+  folders: [],
+
+  fetchFolders: async (projectId) => {
     try {
-      const { data } = await notesApi.list(projectId)
+      const { data } = await foldersApi.list(projectId)
+      set({ folders: data.folders })
+    } catch (error) {
+      set({ error: error.response?.data?.error?.message || 'Failed to fetch folders' })
+    }
+  },
+
+  createFolder: async (projectId, folderData) => {
+    try {
+      const { data } = await foldersApi.create(projectId, folderData)
+      set((state) => ({ folders: [...state.folders, data.folder] }))
+      return data.folder
+    } catch (error) {
+      set({ error: error.response?.data?.error?.message || 'Failed to create folder' })
+      return null
+    }
+  },
+
+  renameFolder: async (id, name) => {
+    try {
+      const { data } = await foldersApi.rename(id, name)
+      set((state) => ({
+        folders: state.folders.map((f) => (f.id === id ? data.folder : f))
+      }))
+      return data.folder
+    } catch (error) {
+      set({ error: error.response?.data?.error?.message || 'Failed to rename folder' })
+      return null
+    }
+  },
+
+  deleteFolder: async (id) => {
+    try {
+      await foldersApi.delete(id)
+      set((state) => ({ folders: state.folders.filter((f) => f.id !== id) }))
+      return true
+    } catch (error) {
+      set({ error: error.response?.data?.error?.message || 'Failed to delete folder' })
+      return false
+    }
+  },
+
+  moveFile: async (fileId, folderId) => {
+    try {
+      const { data } = await filesApi.move(fileId, folderId)
+      set((state) => ({
+        files: state.files.map((f) => (f.id === fileId ? data.file : f))
+      }))
+      return data.file
+    } catch (error) {
+      set({ error: error.response?.data?.error?.message || 'Failed to move file' })
+      return null
+    }
+  },
+
+  // Notes
+  fetchNotes: async (projectId, search) => {
+    try {
+      const { data } = await notesApi.list(projectId, search)
       set({ notes: data.notes })
     } catch (error) {
       set({ error: error.response?.data?.error?.message || 'Failed to fetch notes' })
@@ -332,6 +392,32 @@ export const useProjectStore = create((set, get) => ({
     } catch (error) {
       set({ error: error.response?.data?.error?.message || 'Failed to delete note' })
       return false
+    }
+  },
+
+  toggleNotePin: async (noteId) => {
+    try {
+      const { data } = await notesApi.togglePin(noteId)
+      set((state) => ({
+        notes: state.notes.map((n) => (n.id === noteId ? { ...n, is_pinned: data.pinned } : n))
+      }))
+      return data.pinned
+    } catch (error) {
+      set({ error: error.response?.data?.error?.message || 'Failed to toggle pin' })
+      return null
+    }
+  },
+
+  toggleNoteProjectPin: async (noteId) => {
+    try {
+      const { data } = await notesApi.toggleProjectPin(noteId)
+      set((state) => ({
+        notes: state.notes.map((n) => (n.id === noteId ? { ...n, pinned_for_project: data.pinned_for_project } : n))
+      }))
+      return data.pinned_for_project
+    } catch (error) {
+      set({ error: error.response?.data?.error?.message || 'Failed to toggle project pin' })
+      return null
     }
   },
 
@@ -457,5 +543,5 @@ export const useProjectStore = create((set, get) => ({
   },
 
   clearError: () => set({ error: null }),
-  clearCurrentProject: () => set({ currentProject: null, actions: [], categories: [], files: [], notes: [], meetings: [], members: [], membershipStatus: null, joinRequests: [] })
+  clearCurrentProject: () => set({ currentProject: null, actions: [], categories: [], files: [], folders: [], notes: [], meetings: [], members: [], membershipStatus: null, joinRequests: [] })
 }))
