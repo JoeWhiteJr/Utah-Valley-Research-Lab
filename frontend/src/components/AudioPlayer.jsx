@@ -4,7 +4,6 @@ import { meetingsApi } from '../services/api'
 
 export default function AudioPlayer({ src, meetingId, className = '' }) {
   const audioRef = useRef(null)
-  const progressRef = useRef(null)
 
   const [isPlaying, setIsPlaying] = useState(false)
   const [currentTime, setCurrentTime] = useState(0)
@@ -104,54 +103,12 @@ export default function AudioPlayer({ src, meetingId, className = '' }) {
     setIsPlaying(!isPlaying)
   }
 
-  const [isDragging, setIsDragging] = useState(false)
-
-  const seekToPosition = (clientX) => {
+  const handleSeek = (e) => {
     const audio = audioRef.current
-    const progress = progressRef.current
-    if (!audio || !progress || !duration) return
-
-    const rect = progress.getBoundingClientRect()
-    const clickX = Math.max(0, Math.min(clientX - rect.left, rect.width))
-    const percent = clickX / rect.width
-    const newTime = percent * duration
-
+    if (!audio) return
+    const newTime = parseFloat(e.target.value)
     audio.currentTime = newTime
     setCurrentTime(newTime)
-  }
-
-  const handleProgressClick = (e) => {
-    if (isDragging) return
-    seekToPosition(e.clientX)
-  }
-
-  const handleMouseDown = (e) => {
-    e.preventDefault()
-    setIsDragging(true)
-    seekToPosition(e.clientX)
-
-    const handleMouseMove = (e) => seekToPosition(e.clientX)
-    const handleMouseUp = () => {
-      setIsDragging(false)
-      document.removeEventListener('mousemove', handleMouseMove)
-      document.removeEventListener('mouseup', handleMouseUp)
-    }
-
-    document.addEventListener('mousemove', handleMouseMove)
-    document.addEventListener('mouseup', handleMouseUp)
-  }
-
-  const handleTouchStart = (e) => {
-    setIsDragging(true)
-    seekToPosition(e.touches[0].clientX)
-  }
-
-  const handleTouchMove = (e) => {
-    if (isDragging) seekToPosition(e.touches[0].clientX)
-  }
-
-  const handleTouchEnd = () => {
-    setIsDragging(false)
   }
 
   const handleSpeedChange = (e) => {
@@ -191,9 +148,6 @@ export default function AudioPlayer({ src, meetingId, className = '' }) {
     const seconds = Math.floor(time % 60)
     return `${minutes}:${seconds.toString().padStart(2, '0')}`
   }
-
-  // Calculate progress percentage
-  const progressPercent = duration ? (currentTime / duration) * 100 : 0
 
   if (!src && !meetingId) {
     return null
@@ -247,29 +201,30 @@ export default function AudioPlayer({ src, meetingId, className = '' }) {
             {formatTime(currentTime)} / {formatTime(duration)}
           </span>
 
-          <div
-            ref={progressRef}
-            onClick={handleProgressClick}
-            onMouseDown={handleMouseDown}
-            onTouchStart={handleTouchStart}
-            onTouchMove={handleTouchMove}
-            onTouchEnd={handleTouchEnd}
-            className="flex-1 py-2 cursor-pointer relative group select-none touch-none"
-          >
-            {/* Visible track */}
-            <div className="h-2 bg-gray-200 dark:bg-gray-600 rounded-full relative">
-              {/* Progress Fill */}
-              <div
-                className={`absolute top-0 left-0 h-full bg-primary-500 rounded-full pointer-events-none ${isDragging ? '' : 'transition-all'}`}
-                style={{ width: `${progressPercent}%` }}
-              />
-            </div>
-            {/* Hover/drag indicator */}
-            <div
-              className={`absolute top-1/2 -translate-y-1/2 w-3.5 h-3.5 bg-primary-600 rounded-full shadow-sm pointer-events-none ${isDragging ? 'opacity-100 scale-110' : 'opacity-0 group-hover:opacity-100'} transition-opacity`}
-              style={{ left: `calc(${progressPercent}% - 7px)` }}
-            />
-          </div>
+          <input
+            type="range"
+            min={0}
+            max={duration || 0}
+            step={0.1}
+            value={currentTime}
+            onChange={handleSeek}
+            disabled={!isLoaded}
+            className="flex-1 h-2 bg-gray-200 dark:bg-gray-600 rounded-full appearance-none cursor-pointer
+              [&::-webkit-slider-thumb]:appearance-none
+              [&::-webkit-slider-thumb]:w-4
+              [&::-webkit-slider-thumb]:h-4
+              [&::-webkit-slider-thumb]:bg-primary-500
+              [&::-webkit-slider-thumb]:rounded-full
+              [&::-webkit-slider-thumb]:cursor-pointer
+              [&::-webkit-slider-thumb]:shadow-sm
+              [&::-moz-range-thumb]:w-4
+              [&::-moz-range-thumb]:h-4
+              [&::-moz-range-thumb]:bg-primary-500
+              [&::-moz-range-thumb]:rounded-full
+              [&::-moz-range-thumb]:cursor-pointer
+              [&::-moz-range-thumb]:border-none
+            "
+          />
         </div>
 
         {/* Speed Control */}
