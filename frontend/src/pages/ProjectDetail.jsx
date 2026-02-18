@@ -24,7 +24,7 @@ import {
   ArrowLeft, Edit3, Trash2, Plus, Upload, ListTodo, FileText,
   StickyNote, Mic, MoreVertical, Check, Users, Sparkles, Loader2,
   Calendar, UserPlus, UserMinus, Crown, Clock, Shield,
-  MessageCircle, FolderPlus, Folder, ChevronRight, Search, Pin
+  MessageCircle, FolderPlus, Folder, ChevronRight, Search, Pin, X, ChevronDown, Filter
 } from 'lucide-react'
 import { CalendarView } from '../components/calendar/CalendarView'
 import { toast } from '../store/toastStore'
@@ -127,8 +127,9 @@ export default function ProjectDetail() {
   const [selectedUserIds, setSelectedUserIds] = useState([])
 
   // Category filter state
-  const [categoryFilter, setCategoryFilter] = useState(null)
-  const [assigneeFilter, setAssigneeFilter] = useState(null)
+  const [categoryFilters, setCategoryFilters] = useState([])
+  const [showCategoryDropdown, setShowCategoryDropdown] = useState(false)
+  const [assigneeFilter, setAssigneeFilter] = useState('me')
   const [taskStatusFilter, setTaskStatusFilter] = useState('current')
 
   // Members sidebar collapsed state
@@ -317,8 +318,13 @@ export default function ProjectDetail() {
   }
 
   const filteredActions = actions.filter(a => {
-    if (categoryFilter && categoryFilter !== 'uncategorized' && a.category_id !== categoryFilter) return false
-    if (categoryFilter === 'uncategorized' && a.category_id) return false
+    if (categoryFilters.length > 0) {
+      const hasMatch = categoryFilters.some(cf => {
+        if (cf === 'uncategorized') return !a.category_id
+        return a.category_id === cf
+      })
+      if (!hasMatch) return false
+    }
     if (taskStatusFilter === 'current' && a.completed) return false
     if (taskStatusFilter === 'completed' && !a.completed) return false
     if (assigneeFilter === 'me') {
@@ -394,16 +400,6 @@ export default function ProjectDetail() {
     setMeetingData({ title: '', recorded_at: '', notes: '' })
     setAudioFile(null)
     setShowRecorder(false)
-  }
-
-  const handleEditMeeting = (meeting) => {
-    setEditingMeeting(meeting)
-    setMeetingData({
-      title: meeting.title,
-      recorded_at: meeting.recorded_at ? meeting.recorded_at.split('T')[0] : '',
-      notes: meeting.notes || ''
-    })
-    setShowEditMeetingModal(true)
   }
 
   const handleSaveMeeting = async (e) => {
@@ -773,7 +769,7 @@ export default function ProjectDetail() {
 
         {/* Schedule */}
         {activeTab === 'schedule' && (
-          <div>
+          <div className="min-h-[calc(100vh-200px)]">
             <CalendarView scope="project" projectId={id} />
           </div>
         )}
@@ -851,42 +847,96 @@ export default function ProjectDetail() {
               </select>
             </div>
 
-            {/* Category Manager and Filter */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-              <div className="lg:col-span-2">
-                {categories.length > 0 && (
-                  <div className="flex flex-wrap gap-2 mb-4">
-                    <button onClick={() => setCategoryFilter(null)}
-                      className={`px-3 py-1.5 text-xs rounded-full font-medium transition-colors ${
-                        categoryFilter === null ? 'bg-primary-100 text-primary-700 dark:bg-primary-900/30 dark:text-primary-300' : 'bg-gray-100 dark:bg-gray-700 text-text-secondary dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'
-                      }`}>
-                      All ({actions.filter(a => { if (taskStatusFilter === 'current' && a.completed) return false; if (taskStatusFilter === 'completed' && !a.completed) return false; return true }).length})
-                    </button>
-                    {categories.map((cat) => (
-                      <button key={cat.id} onClick={() => setCategoryFilter(cat.id)}
-                        className={`px-3 py-1.5 text-xs rounded-full font-medium transition-colors ${categoryFilter === cat.id ? 'ring-2 ring-offset-1 ring-gray-400 dark:ring-offset-gray-900' : 'hover:opacity-80'}`}
-                        style={{ backgroundColor: cat.color + '20', color: cat.color }}>
-                        {cat.name} ({actions.filter(a => { if (a.category_id !== cat.id) return false; if (taskStatusFilter === 'current' && a.completed) return false; if (taskStatusFilter === 'completed' && !a.completed) return false; return true }).length})
-                      </button>
-                    ))}
-                    <button onClick={() => setCategoryFilter('uncategorized')}
-                      className={`px-3 py-1.5 text-xs rounded-full font-medium transition-colors ${categoryFilter === 'uncategorized' ? 'bg-gray-200 dark:bg-gray-600 text-text-primary dark:text-gray-100' : 'bg-gray-100 dark:bg-gray-700 text-text-secondary dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'}`}>
-                      Uncategorized ({actions.filter(a => { if (a.category_id) return false; if (taskStatusFilter === 'current' && a.completed) return false; if (taskStatusFilter === 'completed' && !a.completed) return false; return true }).length})
-                    </button>
+            {/* Category filter dropdown */}
+            {categories.length > 0 && (
+              <div className="flex items-center gap-2">
+                <div className="relative">
+                  <button
+                    onClick={() => setShowCategoryDropdown(!showCategoryDropdown)}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-full font-medium border transition-colors ${
+                      categoryFilters.length > 0
+                        ? 'bg-primary-50 dark:bg-primary-900/20 border-primary-300 dark:border-primary-600 text-primary-700 dark:text-primary-300'
+                        : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-600 text-text-secondary dark:text-gray-400 hover:border-gray-300 dark:hover:border-gray-500'
+                    }`}
+                  >
+                    <Filter size={12} />
+                    Categories {categoryFilters.length > 0 && `(${categoryFilters.length})`}
+                    <ChevronDown size={12} />
+                  </button>
+                  {showCategoryDropdown && (
+                    <>
+                      <div className="fixed inset-0 z-10" onClick={() => setShowCategoryDropdown(false)} />
+                      <div className="absolute top-full left-0 mt-1 z-20 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1 min-w-[180px]">
+                        {categories.map((cat) => (
+                          <label key={cat.id} className="flex items-center gap-2 px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={categoryFilters.includes(cat.id)}
+                              onChange={() => setCategoryFilters(prev =>
+                                prev.includes(cat.id) ? prev.filter(id => id !== cat.id) : [...prev, cat.id]
+                              )}
+                              className="rounded border-gray-300 dark:border-gray-600 text-primary-600 focus:ring-primary-300"
+                            />
+                            <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: cat.color }} />
+                            <span className="text-xs text-text-primary dark:text-gray-100">{cat.name}</span>
+                          </label>
+                        ))}
+                        <label className="flex items-center gap-2 px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer border-t border-gray-100 dark:border-gray-700">
+                          <input
+                            type="checkbox"
+                            checked={categoryFilters.includes('uncategorized')}
+                            onChange={() => setCategoryFilters(prev =>
+                              prev.includes('uncategorized') ? prev.filter(id => id !== 'uncategorized') : [...prev, 'uncategorized']
+                            )}
+                            className="rounded border-gray-300 dark:border-gray-600 text-primary-600 focus:ring-primary-300"
+                          />
+                          <span className="text-xs text-text-secondary dark:text-gray-400">Uncategorized</span>
+                        </label>
+                        {categoryFilters.length > 0 && (
+                          <button
+                            onClick={() => setCategoryFilters([])}
+                            className="w-full px-3 py-1.5 text-xs text-primary-600 dark:text-primary-400 hover:bg-gray-50 dark:hover:bg-gray-700 text-left border-t border-gray-100 dark:border-gray-700"
+                          >
+                            Clear all
+                          </button>
+                        )}
+                      </div>
+                    </>
+                  )}
+                </div>
+                {categoryFilters.length > 0 && (
+                  <div className="flex flex-wrap gap-1">
+                    {categoryFilters.map(cf => {
+                      const cat = categories.find(c => c.id === cf)
+                      return (
+                        <span key={cf} className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-medium rounded-full"
+                          style={cat ? { backgroundColor: cat.color + '20', color: cat.color } : {}}
+                        >
+                          {cat ? cat.name : 'Uncategorized'}
+                          <button onClick={() => setCategoryFilters(prev => prev.filter(id => id !== cf))} className="hover:opacity-70">
+                            <X size={10} />
+                          </button>
+                        </span>
+                      )
+                    })}
                   </div>
                 )}
+              </div>
+            )}
 
-                {(categoryFilter || assigneeFilter) && (
-                  <div className="flex items-center justify-between mb-3 px-1">
-                    <p className="text-xs text-text-secondary dark:text-gray-400">
-                      Showing {filteredActions.length} {filteredActions.length === 1 ? 'task' : 'tasks'}
-                      {assigneeFilter === 'me' ? ' assigned to you' : assigneeFilter ? ` assigned to ${teamMembers.find(m => m.id === assigneeFilter)?.name || 'member'}` : ''}
-                      {categoryFilter && categoryFilter !== 'uncategorized' ? ` in ${categories.find(c => c.id === categoryFilter)?.name || 'category'}` : ''}
-                      {categoryFilter === 'uncategorized' ? ' (uncategorized)' : ''}
-                    </p>
-                    <button onClick={() => { setCategoryFilter(null); setAssigneeFilter(null) }} className="text-xs text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 font-medium">Clear filters</button>
-                  </div>
-                )}
+            {(categoryFilters.length > 0 || (assigneeFilter && assigneeFilter !== 'me')) && (
+              <div className="flex items-center justify-between px-1">
+                <p className="text-xs text-text-secondary dark:text-gray-400">
+                  Showing {filteredActions.length} {filteredActions.length === 1 ? 'task' : 'tasks'}
+                  {assigneeFilter === 'me' ? ' assigned to you' : assigneeFilter ? ` assigned to ${teamMembers.find(m => m.id === assigneeFilter)?.name || 'member'}` : ''}
+                </p>
+                <button onClick={() => { setCategoryFilters([]); setAssigneeFilter('me') }} className="text-xs text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 font-medium">Clear filters</button>
+              </div>
+            )}
+
+            {/* Action items and Category Manager */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 items-start">
+              <div className="lg:col-span-2">
 
                 {filteredActions.length > 0 ? (
                   <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
@@ -1044,13 +1094,23 @@ export default function ProjectDetail() {
                       <>
                         <p className="text-[10px] font-semibold uppercase tracking-wider text-primary-500 dark:text-primary-400 px-2 pt-1">Project Pins</p>
                         {projectPinnedNotes.map((note) => (
-                          <button
-                            key={note.id}
-                            onClick={() => handleEditNote(note)}
-                            className="w-full text-left px-2 py-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-900 transition-colors border-l-2 border-primary-400 dark:border-primary-500"
-                          >
-                            <p className="text-xs font-medium text-text-primary dark:text-gray-100 truncate">{note.title}</p>
-                          </button>
+                          <div key={note.id} className="group/pin flex items-center gap-1 border-l-2 border-primary-400 dark:border-primary-500 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-900 transition-colors">
+                            <button
+                              onClick={() => handleEditNote(note)}
+                              className="flex-1 text-left px-2 py-2 min-w-0"
+                            >
+                              <p className="text-xs font-medium text-text-primary dark:text-gray-100 truncate">{note.title}</p>
+                            </button>
+                            {canEdit && (
+                              <button
+                                onClick={() => toggleNoteProjectPin(note.id)}
+                                className="p-1 mr-1 rounded text-gray-400 hover:text-red-500 dark:hover:text-red-400 opacity-0 group-hover/pin:opacity-100 transition-opacity flex-shrink-0"
+                                title="Unpin from project"
+                              >
+                                <X size={12} />
+                              </button>
+                            )}
+                          </div>
                         ))}
                       </>
                     )}
@@ -1058,13 +1118,21 @@ export default function ProjectDetail() {
                       <>
                         <p className={`text-[10px] font-semibold uppercase tracking-wider text-text-secondary dark:text-gray-400 px-2 ${projectPinnedNotes.length > 0 ? 'pt-2 mt-1 border-t border-gray-100 dark:border-gray-700' : 'pt-1'}`}>My Pins</p>
                         {personalPinnedNotes.map((note) => (
-                          <button
-                            key={note.id}
-                            onClick={() => handleEditNote(note)}
-                            className="w-full text-left px-2 py-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-900 transition-colors"
-                          >
-                            <p className="text-xs font-medium text-text-primary dark:text-gray-100 truncate">{note.title}</p>
-                          </button>
+                          <div key={note.id} className="group/pin flex items-center gap-1 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-900 transition-colors">
+                            <button
+                              onClick={() => handleEditNote(note)}
+                              className="flex-1 text-left px-2 py-2 min-w-0"
+                            >
+                              <p className="text-xs font-medium text-text-primary dark:text-gray-100 truncate">{note.title}</p>
+                            </button>
+                            <button
+                              onClick={() => toggleNotePin(note.id)}
+                              className="p-1 mr-1 rounded text-gray-400 hover:text-red-500 dark:hover:text-red-400 opacity-0 group-hover/pin:opacity-100 transition-opacity flex-shrink-0"
+                              title="Unpin"
+                            >
+                              <X size={12} />
+                            </button>
+                          </div>
                         ))}
                       </>
                     )}
@@ -1139,7 +1207,7 @@ export default function ProjectDetail() {
             {meetings.length > 0 ? (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {meetings.map((meeting) => (
-                  <MeetingCard key={meeting.id} meeting={meeting} onView={handleViewMeeting} onEdit={handleEditMeeting} onDelete={deleteMeeting} />
+                  <MeetingCard key={meeting.id} meeting={meeting} onView={handleViewMeeting} onDelete={deleteMeeting} />
                 ))}
               </div>
             ) : (
@@ -1459,12 +1527,15 @@ export default function ProjectDetail() {
         {viewingMeeting && (
           <div className="flex flex-col h-[80vh]">
             {/* Editable title */}
-            <input
-              value={meetingViewTitle}
-              onChange={(e) => setMeetingViewTitle(e.target.value)}
-              className="text-xl font-display font-semibold text-text-primary dark:text-gray-100 bg-transparent border-none outline-none mb-1 placeholder:text-gray-400"
-              placeholder="Meeting title"
-            />
+            <div className="flex items-baseline gap-2 mb-1">
+              <input
+                value={meetingViewTitle}
+                onChange={(e) => setMeetingViewTitle(e.target.value)}
+                className="text-xl font-display font-semibold text-text-primary dark:text-gray-100 bg-transparent border-none outline-none flex-1 placeholder:text-gray-400"
+                placeholder="Meeting title"
+              />
+              <span className="text-xs italic text-gray-400 dark:text-gray-500 flex-shrink-0">click to edit</span>
+            </div>
             {viewingMeeting.recorded_at && (
               <p className="text-xs text-text-secondary dark:text-gray-400 mb-4">
                 {new Date(viewingMeeting.recorded_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
@@ -1494,14 +1565,17 @@ export default function ProjectDetail() {
                 </div>
 
                 {/* Notes editor */}
-                <div className="flex-1 min-h-0 overflow-y-auto">
+                <div className="flex-1 min-h-0 flex flex-col">
                   <h4 className="text-sm font-semibold text-text-primary dark:text-gray-100 mb-2">Notes</h4>
-                  <RichTextEditor
-                    value={meetingViewNotes}
-                    onChange={setMeetingViewNotes}
-                    placeholder="Add meeting notes..."
-                    minHeight="200px"
-                  />
+                  <div className="flex-1 [&_.ql-container]:!min-h-0 [&_.ql-container]:flex-1 [&_.ql-container]:flex [&_.ql-container]:flex-col [&_.ql-editor]:flex-1">
+                    <RichTextEditor
+                      value={meetingViewNotes}
+                      onChange={setMeetingViewNotes}
+                      placeholder="Add meeting notes..."
+                      minHeight="100%"
+                      className="h-full flex flex-col [&>div]:flex-1 [&>div]:flex [&>div]:flex-col"
+                    />
+                  </div>
                 </div>
               </div>
 

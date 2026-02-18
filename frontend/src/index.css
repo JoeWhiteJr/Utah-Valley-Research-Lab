@@ -157,6 +157,68 @@ select:focus-visible {
   border-color: #e5e7eb !important;
 }
 
+/* Dark mode overrides for Quill editor */
+html.dark .ql-toolbar {
+  border-color: #4b5563 !important;
+  background: #1f2937 !important;
+}
+
+html.dark .ql-container {
+  border-color: #4b5563 !important;
+  background: #111827 !important;
+}
+
+html.dark .ql-editor {
+  color: #f3f4f6 !important;
+}
+
+html.dark .ql-editor.ql-blank::before {
+  color: #6b7280 !important;
+}
+
+html.dark .ql-toolbar .ql-stroke {
+  stroke: #9ca3af !important;
+}
+
+html.dark .ql-toolbar .ql-fill {
+  fill: #9ca3af !important;
+}
+
+html.dark .ql-toolbar .ql-picker-label {
+  color: #9ca3af !important;
+}
+
+html.dark .ql-toolbar .ql-picker-options {
+  background: #1f2937 !important;
+  border-color: #4b5563 !important;
+}
+
+html.dark .ql-toolbar .ql-picker-item {
+  color: #d1d5db !important;
+}
+
+html.dark .ql-toolbar button:hover .ql-stroke,
+html.dark .ql-toolbar .ql-picker-label:hover .ql-stroke {
+  stroke: #e5e7eb !important;
+}
+
+html.dark .ql-toolbar button:hover .ql-fill,
+html.dark .ql-toolbar .ql-picker-label:hover .ql-fill {
+  fill: #e5e7eb !important;
+}
+
+html.dark .ql-toolbar button.ql-active .ql-stroke {
+  stroke: #818cf8 !important;
+}
+
+html.dark .ql-toolbar button.ql-active .ql-fill {
+  fill: #818cf8 !important;
+}
+
+html.dark .ql-toolbar .ql-picker-label.ql-active {
+  color: #818cf8 !important;
+}
+
 /* Hide scrollbar but keep functionality */
 .hide-scrollbar {
   -ms-overflow-style: none;
