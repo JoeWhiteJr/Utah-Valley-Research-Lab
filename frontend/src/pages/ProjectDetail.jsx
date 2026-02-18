@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core'
 import { SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy, arrayMove } from '@dnd-kit/sortable'
 import { useAuthStore } from '../store/authStore'
@@ -24,7 +24,7 @@ import {
   ArrowLeft, Edit3, Trash2, Plus, Upload, ListTodo, FileText,
   StickyNote, Mic, MoreVertical, Check, Users, Sparkles, Loader2,
   Calendar, UserPlus, UserMinus, Crown, Clock, Shield,
-  MessageCircle, FolderPlus, Folder, ChevronRight, Search, Pin, X, ChevronDown, Filter
+  MessageCircle, FolderPlus, Folder, ChevronRight, Search, Pin, X, ChevronDown, Filter, ImageIcon
 } from 'lucide-react'
 import { CalendarView } from '../components/calendar/CalendarView'
 import { toast } from '../store/toastStore'
@@ -43,6 +43,7 @@ const tabs = [
 export default function ProjectDetail() {
   const { id } = useParams()
   const navigate = useNavigate()
+  const location = useLocation()
   const { user } = useAuthStore()
   const {
     currentProject, fetchProject, updateProject, deleteProject,
@@ -500,6 +501,12 @@ export default function ProjectDetail() {
     return 0
   })
 
+  // Compute dynamic back button label from route
+  const pathSegments = location.pathname.split('/').filter(Boolean)
+  // e.g. ['dashboard', 'projects', '123'] → parent label is 'Projects'
+  const parentSegment = pathSegments.length >= 2 ? pathSegments[pathSegments.length - 2] : null
+  const backLabel = parentSegment ? parentSegment.charAt(0).toUpperCase() + parentSegment.slice(1) : null
+
   if (isLoading || !currentProject) {
     return (
       <div className="animate-pulse space-y-6">
@@ -512,81 +519,104 @@ export default function ProjectDetail() {
 
   return (
     <div className="space-y-4">
-      {/* Back button */}
-      <button
-        onClick={() => navigate('/dashboard/projects')}
-        className="inline-flex items-center gap-2 text-text-secondary dark:text-gray-400 hover:text-text-primary dark:hover:text-gray-100"
-      >
-        <ArrowLeft size={18} />
-        Back to Projects
-      </button>
+      {/* Back button — dynamic label from route */}
+      {backLabel && (
+        <button
+          onClick={() => navigate(-1)}
+          className="inline-flex items-center gap-1.5 text-sm text-text-secondary dark:text-gray-400 hover:text-text-primary dark:hover:text-gray-100"
+        >
+          <ArrowLeft size={16} />
+          {backLabel}
+        </button>
+      )}
 
-      {/* Title, description, and actions — always visible */}
-      <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-3 flex-wrap">
-            <h1 className="font-display font-bold text-2xl md:text-3xl text-text-primary dark:text-gray-100">
-              {currentProject.title}
-            </h1>
-            <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${
-              currentProject.status === 'active' ? 'bg-secondary-100 text-secondary-700 dark:bg-secondary-900/30 dark:text-secondary-300' :
-              currentProject.status === 'completed' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300' :
-              currentProject.status === 'inactive' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300' :
-              'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400'
-            }`}>
-              {currentProject.status}
-            </span>
-          </div>
-          {currentProject.subheader && (
-            <p className="mt-1 text-text-secondary dark:text-gray-400">{currentProject.subheader}</p>
+      {/* Header: Image + Info + Actions */}
+      <div className="flex flex-col md:flex-row gap-5">
+        {/* Left: Project image */}
+        <div className="flex-shrink-0 w-full md:w-48 lg:w-56 h-36 md:h-40 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden bg-gray-100 dark:bg-gray-800">
+          {currentProject.header_image ? (
+            <img
+              src={getUploadUrl(currentProject.header_image)}
+              alt={currentProject.title}
+              className="w-full h-full object-cover"
+            />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center">
+              <ImageIcon size={36} className="text-gray-300 dark:text-gray-600" />
+            </div>
           )}
         </div>
 
-        {currentProject.description && (
-          <p className="flex-1 text-sm text-text-secondary dark:text-gray-400 md:max-w-md lg:max-w-lg">{currentProject.description}</p>
-        )}
+        {/* Right: Title, subtitle, description */}
+        <div className="flex-1 min-w-0 flex flex-col">
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0">
+              <div className="flex items-center gap-3 flex-wrap">
+                <h1 className="font-display font-bold text-2xl md:text-3xl text-text-primary dark:text-gray-100">
+                  {currentProject.title}
+                </h1>
+                <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${
+                  currentProject.status === 'active' ? 'bg-secondary-100 text-secondary-700 dark:bg-secondary-900/30 dark:text-secondary-300' :
+                  currentProject.status === 'completed' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300' :
+                  currentProject.status === 'inactive' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300' :
+                  'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400'
+                }`}>
+                  {currentProject.status}
+                </span>
+              </div>
+              {currentProject.subheader && (
+                <p className="mt-1 text-text-secondary dark:text-gray-400">{currentProject.subheader}</p>
+              )}
+            </div>
 
-        {canEdit && (
-          <div className="flex gap-2 items-center flex-shrink-0">
-            <Button variant="outline" onClick={handleGenerateAiSummary} disabled={aiSummaryLoading}>
-              {aiSummaryLoading ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
-              AI Summary
-            </Button>
-            <Button variant="outline" onClick={() => setShowEditModal(true)}>
-              <Edit3 size={16} />
-              Edit
-            </Button>
-            {canDelete && (
-              <Button variant="danger" onClick={() => setShowDeleteConfirm(true)}>
-                <Trash2 size={16} />
-              </Button>
-            )}
-            {canEditMeta && (
-              <div className="relative">
-                <Button variant="outline" onClick={() => setShowSettingsMenu(!showSettingsMenu)} className="!p-2">
-                  <MoreVertical size={16} />
+            {/* Action buttons — top right */}
+            {canEdit && (
+              <div className="flex gap-2 items-center flex-shrink-0">
+                <Button variant="outline" onClick={handleGenerateAiSummary} disabled={aiSummaryLoading}>
+                  {aiSummaryLoading ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
+                  AI Summary
                 </Button>
-                {showSettingsMenu && (
-                  <>
-                    <div className="fixed inset-0 z-10" onClick={() => setShowSettingsMenu(false)} />
-                    <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1 z-20">
-                      <div className="px-3 py-2 text-xs font-semibold text-text-secondary dark:text-gray-400 uppercase tracking-wider">Set Status</div>
-                      {PROJECT_STATUSES.map((status) => (
-                        <button key={status} onClick={() => handleStatusChange(status)}
-                          className={`w-full px-3 py-2 text-left text-sm flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-700 ${
-                            currentProject.status === status ? 'bg-gray-50 dark:bg-gray-700 text-primary-600 dark:text-primary-300' : 'text-text-primary dark:text-gray-100'
-                          }`}>
-                          <span className="capitalize">{status}</span>
-                          {currentProject.status === status && <Check size={16} />}
-                        </button>
-                      ))}
-                    </div>
-                  </>
+                <Button variant="outline" onClick={() => setShowEditModal(true)}>
+                  <Edit3 size={16} />
+                  Edit
+                </Button>
+                {canDelete && (
+                  <Button variant="danger" onClick={() => setShowDeleteConfirm(true)}>
+                    <Trash2 size={16} />
+                  </Button>
+                )}
+                {canEditMeta && (
+                  <div className="relative">
+                    <Button variant="outline" onClick={() => setShowSettingsMenu(!showSettingsMenu)} className="!p-2">
+                      <MoreVertical size={16} />
+                    </Button>
+                    {showSettingsMenu && (
+                      <>
+                        <div className="fixed inset-0 z-10" onClick={() => setShowSettingsMenu(false)} />
+                        <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1 z-20">
+                          <div className="px-3 py-2 text-xs font-semibold text-text-secondary dark:text-gray-400 uppercase tracking-wider">Set Status</div>
+                          {PROJECT_STATUSES.map((status) => (
+                            <button key={status} onClick={() => handleStatusChange(status)}
+                              className={`w-full px-3 py-2 text-left text-sm flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-700 ${
+                                currentProject.status === status ? 'bg-gray-50 dark:bg-gray-700 text-primary-600 dark:text-primary-300' : 'text-text-primary dark:text-gray-100'
+                              }`}>
+                              <span className="capitalize">{status}</span>
+                              {currentProject.status === status && <Check size={16} />}
+                            </button>
+                          ))}
+                        </div>
+                      </>
+                    )}
+                  </div>
                 )}
               </div>
             )}
           </div>
-        )}
+
+          {currentProject.description && (
+            <p className="mt-2 text-sm text-text-secondary dark:text-gray-400">{currentProject.description}</p>
+          )}
+        </div>
       </div>
 
       {/* Tabs — larger */}
@@ -613,19 +643,7 @@ export default function ProjectDetail() {
       <div className="min-h-[400px]">
         {/* Overview with right sidebar */}
         {activeTab === 'overview' && (
-          <div className="space-y-6">
-            {/* Project header image — overview only */}
-            {currentProject.header_image && (
-              <div className="rounded-xl overflow-hidden border border-gray-200 dark:border-gray-700 h-48 md:h-64">
-                <img
-                  src={getUploadUrl(currentProject.header_image)}
-                  alt={currentProject.title}
-                  className="w-full h-full object-cover"
-                />
-              </div>
-            )}
-
-            <div className="flex gap-6">
+          <div className="flex gap-6">
             {/* Main content */}
             <div className="flex-1 space-y-6 min-w-0">
               <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
@@ -772,7 +790,6 @@ export default function ProjectDetail() {
                 </div>
               )}
             </div>
-          </div>
           </div>
         )}
 
