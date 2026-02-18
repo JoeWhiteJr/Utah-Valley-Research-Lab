@@ -4,7 +4,7 @@ import { format } from 'date-fns'
 import AudioPlayer from './AudioPlayer'
 import { RichTextContent } from './RichTextEditor'
 
-const MeetingCard = memo(function MeetingCard({ meeting, onView, onDelete, onEdit }) {
+const MeetingCard = memo(function MeetingCard({ meeting, onView, onDelete }) {
   const [isExpanded, setIsExpanded] = useState(false)
 
   const hasAudio = !!meeting.audio_path
@@ -38,15 +38,6 @@ const MeetingCard = memo(function MeetingCard({ meeting, onView, onDelete, onEdi
         </div>
 
         <div className="flex items-center gap-1">
-          {onEdit && (
-            <button
-              onClick={() => onEdit(meeting)}
-              className="p-1.5 rounded text-text-secondary dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 hover:bg-primary-50 dark:hover:bg-primary-900/30 opacity-0 group-hover:opacity-100 transition-opacity"
-              aria-label="Edit meeting notes"
-            >
-              <StickyNote size={16} />
-            </button>
-          )}
           <button
             onClick={() => onDelete(meeting.id)}
             className="p-1.5 rounded text-text-secondary dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 opacity-0 group-hover:opacity-100 transition-opacity"
