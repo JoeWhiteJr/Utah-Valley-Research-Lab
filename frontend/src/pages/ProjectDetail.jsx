@@ -543,7 +543,7 @@ export default function ProjectDetail() {
         </div>
 
         {currentProject.description && (
-          <p className="flex-1 text-sm text-text-secondary dark:text-gray-400 md:text-right md:max-w-md lg:max-w-lg">{currentProject.description}</p>
+          <p className="flex-1 text-sm text-text-secondary dark:text-gray-400 md:max-w-md lg:max-w-lg">{currentProject.description}</p>
         )}
 
         {canEdit && (
@@ -778,7 +778,7 @@ export default function ProjectDetail() {
 
         {/* Schedule */}
         {activeTab === 'schedule' && (
-          <div className="min-h-[calc(100vh-200px)]">
+          <div className="min-h-[calc(130vh-200px)]">
             <CalendarView scope="project" projectId={id} />
           </div>
         )}
@@ -1536,14 +1536,13 @@ export default function ProjectDetail() {
         {viewingMeeting && (
           <div className="flex flex-col h-[80vh]">
             {/* Editable title */}
-            <div className="flex items-baseline gap-2 mb-1">
+            <div className="mb-1">
               <input
                 value={meetingViewTitle}
                 onChange={(e) => setMeetingViewTitle(e.target.value)}
-                className="text-xl font-display font-semibold text-text-primary dark:text-gray-100 bg-transparent border-none outline-none flex-1 placeholder:text-gray-400"
-                placeholder="Meeting title"
+                className="text-xl font-display font-semibold text-text-primary dark:text-gray-100 bg-transparent border border-transparent rounded-lg px-2 py-1 outline-none w-full hover:border-gray-300 dark:hover:border-gray-600 focus:border-primary-400 dark:focus:border-primary-500 transition-colors placeholder:text-gray-400 placeholder:font-normal placeholder:text-sm"
+                placeholder="Click to edit title..."
               />
-              <span className="text-xs italic text-gray-400 dark:text-gray-500 flex-shrink-0">click to edit</span>
             </div>
             {viewingMeeting.recorded_at && (
               <p className="text-xs text-text-secondary dark:text-gray-400 mb-4">
