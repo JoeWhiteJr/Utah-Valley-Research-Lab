@@ -15,7 +15,7 @@ export default function Projects() {
   const navigate = useNavigate()
   const { user } = useAuthStore()
   const { projects, fetchProjects, createProject, togglePin, isLoading } = useProjectStore()
-  const [filter, setFilter] = useState('active')
+  const [filter, setFilter] = useState('mine')
   const [search, setSearch] = useState('')
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [showArchived, setShowArchived] = useState(false)
@@ -62,7 +62,9 @@ export default function Projects() {
   }
 
   const filteredProjects = projects.filter((p) => {
-    if (filter !== 'all' && p.status !== filter) return false
+    if (filter === 'mine') {
+      if (p.membership_status !== 'member') return false
+    } else if (filter !== 'all' && p.status !== filter) return false
     if (search && !p.title.toLowerCase().includes(search.toLowerCase())) return false
     return true
   }).sort((a, b) => {
@@ -136,17 +138,17 @@ export default function Projects() {
           />
         </div>
         <div className="flex gap-2 flex-wrap">
-          {['all', ...PROJECT_STATUSES.filter(s => s !== 'archived')].map((status) => (
+          {['mine', 'all', ...PROJECT_STATUSES.filter(s => s !== 'archived')].map((status) => (
             <button
               key={status}
               onClick={() => setFilter(status)}
-              className={`px-4 py-2 rounded-organic text-sm font-medium capitalize transition-colors ${
+              className={`px-4 py-2 rounded-organic text-sm font-medium transition-colors ${
                 filter === status
                   ? 'bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300'
                   : 'bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-text-secondary dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'
               }`}
             >
-              {status}
+              {status === 'mine' ? 'My Projects' : <span className="capitalize">{status}</span>}
             </button>
           ))}
         </div>
@@ -155,7 +157,7 @@ export default function Projects() {
       {/* Result count */}
       {!isLoading && (
         <p className="text-sm text-text-secondary dark:text-gray-400">
-          {filteredProjects.length} {filteredProjects.length === 1 ? 'project' : 'projects'}{search ? ` matching "${search}"` : ''}{filter !== 'all' ? ` (${filter})` : ''}
+          {filteredProjects.length} {filteredProjects.length === 1 ? 'project' : 'projects'}{search ? ` matching "${search}"` : ''}{filter === 'mine' ? ' (my projects)' : filter !== 'all' ? ` (${filter})` : ''}
         </p>
       )}
 
@@ -176,7 +178,9 @@ export default function Projects() {
       ) : (() => {
         // Determine which projects to display based on filter
         let displayProjects = []
-        if (filter === 'all') {
+        if (filter === 'mine') {
+          displayProjects = filteredProjects.filter(p => p.status !== 'inactive' && p.status !== 'archived')
+        } else if (filter === 'all') {
           displayProjects = filteredProjects.filter(p => p.status !== 'archived' && p.status !== 'inactive')
         } else if (filter === 'active') {
           displayProjects = activeProjects
@@ -189,7 +193,7 @@ export default function Projects() {
         return displayProjects.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
             {displayProjects.map((project) => (
-              <ProjectCard key={project.id} project={project} pendingJoinRequests={project.pending_join_request_count} isPinned={project.is_pinned} onTogglePin={handleTogglePin} onClick={() => handleProjectClick(project)} onPreview={handlePreview} />
+              <ProjectCard key={project.id} project={project} isMember={project.membership_status === 'member'} pendingJoinRequests={project.pending_join_request_count} isPinned={project.is_pinned} onTogglePin={handleTogglePin} onClick={() => handleProjectClick(project)} onPreview={handlePreview} />
             ))}
           </div>
         ) : (
@@ -201,6 +205,8 @@ export default function Projects() {
             <p className="mt-2 text-text-secondary dark:text-gray-400 max-w-sm mx-auto">
               {search
                 ? 'Try adjusting your search or filters.'
+                : filter === 'mine'
+                ? "You aren't a member of any projects yet."
                 : filter !== 'all' && filter !== 'active'
                 ? `No ${filter} projects found.`
                 : canCreate
@@ -217,25 +223,33 @@ export default function Projects() {
         )
       })()}
 
-      {/* Inactive projects section - collapsible at bottom */}
-      {inactiveProjects.length > 0 && filter === 'all' && (
-        <section>
-          <button
-            onClick={() => setShowInactive(!showInactive)}
-            className="flex items-center gap-2 text-text-secondary dark:text-gray-400 hover:text-text-primary dark:hover:text-gray-100 mb-4"
-          >
-            {showInactive ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
-            <span className="font-medium">Inactive ({inactiveProjects.length})</span>
-          </button>
-          {showInactive && (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-              {inactiveProjects.map((project) => (
-                <ProjectCard key={project.id} project={project} pendingJoinRequests={project.pending_join_request_count} isPinned={project.is_pinned} onTogglePin={handleTogglePin} onClick={() => handleProjectClick(project)} onPreview={handlePreview} />
-              ))}
-            </div>
-          )}
-        </section>
-      )}
+      {/* Inactive projects section - collapsible at bottom (for 'all' and 'mine' filters) */}
+      {(() => {
+        const inactiveToShow = filter === 'mine'
+          ? filteredProjects.filter(p => p.status === 'inactive')
+          : filter === 'all'
+          ? inactiveProjects
+          : []
+        if (inactiveToShow.length === 0) return null
+        return (
+          <section>
+            <button
+              onClick={() => setShowInactive(!showInactive)}
+              className="flex items-center gap-2 text-text-secondary dark:text-gray-400 hover:text-text-primary dark:hover:text-gray-100 mb-4"
+            >
+              {showInactive ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
+              <span className="font-medium">Inactive ({inactiveToShow.length})</span>
+            </button>
+            {showInactive && (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                {inactiveToShow.map((project) => (
+                  <ProjectCard key={project.id} project={project} isMember={project.membership_status === 'member'} pendingJoinRequests={project.pending_join_request_count} isPinned={project.is_pinned} onTogglePin={handleTogglePin} onClick={() => handleProjectClick(project)} onPreview={handlePreview} />
+                ))}
+              </div>
+            )}
+          </section>
+        )
+      })()}
 
       {/* Archived projects */}
       {archivedProjects.length > 0 && (filter === 'all' || filter === 'archived') && (
@@ -250,7 +264,7 @@ export default function Projects() {
           {showArchived && (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
               {archivedProjects.map((project) => (
-                <ProjectCard key={project.id} project={project} pendingJoinRequests={project.pending_join_request_count} isPinned={project.is_pinned} onTogglePin={handleTogglePin} onClick={() => handleProjectClick(project)} onPreview={handlePreview} />
+                <ProjectCard key={project.id} project={project} isMember={project.membership_status === 'member'} pendingJoinRequests={project.pending_join_request_count} isPinned={project.is_pinned} onTogglePin={handleTogglePin} onClick={() => handleProjectClick(project)} onPreview={handlePreview} />
               ))}
             </div>
           )}

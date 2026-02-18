@@ -3,7 +3,7 @@ import { Users, Pin, Eye } from 'lucide-react'
 import { getUploadUrl } from '../services/api'
 import { PROJECT_STATUS_COLORS } from '../constants'
 
-const ProjectCard = memo(function ProjectCard({ project, onClick, pendingJoinRequests = 0, isPinned = false, onTogglePin, onPreview }) {
+const ProjectCard = memo(function ProjectCard({ project, onClick, pendingJoinRequests = 0, isPinned = false, isMember = false, onTogglePin, onPreview }) {
   const statusColors = PROJECT_STATUS_COLORS
 
   const isInactive = project.status === 'inactive'
@@ -15,6 +15,8 @@ const ProjectCard = memo(function ProjectCard({ project, onClick, pendingJoinReq
       onClick={onClick}
       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick?.() } }}
       className={`block rounded-xl border transition-all overflow-hidden group cursor-pointer ${
+        isMember ? 'border-l-4 border-l-primary-400 dark:border-l-primary-500' : ''
+      } ${
         isInactive
           ? 'bg-gray-50 dark:bg-gray-900 border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 opacity-75'
           : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:border-primary-300 dark:hover:border-primary-600 hover:shadow-md'
