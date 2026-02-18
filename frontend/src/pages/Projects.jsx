@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../store/authStore'
 import { useProjectStore } from '../store/projectStore'
+import { usersApi } from '../services/api'
 import ProjectCard from '../components/ProjectCard'
 import ProjectPreviewModal from '../components/ProjectPreviewModal'
 import Button from '../components/Button'
@@ -13,16 +14,17 @@ import { PROJECT_STATUSES } from '../constants'
 export default function Projects() {
   const navigate = useNavigate()
   const { user } = useAuthStore()
-  const { projects, fetchProjects, createProject, isLoading } = useProjectStore()
+  const { projects, fetchProjects, createProject, togglePin, isLoading } = useProjectStore()
   const [filter, setFilter] = useState('active')
   const [search, setSearch] = useState('')
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [showArchived, setShowArchived] = useState(false)
   const [showInactive, setShowInactive] = useState(false)
-  const [newProject, setNewProject] = useState({ title: '', description: '' })
+  const [newProject, setNewProject] = useState({ title: '', description: '', lead_id: '' })
   const [isCreating, setIsCreating] = useState(false)
   const [createError, setCreateError] = useState('')
   const [previewProject, setPreviewProject] = useState(null)
+  const [teamMembers, setTeamMembers] = useState([])
 
   const canCreate = user?.role === 'admin' || user?.role === 'project_lead'
 
@@ -42,10 +44,28 @@ export default function Projects() {
     fetchProjects()
   }, [fetchProjects])
 
+  useEffect(() => {
+    if (canCreate) {
+      usersApi.team().then(({ data }) => setTeamMembers(data.users || [])).catch(() => {})
+    }
+  }, [canCreate])
+
+  const handleTogglePin = (projectId) => {
+    togglePin(projectId)
+  }
+
   const filteredProjects = projects.filter((p) => {
     if (filter !== 'all' && p.status !== filter) return false
     if (search && !p.title.toLowerCase().includes(search.toLowerCase())) return false
     return true
+  }).sort((a, b) => {
+    // Pinned first (most recently pinned first), then unpinned by server order
+    if (a.is_pinned && !b.is_pinned) return -1
+    if (!a.is_pinned && b.is_pinned) return 1
+    if (a.is_pinned && b.is_pinned) {
+      return new Date(b.pinned_at) - new Date(a.pinned_at)
+    }
+    return 0
   })
 
   const activeProjects = filteredProjects.filter((p) => p.status === 'active')
@@ -59,12 +79,14 @@ export default function Projects() {
 
     setCreateError('')
     setIsCreating(true)
-    const project = await createProject(newProject)
+    const payload = { title: newProject.title, description: newProject.description }
+    if (newProject.lead_id) payload.lead_id = newProject.lead_id
+    const project = await createProject(payload)
     setIsCreating(false)
 
     if (project) {
       setShowCreateModal(false)
-      setNewProject({ title: '', description: '' })
+      setNewProject({ title: '', description: '', lead_id: '' })
       setCreateError('')
     } else {
       setCreateError(useProjectStore.getState().error || 'Failed to create project')
@@ -72,7 +94,7 @@ export default function Projects() {
   }
 
   const handleOpenCreateModal = () => {
-    setNewProject({ title: '', description: '' })
+    setNewProject({ title: '', description: '', lead_id: '' })
     setCreateError('')
     setShowCreateModal(true)
   }
@@ -159,7 +181,7 @@ export default function Projects() {
         return displayProjects.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
             {displayProjects.map((project) => (
-              <ProjectCard key={project.id} project={project} pendingJoinRequests={project.pending_join_request_count} onClick={() => handleProjectClick(project)} />
+              <ProjectCard key={project.id} project={project} pendingJoinRequests={project.pending_join_request_count} isPinned={project.is_pinned} onTogglePin={handleTogglePin} onClick={() => handleProjectClick(project)} />
             ))}
           </div>
         ) : (
@@ -200,7 +222,7 @@ export default function Projects() {
           {showInactive && (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
               {inactiveProjects.map((project) => (
-                <ProjectCard key={project.id} project={project} pendingJoinRequests={project.pending_join_request_count} onClick={() => handleProjectClick(project)} />
+                <ProjectCard key={project.id} project={project} pendingJoinRequests={project.pending_join_request_count} isPinned={project.is_pinned} onTogglePin={handleTogglePin} onClick={() => handleProjectClick(project)} />
               ))}
             </div>
           )}
@@ -220,7 +242,7 @@ export default function Projects() {
           {showArchived && (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
               {archivedProjects.map((project) => (
-                <ProjectCard key={project.id} project={project} pendingJoinRequests={project.pending_join_request_count} onClick={() => handleProjectClick(project)} />
+                <ProjectCard key={project.id} project={project} pendingJoinRequests={project.pending_join_request_count} isPinned={project.is_pinned} onTogglePin={handleTogglePin} onClick={() => handleProjectClick(project)} />
               ))}
             </div>
           )}
@@ -253,6 +275,23 @@ export default function Projects() {
               className="w-full px-4 py-2.5 rounded-organic border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-text-primary dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-primary-300 focus:border-primary-400 resize-none"
             />
           </div>
+          {teamMembers.length > 0 && (
+            <div>
+              <label className="block text-sm font-medium text-text-primary dark:text-gray-100 mb-1.5">
+                Project Lead (optional)
+              </label>
+              <select
+                value={newProject.lead_id}
+                onChange={(e) => setNewProject({ ...newProject, lead_id: e.target.value })}
+                className="w-full px-4 py-2.5 rounded-organic border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-text-primary dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-primary-300 focus:border-primary-400"
+              >
+                <option value="">No lead assigned</option>
+                {teamMembers.map((member) => (
+                  <option key={member.id} value={member.id}>{member.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
           {createError && (
             <div className="p-3 rounded-lg text-sm bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-700 text-red-600 dark:text-red-400">
               {createError}

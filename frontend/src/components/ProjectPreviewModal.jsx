@@ -35,6 +35,13 @@ export default function ProjectPreviewModal({ project, onClose }) {
     >
       {phase === 'preview' ? (
         <div className="space-y-5">
+          {/* Subtitle */}
+          {project.important_info && (
+            <p className="text-sm font-medium text-text-primary dark:text-gray-200">
+              {project.important_info}
+            </p>
+          )}
+
           {/* Project description */}
           {project.description && (
             <p className="text-sm text-text-secondary dark:text-gray-400 leading-relaxed">

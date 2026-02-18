@@ -104,6 +104,23 @@ export const useProjectStore = create((set, get) => ({
     }
   },
 
+  togglePin: async (projectId) => {
+    // Optimistic update
+    const prev = get().projects
+    set((state) => ({
+      projects: state.projects.map((p) =>
+        p.id === projectId
+          ? { ...p, is_pinned: !p.is_pinned, pinned_at: p.is_pinned ? null : new Date().toISOString() }
+          : p
+      )
+    }))
+    try {
+      await projectsApi.togglePin(projectId)
+    } catch (error) {
+      set({ projects: prev, error: error.response?.data?.error?.message || 'Failed to toggle pin' })
+    }
+  },
+
   // Actions
   fetchActions: async (projectId) => {
     try {

@@ -13,11 +13,16 @@ describe('ProjectCard', () => {
     id: '123e4567-e89b-12d3-a456-426614174000',
     title: 'Test Project',
     description: 'A test project description',
+    important_info: 'Subtitle text here',
     status: 'active',
-    progress: 50,
     header_image: null,
-    total_actions: 10,
-    completed_actions: 5,
+    member_count: 3,
+    lead_name: 'Alice',
+    members_preview: [
+      { user_id: 'u1', name: 'Alice Lead', avatar_url: null, role: 'lead' },
+      { user_id: 'u2', name: 'Bob Member', avatar_url: null, role: 'member' },
+      { user_id: 'u3', name: 'Carol Member', avatar_url: null, role: 'member' },
+    ],
     updated_at: '2025-01-15T10:30:00Z'
   }
 
@@ -26,9 +31,15 @@ describe('ProjectCard', () => {
     expect(screen.getByText('Test Project')).toBeInTheDocument()
   })
 
-  it('renders project description', () => {
+  it('renders subtitle (important_info)', () => {
     renderWithRouter(<ProjectCard project={mockProject} />)
-    expect(screen.getByText('A test project description')).toBeInTheDocument()
+    expect(screen.getByText('Subtitle text here')).toBeInTheDocument()
+  })
+
+  it('hides subtitle when not provided', () => {
+    const projectNoSubtitle = { ...mockProject, important_info: null }
+    renderWithRouter(<ProjectCard project={projectNoSubtitle} />)
+    expect(screen.queryByText('Subtitle text here')).not.toBeInTheDocument()
   })
 
   it('renders status badge', () => {
@@ -36,20 +47,14 @@ describe('ProjectCard', () => {
     expect(screen.getByText('active')).toBeInTheDocument()
   })
 
-  it('renders progress percentage', () => {
+  it('renders lead name first in footer', () => {
     renderWithRouter(<ProjectCard project={mockProject} />)
-    expect(screen.getByText('50%')).toBeInTheDocument()
+    expect(screen.getByText(/Lead: Alice/)).toBeInTheDocument()
   })
 
-  it('renders progress bar with correct width', () => {
-    const { container } = renderWithRouter(<ProjectCard project={mockProject} />)
-    const progressBar = container.querySelector('[style*="width: 50%"]')
-    expect(progressBar).toBeInTheDocument()
-  })
-
-  it('renders action items count', () => {
+  it('renders member count', () => {
     renderWithRouter(<ProjectCard project={mockProject} />)
-    expect(screen.getByText('5 of 10 tasks done')).toBeInTheDocument()
+    expect(screen.getByText(/3 members/)).toBeInTheDocument()
   })
 
   it('calls onClick when clicked', () => {
@@ -60,9 +65,61 @@ describe('ProjectCard', () => {
     expect(handleClick).toHaveBeenCalledTimes(1)
   })
 
-  it('renders updated date', () => {
-    renderWithRouter(<ProjectCard project={mockProject} />)
-    expect(screen.getByText(/Updated/)).toBeInTheDocument()
+  describe('pin button', () => {
+    it('renders pin button when onTogglePin is provided', () => {
+      const handlePin = vi.fn()
+      renderWithRouter(<ProjectCard project={mockProject} onTogglePin={handlePin} />)
+      expect(screen.getByTitle('Pin project')).toBeInTheDocument()
+    })
+
+    it('calls onTogglePin with project id when pin button clicked', () => {
+      const handlePin = vi.fn()
+      renderWithRouter(<ProjectCard project={mockProject} onTogglePin={handlePin} />)
+      fireEvent.click(screen.getByTitle('Pin project'))
+      expect(handlePin).toHaveBeenCalledWith(mockProject.id)
+    })
+
+    it('shows unpin title when isPinned is true', () => {
+      const handlePin = vi.fn()
+      renderWithRouter(<ProjectCard project={mockProject} isPinned={true} onTogglePin={handlePin} />)
+      expect(screen.getByTitle('Unpin project')).toBeInTheDocument()
+    })
+
+    it('does not render pin button when onTogglePin is not provided', () => {
+      renderWithRouter(<ProjectCard project={mockProject} />)
+      expect(screen.queryByTitle('Pin project')).not.toBeInTheDocument()
+    })
+  })
+
+  describe('member avatars', () => {
+    it('renders member avatar initials', () => {
+      renderWithRouter(<ProjectCard project={mockProject} />)
+      expect(screen.getByText('A')).toBeInTheDocument() // Alice
+      expect(screen.getByText('B')).toBeInTheDocument() // Bob
+      expect(screen.getByText('C')).toBeInTheDocument() // Carol
+    })
+
+    it('renders +N overflow badge when more than 5 members', () => {
+      const manyMembers = {
+        ...mockProject,
+        member_count: 8,
+        members_preview: [
+          { user_id: 'u1', name: 'A User', avatar_url: null, role: 'lead' },
+          { user_id: 'u2', name: 'B User', avatar_url: null, role: 'member' },
+          { user_id: 'u3', name: 'C User', avatar_url: null, role: 'member' },
+          { user_id: 'u4', name: 'D User', avatar_url: null, role: 'member' },
+          { user_id: 'u5', name: 'E User', avatar_url: null, role: 'member' },
+          { user_id: 'u6', name: 'F User', avatar_url: null, role: 'member' },
+        ]
+      }
+      renderWithRouter(<ProjectCard project={manyMembers} />)
+      expect(screen.getByText('+3')).toBeInTheDocument()
+    })
+
+    it('does not render overflow badge when 5 or fewer members', () => {
+      renderWithRouter(<ProjectCard project={mockProject} />)
+      expect(screen.queryByText(/^\+/)).not.toBeInTheDocument()
+    })
   })
 
   describe('status colors', () => {
@@ -85,50 +142,11 @@ describe('ProjectCard', () => {
     })
   })
 
-  describe('optional content', () => {
-    it('hides description when not provided', () => {
-      const projectWithoutDesc = { ...mockProject, description: null }
-      renderWithRouter(<ProjectCard project={projectWithoutDesc} />)
-      expect(screen.queryByText('A test project description')).not.toBeInTheDocument()
-    })
-
-    it('hides actions when showActions is false', () => {
-      renderWithRouter(<ProjectCard project={mockProject} showActions={false} />)
-      expect(screen.queryByText('5 of 10 tasks done')).not.toBeInTheDocument()
-    })
-
-    it('hides actions when total_actions is 0', () => {
-      const projectNoActions = { ...mockProject, total_actions: 0, completed_actions: 0 }
-      renderWithRouter(<ProjectCard project={projectNoActions} />)
-      expect(screen.queryByText(/tasks done/)).not.toBeInTheDocument()
-    })
-  })
-
-  describe('progress handling', () => {
-    it('defaults to 0% when no tasks exist', () => {
-      const projectNoTasks = { ...mockProject, total_actions: 0, completed_actions: 0 }
-      renderWithRouter(<ProjectCard project={projectNoTasks} />)
-      expect(screen.getByText('0%')).toBeInTheDocument()
-    })
-
-    it('defaults to 0% when task counts are undefined', () => {
-      const projectNoTasks = { ...mockProject, total_actions: undefined, completed_actions: undefined }
-      renderWithRouter(<ProjectCard project={projectNoTasks} />)
-      expect(screen.getByText('0%')).toBeInTheDocument()
-    })
-
-    it('shows 100% progress when all tasks completed', () => {
-      const fullProgress = { ...mockProject, total_actions: 10, completed_actions: 10 }
-      renderWithRouter(<ProjectCard project={fullProgress} />)
-      expect(screen.getByText('100%')).toBeInTheDocument()
-    })
-  })
-
   describe('header image', () => {
     it('renders image when header_image is provided', () => {
       const projectWithImage = { ...mockProject, header_image: 'https://example.com/image.jpg' }
       renderWithRouter(<ProjectCard project={projectWithImage} />)
-      const img = screen.getByRole('img')
+      const img = screen.getAllByRole('img')[0]
       expect(img).toHaveAttribute('src', 'https://example.com/image.jpg')
     })
 

@@ -276,7 +276,7 @@ export default function ProjectDetail() {
   const handleSaveImportantInfo = async () => {
     await updateProject(id, { important_info: importantInfoDraft })
     setEditingImportantInfo(false)
-    toast.success('Important info saved')
+    toast.success('Subtitle saved')
   }
 
   // Handle Add Member modal
@@ -662,7 +662,7 @@ export default function ProjectDetail() {
           <div className="space-y-6">
             <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="font-display font-semibold text-lg dark:text-gray-100">Important Information</h3>
+                <h3 className="font-display font-semibold text-lg dark:text-gray-100">Subtitle</h3>
                 {canEdit && !editingImportantInfo && (
                   <button
                     onClick={() => { setImportantInfoDraft(currentProject.important_info || ''); setEditingImportantInfo(true) }}
@@ -679,7 +679,7 @@ export default function ProjectDetail() {
                     onChange={(e) => setImportantInfoDraft(e.target.value)}
                     rows={6}
                     className="w-full px-4 py-2.5 rounded-organic border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-text-primary dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-primary-300 focus:border-primary-400 resize-y"
-                    placeholder="Add important information, links, or notes for the team..."
+                    placeholder="Add a subtitle for this project..."
                   />
                   <div className="flex justify-end gap-2">
                     <Button variant="secondary" size="sm" onClick={() => setEditingImportantInfo(false)}>Cancel</Button>
@@ -688,7 +688,7 @@ export default function ProjectDetail() {
                 </div>
               ) : (
                 <p className="text-text-secondary dark:text-gray-400 whitespace-pre-wrap">
-                  {currentProject.important_info || 'No important information added yet.'}
+                  {currentProject.important_info || 'No subtitle added yet.'}
                 </p>
               )}
               <div className="mt-6 grid grid-cols-2 md:grid-cols-4 gap-4">

@@ -100,7 +100,8 @@ export const projectsApi = {
   reviewJoinRequest: (id, reqId, action) => api.put(`/projects/${id}/join-requests/${reqId}`, { action }),
   leaveProject: (id) => api.delete(`/projects/${id}/leave`),
   setLead: (id, userId) => api.put(`/projects/${id}/lead`, { user_id: userId }),
-  addMember: (id, userId) => api.post(`/projects/${id}/members`, { user_id: userId })
+  addMember: (id, userId) => api.post(`/projects/${id}/members`, { user_id: userId }),
+  togglePin: (id) => api.post(`/projects/${id}/pin`)
 }
 
 // Actions

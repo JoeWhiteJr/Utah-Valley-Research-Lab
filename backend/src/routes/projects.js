@@ -70,7 +70,9 @@ router.get('/', authenticate, async (req, res, next) => {
           WHEN my_req.id IS NOT NULL THEN 'pending'
           ELSE 'none'
         END as membership_status,
-        COALESCE(pjr_stats.pending_count, 0) as pending_join_request_count
+        COALESCE(pjr_stats.pending_count, 0) as pending_join_request_count,
+        pin.pinned_at as pinned_at,
+        COALESCE(mem_preview.members_preview, '[]'::json) as members_preview
       FROM projects p
       JOIN users u ON p.created_by = u.id
       LEFT JOIN users lead_u ON p.lead_id = lead_u.id
@@ -96,6 +98,16 @@ router.get('/', authenticate, async (req, res, next) => {
         WHERE status = 'pending'
         GROUP BY project_id
       ) pjr_stats ON pjr_stats.project_id = p.id
+      LEFT JOIN user_project_pins pin
+        ON pin.project_id = p.id AND pin.user_id = $1
+      LEFT JOIN LATERAL (
+        SELECT json_agg(
+          json_build_object('user_id', pm_d.user_id, 'name', mu.name, 'avatar_url', mu.avatar_url, 'role', pm_d.role)
+          ORDER BY pm_d.role DESC, pm_d.joined_at ASC
+        ) as members_preview
+        FROM (SELECT user_id, role, joined_at FROM project_members WHERE project_id = p.id LIMIT 6) pm_d
+        JOIN users mu ON mu.id = pm_d.user_id
+      ) mem_preview ON true
     `;
     const params = [req.user.id];
     const countParams = [];
@@ -111,7 +123,7 @@ router.get('/', authenticate, async (req, res, next) => {
     const countResult = await db.query(countQuery, countParams);
     const total = parseInt(countResult.rows[0].count);
 
-    query += ' ORDER BY p.updated_at DESC';
+    query += ' ORDER BY pin.pinned_at IS NULL ASC, pin.pinned_at DESC, p.updated_at DESC';
     params.push(limit);
     query += ` LIMIT $${params.length}`;
     params.push(offset);
@@ -126,7 +138,9 @@ router.get('/', authenticate, async (req, res, next) => {
       membership_status: isAdmin ? 'member' : p.membership_status,
       pending_join_request_count: (isAdmin || p.lead_id === req.user.id)
         ? parseInt(p.pending_join_request_count) || 0
-        : 0
+        : 0,
+      is_pinned: !!p.pinned_at,
+      members_preview: p.members_preview || []
     }));
     res.json({ projects, total, limit, offset });
   } catch (error) {
@@ -181,7 +195,8 @@ router.get('/:id', authenticate, async (req, res, next) => {
 // Create project
 router.post('/', authenticate, requireRole('admin', 'project_lead'), [
   body('title').trim().notEmpty().isLength({ max: 200 }),
-  body('description').optional().trim().isLength({ max: 10000 })
+  body('description').optional().trim().isLength({ max: 10000 }),
+  body('lead_id').optional({ nullable: true }).isUUID()
 ], async (req, res, next) => {
   try {
     const errors = validationResult(req);
@@ -189,35 +204,63 @@ router.post('/', authenticate, requireRole('admin', 'project_lead'), [
       return res.status(400).json({ error: { message: 'Validation failed', details: errors.array() } });
     }
 
-    const { title, description, header_image } = req.body;
+    const { title, description, header_image, lead_id } = req.body;
 
     const result = await db.query(
-      'INSERT INTO projects (title, description, header_image, created_by, lead_id) VALUES ($1, $2, $3, $4, $4) RETURNING *',
-      [title, description || null, header_image || null, req.user.id]
+      'INSERT INTO projects (title, description, header_image, created_by, lead_id) VALUES ($1, $2, $3, $4, $5) RETURNING *',
+      [title, description || null, header_image || null, req.user.id, lead_id || null]
     );
 
-    // Auto-add creator as lead member
-    await db.query(
-      'INSERT INTO project_members (project_id, user_id, role) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING',
-      [result.rows[0].id, req.user.id, 'lead']
-    );
+    const projectId = result.rows[0].id;
+
+    // Add creator as member
+    if (lead_id && lead_id !== req.user.id) {
+      // Lead is someone else: creator gets 'member', lead gets 'lead'
+      await db.query(
+        "INSERT INTO project_members (project_id, user_id, role) VALUES ($1, $2, 'member') ON CONFLICT DO NOTHING",
+        [projectId, req.user.id]
+      );
+      await db.query(
+        "INSERT INTO project_members (project_id, user_id, role) VALUES ($1, $2, 'lead') ON CONFLICT DO NOTHING",
+        [projectId, lead_id]
+      );
+    } else if (lead_id && lead_id === req.user.id) {
+      // Creator is also the lead
+      await db.query(
+        "INSERT INTO project_members (project_id, user_id, role) VALUES ($1, $2, 'lead') ON CONFLICT DO NOTHING",
+        [projectId, req.user.id]
+      );
+    } else {
+      // No lead assigned: creator gets 'member'
+      await db.query(
+        "INSERT INTO project_members (project_id, user_id, role) VALUES ($1, $2, 'member') ON CONFLICT DO NOTHING",
+        [projectId, req.user.id]
+      );
+    }
 
     // Auto-create project chat room
     try {
       const chatResult = await db.query(
         "INSERT INTO chat_rooms (name, type, created_by, project_id, image_url) VALUES ($1, 'group', $2, $3, $4) RETURNING *",
-        [title, req.user.id, result.rows[0].id, header_image || null]
+        [title, req.user.id, projectId, header_image || null]
       );
       await db.query(
         "INSERT INTO chat_members (room_id, user_id, role) VALUES ($1, $2, 'admin')",
         [chatResult.rows[0].id, req.user.id]
       );
+      // If lead differs from creator, add lead to chat room too
+      if (lead_id && lead_id !== req.user.id) {
+        await db.query(
+          "INSERT INTO chat_members (room_id, user_id, role) VALUES ($1, $2, 'member') ON CONFLICT DO NOTHING",
+          [chatResult.rows[0].id, lead_id]
+        );
+      }
     } catch (chatError) {
       // Non-critical: project still created even if chat fails
       logger.error({ err: chatError }, 'Failed to create project chat room');
     }
 
-    logAdminAction(req, 'create_project', 'project', result.rows[0].id, null, { title, description });
+    logAdminAction(req, 'create_project', 'project', projectId, null, { title, description });
     res.status(201).json({ project: result.rows[0] });
   } catch (error) {
     next(error);
@@ -325,6 +368,32 @@ router.delete('/:id', authenticate, requireRole('admin'), async (req, res, next)
 
     logAdminAction(req, 'delete_project', 'project', req.params.id, { title: result.rows[0].title }, null);
     res.json({ message: 'Project deleted successfully' });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Toggle pin/unpin project for current user
+router.post('/:id/pin', authenticate, async (req, res, next) => {
+  try {
+    const existing = await db.query(
+      'SELECT id FROM user_project_pins WHERE user_id = $1 AND project_id = $2',
+      [req.user.id, req.params.id]
+    );
+
+    if (existing.rows.length > 0) {
+      await db.query(
+        'DELETE FROM user_project_pins WHERE user_id = $1 AND project_id = $2',
+        [req.user.id, req.params.id]
+      );
+      res.json({ pinned: false });
+    } else {
+      await db.query(
+        'INSERT INTO user_project_pins (user_id, project_id) VALUES ($1, $2)',
+        [req.user.id, req.params.id]
+      );
+      res.json({ pinned: true });
+    }
   } catch (error) {
     next(error);
   }
