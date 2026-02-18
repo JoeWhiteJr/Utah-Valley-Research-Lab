@@ -20,19 +20,26 @@ export default function Projects() {
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [showArchived, setShowArchived] = useState(false)
   const [showInactive, setShowInactive] = useState(false)
-  const [newProject, setNewProject] = useState({ title: '', description: '', lead_id: '' })
+  const [newProject, setNewProject] = useState({ title: '', description: '', lead_id: '', subheader: '' })
   const [isCreating, setIsCreating] = useState(false)
   const [createError, setCreateError] = useState('')
   const [previewProject, setPreviewProject] = useState(null)
+  const [previewWithInfo, setPreviewWithInfo] = useState(false)
   const [teamMembers, setTeamMembers] = useState([])
 
   const canCreate = user?.role === 'admin' || user?.role === 'project_lead'
+
+  const handlePreview = (project) => {
+    setPreviewProject(project)
+    setPreviewWithInfo(true)
+  }
 
   const handleProjectClick = (project) => {
     if (user?.role === 'admin' || project.membership_status === 'member') {
       navigate(`/dashboard/projects/${project.id}`)
     } else {
       setPreviewProject(project)
+      setPreviewWithInfo(false)
     }
   }
 
@@ -81,12 +88,13 @@ export default function Projects() {
     setIsCreating(true)
     const payload = { title: newProject.title, description: newProject.description }
     if (newProject.lead_id) payload.lead_id = newProject.lead_id
+    if (newProject.subheader) payload.subheader = newProject.subheader
     const project = await createProject(payload)
     setIsCreating(false)
 
     if (project) {
       setShowCreateModal(false)
-      setNewProject({ title: '', description: '', lead_id: '' })
+      setNewProject({ title: '', description: '', lead_id: '', subheader: '' })
       setCreateError('')
     } else {
       setCreateError(useProjectStore.getState().error || 'Failed to create project')
@@ -94,7 +102,7 @@ export default function Projects() {
   }
 
   const handleOpenCreateModal = () => {
-    setNewProject({ title: '', description: '', lead_id: '' })
+    setNewProject({ title: '', description: '', lead_id: '', subheader: '' })
     setCreateError('')
     setShowCreateModal(true)
   }
@@ -181,7 +189,7 @@ export default function Projects() {
         return displayProjects.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
             {displayProjects.map((project) => (
-              <ProjectCard key={project.id} project={project} pendingJoinRequests={project.pending_join_request_count} isPinned={project.is_pinned} onTogglePin={handleTogglePin} onClick={() => handleProjectClick(project)} />
+              <ProjectCard key={project.id} project={project} pendingJoinRequests={project.pending_join_request_count} isPinned={project.is_pinned} onTogglePin={handleTogglePin} onClick={() => handleProjectClick(project)} onPreview={handlePreview} />
             ))}
           </div>
         ) : (
@@ -222,7 +230,7 @@ export default function Projects() {
           {showInactive && (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
               {inactiveProjects.map((project) => (
-                <ProjectCard key={project.id} project={project} pendingJoinRequests={project.pending_join_request_count} isPinned={project.is_pinned} onTogglePin={handleTogglePin} onClick={() => handleProjectClick(project)} />
+                <ProjectCard key={project.id} project={project} pendingJoinRequests={project.pending_join_request_count} isPinned={project.is_pinned} onTogglePin={handleTogglePin} onClick={() => handleProjectClick(project)} onPreview={handlePreview} />
               ))}
             </div>
           )}
@@ -242,7 +250,7 @@ export default function Projects() {
           {showArchived && (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
               {archivedProjects.map((project) => (
-                <ProjectCard key={project.id} project={project} pendingJoinRequests={project.pending_join_request_count} isPinned={project.is_pinned} onTogglePin={handleTogglePin} onClick={() => handleProjectClick(project)} />
+                <ProjectCard key={project.id} project={project} pendingJoinRequests={project.pending_join_request_count} isPinned={project.is_pinned} onTogglePin={handleTogglePin} onClick={() => handleProjectClick(project)} onPreview={handlePreview} />
               ))}
             </div>
           )}
@@ -262,6 +270,12 @@ export default function Projects() {
             onChange={(e) => setNewProject({ ...newProject, title: e.target.value })}
             placeholder="e.g., Bayesian Analysis Study"
             required
+          />
+          <Input
+            label="Subheader (optional)"
+            value={newProject.subheader}
+            onChange={(e) => setNewProject({ ...newProject, subheader: e.target.value })}
+            placeholder="Short tagline for this project..."
           />
           <div>
             <label className="block text-sm font-medium text-text-primary dark:text-gray-100 mb-1.5">
@@ -316,6 +330,7 @@ export default function Projects() {
       <ProjectPreviewModal
         project={previewProject}
         onClose={() => setPreviewProject(null)}
+        showImportantInfo={previewWithInfo}
       />
     </div>
   )

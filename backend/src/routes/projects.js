@@ -196,7 +196,8 @@ router.get('/:id', authenticate, async (req, res, next) => {
 router.post('/', authenticate, requireRole('admin', 'project_lead'), [
   body('title').trim().notEmpty().isLength({ max: 200 }),
   body('description').optional().trim().isLength({ max: 10000 }),
-  body('lead_id').optional({ nullable: true }).isUUID()
+  body('lead_id').optional({ nullable: true }).isUUID(),
+  body('subheader').optional().trim().isLength({ max: 200 })
 ], async (req, res, next) => {
   try {
     const errors = validationResult(req);
@@ -204,11 +205,11 @@ router.post('/', authenticate, requireRole('admin', 'project_lead'), [
       return res.status(400).json({ error: { message: 'Validation failed', details: errors.array() } });
     }
 
-    const { title, description, header_image, lead_id } = req.body;
+    const { title, description, header_image, lead_id, subheader } = req.body;
 
     const result = await db.query(
-      'INSERT INTO projects (title, description, header_image, created_by, lead_id) VALUES ($1, $2, $3, $4, $5) RETURNING *',
-      [title, description || null, header_image || null, req.user.id, lead_id || null]
+      'INSERT INTO projects (title, description, header_image, created_by, lead_id, subheader) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
+      [title, description || null, header_image || null, req.user.id, lead_id || null, subheader || null]
     );
 
     const projectId = result.rows[0].id;
@@ -273,7 +274,8 @@ router.put('/:id', authenticate, requireRole('admin', 'project_lead'), [
   body('description').optional().trim().isLength({ max: 10000 }),
   body('status').optional().isIn(['active', 'completed', 'archived', 'inactive']),
   body('progress').optional().isInt({ min: 0, max: 100 }),
-  body('important_info').optional().trim().isLength({ max: 50000 })
+  body('important_info').optional().trim().isLength({ max: 50000 }),
+  body('subheader').optional().trim().isLength({ max: 200 })
 ], async (req, res, next) => {
   try {
     const errors = validationResult(req);
@@ -281,7 +283,7 @@ router.put('/:id', authenticate, requireRole('admin', 'project_lead'), [
       return res.status(400).json({ error: { message: 'Validation failed', details: errors.array() } });
     }
 
-    const { title, description, header_image, status, progress, important_info } = req.body;
+    const { title, description, header_image, status, progress, important_info, subheader } = req.body;
 
     // Only admins can update title, status, and progress
     if (req.user.role !== 'admin') {
@@ -305,6 +307,7 @@ router.put('/:id', authenticate, requireRole('admin', 'project_lead'), [
     if (status !== undefined) { updates.push(`status = $${paramCount++}`); values.push(status); }
     if (progress !== undefined) { updates.push(`progress = $${paramCount++}`); values.push(progress); }
     if (important_info !== undefined) { updates.push(`important_info = $${paramCount++}`); values.push(important_info); }
+    if (subheader !== undefined) { updates.push(`subheader = $${paramCount++}`); values.push(subheader); }
 
     if (updates.length === 0) {
       return res.status(400).json({ error: { message: 'No fields to update' } });

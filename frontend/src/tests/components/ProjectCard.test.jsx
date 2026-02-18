@@ -13,16 +13,12 @@ describe('ProjectCard', () => {
     id: '123e4567-e89b-12d3-a456-426614174000',
     title: 'Test Project',
     description: 'A test project description',
+    subheader: 'Test subheader',
     important_info: 'Subtitle text here',
     status: 'active',
     header_image: null,
     member_count: 3,
     lead_name: 'Alice',
-    members_preview: [
-      { user_id: 'u1', name: 'Alice Lead', avatar_url: null, role: 'lead' },
-      { user_id: 'u2', name: 'Bob Member', avatar_url: null, role: 'member' },
-      { user_id: 'u3', name: 'Carol Member', avatar_url: null, role: 'member' },
-    ],
     updated_at: '2025-01-15T10:30:00Z'
   }
 
@@ -31,15 +27,15 @@ describe('ProjectCard', () => {
     expect(screen.getByText('Test Project')).toBeInTheDocument()
   })
 
-  it('renders subtitle (important_info)', () => {
+  it('renders subtitle (subheader)', () => {
     renderWithRouter(<ProjectCard project={mockProject} />)
-    expect(screen.getByText('Subtitle text here')).toBeInTheDocument()
+    expect(screen.getByText('Test subheader')).toBeInTheDocument()
   })
 
   it('hides subtitle when not provided', () => {
-    const projectNoSubtitle = { ...mockProject, important_info: null }
+    const projectNoSubtitle = { ...mockProject, subheader: null }
     renderWithRouter(<ProjectCard project={projectNoSubtitle} />)
-    expect(screen.queryByText('Subtitle text here')).not.toBeInTheDocument()
+    expect(screen.queryByText('Test subheader')).not.toBeInTheDocument()
   })
 
   it('renders status badge', () => {
@@ -91,34 +87,27 @@ describe('ProjectCard', () => {
     })
   })
 
-  describe('member avatars', () => {
-    it('renders member avatar initials', () => {
-      renderWithRouter(<ProjectCard project={mockProject} />)
-      expect(screen.getByText('A')).toBeInTheDocument() // Alice
-      expect(screen.getByText('B')).toBeInTheDocument() // Bob
-      expect(screen.getByText('C')).toBeInTheDocument() // Carol
+  describe('preview button', () => {
+    it('renders preview button when onPreview is provided', () => {
+      const handlePreview = vi.fn()
+      renderWithRouter(<ProjectCard project={mockProject} onPreview={handlePreview} />)
+      expect(screen.getByTitle('Preview project')).toBeInTheDocument()
     })
 
-    it('renders +N overflow badge when more than 5 members', () => {
-      const manyMembers = {
-        ...mockProject,
-        member_count: 8,
-        members_preview: [
-          { user_id: 'u1', name: 'A User', avatar_url: null, role: 'lead' },
-          { user_id: 'u2', name: 'B User', avatar_url: null, role: 'member' },
-          { user_id: 'u3', name: 'C User', avatar_url: null, role: 'member' },
-          { user_id: 'u4', name: 'D User', avatar_url: null, role: 'member' },
-          { user_id: 'u5', name: 'E User', avatar_url: null, role: 'member' },
-          { user_id: 'u6', name: 'F User', avatar_url: null, role: 'member' },
-        ]
-      }
-      renderWithRouter(<ProjectCard project={manyMembers} />)
-      expect(screen.getByText('+3')).toBeInTheDocument()
+    it('calls onPreview with the project when preview button is clicked', () => {
+      const handlePreview = vi.fn()
+      renderWithRouter(<ProjectCard project={mockProject} onPreview={handlePreview} />)
+      fireEvent.click(screen.getByTitle('Preview project'))
+      expect(handlePreview).toHaveBeenCalledWith(mockProject)
     })
 
-    it('does not render overflow badge when 5 or fewer members', () => {
-      renderWithRouter(<ProjectCard project={mockProject} />)
-      expect(screen.queryByText(/^\+/)).not.toBeInTheDocument()
+    it('does not trigger onClick when preview button is clicked', () => {
+      const handleClick = vi.fn()
+      const handlePreview = vi.fn()
+      renderWithRouter(<ProjectCard project={mockProject} onClick={handleClick} onPreview={handlePreview} />)
+      fireEvent.click(screen.getByTitle('Preview project'))
+      expect(handlePreview).toHaveBeenCalledTimes(1)
+      expect(handleClick).not.toHaveBeenCalled()
     })
   })
 

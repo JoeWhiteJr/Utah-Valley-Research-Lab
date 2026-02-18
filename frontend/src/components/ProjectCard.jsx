@@ -1,16 +1,12 @@
 import { memo } from 'react'
-import { Users, Pin } from 'lucide-react'
+import { Users, Pin, Eye } from 'lucide-react'
 import { getUploadUrl } from '../services/api'
 import { PROJECT_STATUS_COLORS } from '../constants'
 
-const ProjectCard = memo(function ProjectCard({ project, onClick, pendingJoinRequests = 0, isPinned = false, onTogglePin }) {
+const ProjectCard = memo(function ProjectCard({ project, onClick, pendingJoinRequests = 0, isPinned = false, onTogglePin, onPreview }) {
   const statusColors = PROJECT_STATUS_COLORS
 
   const isInactive = project.status === 'inactive'
-
-  const membersPreview = project.members_preview || []
-  const displayMembers = membersPreview.slice(0, 5)
-  const overflowCount = (parseInt(project.member_count) || 0) - 5
 
   return (
     <div
@@ -61,54 +57,37 @@ const ProjectCard = memo(function ProjectCard({ project, onClick, pendingJoinReq
             {project.status}
           </span>
         </div>
+        {/* Preview button */}
+        {onPreview && (
+          <button
+            onClick={(e) => { e.stopPropagation(); onPreview(project) }}
+            className="absolute bottom-3 right-3 p-1.5 rounded-full bg-white/70 dark:bg-gray-800/70 text-gray-400 dark:text-gray-500 opacity-0 group-hover:opacity-100 transition-all hover:bg-white/90 dark:hover:bg-gray-800/90 hover:text-primary-600 dark:hover:text-primary-400"
+            title="Preview project"
+          >
+            <Eye size={14} />
+          </button>
+        )}
       </div>
 
       <div className="p-5">
-        <div className="flex gap-3">
-          {/* Left: title + subtitle + footer */}
-          <div className="flex-1 min-w-0">
-            <h3 className={`font-display font-semibold text-lg transition-colors line-clamp-1 ${
-              isInactive
-                ? 'text-text-secondary dark:text-gray-400'
-                : 'text-text-primary dark:text-gray-100 group-hover:text-primary-600 dark:group-hover:text-primary-400'
-            }`} title={project.title}>
-              {project.title}
-            </h3>
+        <h3 className={`font-display font-semibold text-lg transition-colors line-clamp-1 ${
+          isInactive
+            ? 'text-text-secondary dark:text-gray-400'
+            : 'text-text-primary dark:text-gray-100 group-hover:text-primary-600 dark:group-hover:text-primary-400'
+        }`} title={project.title}>
+          {project.title}
+        </h3>
 
-            {project.important_info && (
-              <p className="mt-1 text-sm text-text-secondary dark:text-gray-400 line-clamp-1" title={project.important_info}>
-                {project.important_info}
-              </p>
-            )}
+        {project.subheader && (
+          <p className="mt-1 text-sm text-text-secondary dark:text-gray-400 line-clamp-1" title={project.subheader}>
+            {project.subheader}
+          </p>
+        )}
 
-            <div className="mt-3 flex items-center gap-1 text-xs text-text-secondary dark:text-gray-400">
-              <Users size={14} />
-              {project.lead_name && <span>Lead: {project.lead_name} &middot; </span>}
-              <span>{project.member_count || 0} member{parseInt(project.member_count) !== 1 ? 's' : ''}</span>
-            </div>
-          </div>
-
-          {/* Right: member avatars */}
-          {displayMembers.length > 0 && (
-            <div className="flex flex-col items-center gap-1 flex-shrink-0">
-              {displayMembers.map((member) => (
-                <div key={member.user_id} title={member.name} className="w-7 h-7 rounded-full flex-shrink-0 overflow-hidden bg-primary-100 dark:bg-primary-900/30 flex items-center justify-center">
-                  {member.avatar_url ? (
-                    <img src={member.avatar_url} alt="" className="w-full h-full object-cover" />
-                  ) : (
-                    <span className="text-[10px] font-medium text-primary-600 dark:text-primary-300">
-                      {member.name?.split(' ')[0]?.[0]?.toUpperCase() || '?'}
-                    </span>
-                  )}
-                </div>
-              ))}
-              {overflowCount > 0 && (
-                <div className="w-7 h-7 rounded-full flex-shrink-0 bg-gray-200 dark:bg-gray-600 flex items-center justify-center">
-                  <span className="text-[10px] font-medium text-text-secondary dark:text-gray-300">+{overflowCount}</span>
-                </div>
-              )}
-            </div>
-          )}
+        <div className="mt-3 flex items-center gap-1 text-xs text-text-secondary dark:text-gray-400">
+          <Users size={14} />
+          {project.lead_name && <span>Lead: {project.lead_name} &middot; </span>}
+          <span>{project.member_count || 0} member{parseInt(project.member_count) !== 1 ? 's' : ''}</span>
         </div>
       </div>
     </div>

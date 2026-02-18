@@ -2,16 +2,25 @@ import { useState, useEffect } from 'react'
 import Modal from './Modal'
 import Button from './Button'
 import { useProjectStore } from '../store/projectStore'
-import { CheckCircle2, Mail, User } from 'lucide-react'
+import { projectsApi } from '../services/api'
+import { CheckCircle2, Mail, User, Info } from 'lucide-react'
 
-export default function ProjectPreviewModal({ project, onClose }) {
+export default function ProjectPreviewModal({ project, onClose, showImportantInfo }) {
   const [phase, setPhase] = useState('preview') // 'preview' | 'requested'
   const [isRequesting, setIsRequesting] = useState(false)
+  const [members, setMembers] = useState([])
   const { requestJoin } = useProjectStore()
 
-  // Reset phase when project changes
+  // Reset phase and fetch members when project changes
   useEffect(() => {
     setPhase('preview')
+    setMembers([])
+
+    if (project?.id) {
+      projectsApi.getMembers(project.id)
+        .then((res) => setMembers(res.data?.members || []))
+        .catch(() => setMembers([]))
+    }
   }, [project?.id])
 
   if (!project) return null
@@ -26,6 +35,17 @@ export default function ProjectPreviewModal({ project, onClose }) {
   }
 
   const isPending = project.membership_status === 'pending'
+  const isMember = project.membership_status === 'member'
+
+  const getInitials = (name) => {
+    if (!name) return '?'
+    return name
+      .split(' ')
+      .map((part) => part[0])
+      .join('')
+      .toUpperCase()
+      .slice(0, 2)
+  }
 
   return (
     <Modal
@@ -35,10 +55,10 @@ export default function ProjectPreviewModal({ project, onClose }) {
     >
       {phase === 'preview' ? (
         <div className="space-y-5">
-          {/* Subtitle */}
-          {project.important_info && (
-            <p className="text-sm font-medium text-text-primary dark:text-gray-200">
-              {project.important_info}
+          {/* Subheader */}
+          {project.subheader && (
+            <p className="text-sm font-bold text-text-primary dark:text-gray-200">
+              {project.subheader}
             </p>
           )}
 
@@ -47,6 +67,21 @@ export default function ProjectPreviewModal({ project, onClose }) {
             <p className="text-sm text-text-secondary dark:text-gray-400 leading-relaxed">
               {project.description}
             </p>
+          )}
+
+          {/* Important Information */}
+          {showImportantInfo && project.important_info && (
+            <div className="rounded-lg border border-amber-200 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <Info size={16} className="text-amber-600 dark:text-amber-400" />
+                <p className="text-xs font-medium text-amber-700 dark:text-amber-300 uppercase tracking-wide">
+                  Important Information
+                </p>
+              </div>
+              <p className="text-sm text-amber-800 dark:text-amber-200 leading-relaxed">
+                {project.important_info}
+              </p>
+            </div>
           )}
 
           {/* Project lead card */}
@@ -75,12 +110,35 @@ export default function ProjectPreviewModal({ project, onClose }) {
             </div>
           )}
 
+          {/* Members list */}
+          {members.length > 0 && (
+            <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 p-4">
+              <p className="text-xs font-medium text-text-secondary dark:text-gray-400 uppercase tracking-wide mb-3">
+                Members ({members.length})
+              </p>
+              <div className="space-y-2 max-h-40 overflow-y-auto">
+                {members.map((member) => (
+                  <div key={member.id} className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-full bg-primary-100 dark:bg-primary-900/30 flex items-center justify-center shrink-0">
+                      <span className="text-xs font-medium text-primary-600 dark:text-primary-400">
+                        {getInitials(member.name)}
+                      </span>
+                    </div>
+                    <p className="text-sm text-text-primary dark:text-gray-200 truncate">
+                      {member.name}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Actions */}
           <div className="flex justify-end gap-3 pt-2">
             <Button variant="secondary" onClick={onClose}>
               Close
             </Button>
-            {isPending ? (
+            {isMember ? null : isPending ? (
               <span className="inline-flex items-center gap-2 px-4 py-2 rounded-organic text-sm font-medium bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300">
                 Request Pending
               </span>
