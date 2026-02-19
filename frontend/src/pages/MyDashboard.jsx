@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuthStore } from '../store/authStore'
 import { useProjectStore } from '../store/projectStore'
@@ -39,6 +39,7 @@ export default function MyDashboard() {
   const [taskFilters, setTaskFilters] = useState({ project_id: '', priority: '', status: '', due_before: '', due_after: '' })
   const [showFilters, setShowFilters] = useState(false)
   const [tasksExpanded, setTasksExpanded] = useState(false)
+  const [collapsedProjects, setCollapsedProjects] = useState(new Set())
   const [projectsExpanded, setProjectsExpanded] = useState(false)
   const [editingDescription, setEditingDescription] = useState({})
   const [plannerTab, setPlannerTab] = useState('daily')
@@ -201,6 +202,19 @@ export default function MyDashboard() {
 
   // Compute filtered task list for rendering
   const filteredTasks = taskFilters.status ? myTasks : myTasks.filter(t => !t.completed)
+
+  // Group filtered tasks by project
+  const tasksByProject = useMemo(() => {
+    const groups = {}
+    for (const task of filteredTasks) {
+      const pid = task.project_id || 'unassigned'
+      if (!groups[pid]) {
+        groups[pid] = { title: task.project_title || 'Unassigned', tasks: [] }
+      }
+      groups[pid].tasks.push(task)
+    }
+    return groups
+  }, [filteredTasks])
 
   return (
     <div className="space-y-6">
@@ -461,7 +475,27 @@ export default function MyDashboard() {
                       <p className="text-text-secondary dark:text-gray-400 mt-2 text-sm">Loading tasks...</p>
                     </div>
                   ) : filteredTasks.length > 0 ? (
-                    filteredTasks.map((task) => {
+                    Object.entries(tasksByProject).map(([projectId, group]) => {
+                      const isProjectCollapsed = collapsedProjects.has(projectId)
+                      return (
+                        <div key={projectId} className="divide-y divide-gray-100 dark:divide-gray-700">
+                          <button
+                            onClick={() => setCollapsedProjects(prev => {
+                              const next = new Set(prev)
+                              if (next.has(projectId)) next.delete(projectId)
+                              else next.add(projectId)
+                              return next
+                            })}
+                            className="w-full flex items-center gap-2 px-3 py-2.5 bg-gray-50 dark:bg-gray-900/50 hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-colors border-l-2 border-l-primary-400 dark:border-l-primary-500"
+                          >
+                            {isProjectCollapsed ? <ChevronRight size={14} className="text-gray-400" /> : <ChevronDown size={14} className="text-gray-400" />}
+                            <FolderKanban size={14} className="text-primary-500" />
+                            <span className="text-xs font-semibold text-text-primary dark:text-gray-200 truncate">{group.title}</span>
+                            <span className="text-[10px] font-medium bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300 px-1.5 py-0.5 rounded-full ml-auto flex-shrink-0">
+                              {group.tasks.length}
+                            </span>
+                          </button>
+                          {!isProjectCollapsed && group.tasks.map((task) => {
                       const isNew = highlightedTaskIds.has(task.id)
                       const isExpanded = expandedTaskId === task.id
                       const isOverdue = task.due_date && !task.completed && isPast(parseISO(task.due_date))
@@ -589,6 +623,9 @@ export default function MyDashboard() {
                               </div>
                             </div>
                           )}
+                        </div>
+                      )
+                    })}
                         </div>
                       )
                     })

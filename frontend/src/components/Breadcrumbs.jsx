@@ -1,7 +1,7 @@
 import { useLocation, Link } from 'react-router-dom'
 import { useProjectStore } from '../store/projectStore'
 import { useChatStore } from '../store/chatStore'
-import { ChevronRight } from 'lucide-react'
+import { ArrowLeft } from 'lucide-react'
 
 const routeLabels = {
   'dashboard': 'Dashboard',
@@ -62,29 +62,17 @@ export default function Breadcrumbs() {
 
   if (crumbs.length <= 1) return null
 
+  const parentCrumb = crumbs[crumbs.length - 2]
+
   return (
-    <nav className="flex items-center gap-1.5 text-sm mb-4">
-      {crumbs.map((crumb, index) => {
-        const isLast = index === crumbs.length - 1
-        return (
-          <span key={crumb.path} className="flex items-center gap-1.5">
-            {index > 0 && <ChevronRight size={14} className="text-gray-400" />}
-            {isLast ? (
-              <span className="text-text-primary dark:text-gray-100 font-medium truncate max-w-[200px]" title={crumb.label}>
-                {crumb.label}
-              </span>
-            ) : (
-              <Link
-                to={crumb.path}
-                className="text-text-secondary dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 transition-colors truncate max-w-[200px]"
-                title={crumb.label}
-              >
-                {crumb.label}
-              </Link>
-            )}
-          </span>
-        )
-      })}
+    <nav className="text-sm mb-4">
+      <Link
+        to={parentCrumb.path}
+        className="inline-flex items-center gap-1.5 text-text-secondary dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 transition-colors"
+      >
+        <ArrowLeft size={14} />
+        Back to {parentCrumb.label}
+      </Link>
     </nav>
   )
 }
