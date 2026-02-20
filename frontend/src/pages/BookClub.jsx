@@ -181,7 +181,15 @@ export default function BookClub() {
         {/* Next Meeting — lg:col-span-1 */}
         <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
           <h2 className="text-lg font-display font-semibold text-text-primary dark:text-gray-100 mb-4">Next Meeting</h2>
-          {currentBook?.meet_date ? (() => {
+          {(() => {
+            if (!currentBook?.meet_date) {
+              return (
+                <div className="text-center py-4">
+                  <Calendar size={32} className="mx-auto text-gray-300 dark:text-gray-600 mb-2" />
+                  <p className="text-sm text-text-secondary dark:text-gray-400">No meeting scheduled</p>
+                </div>
+              )
+            }
             const dateStr = currentBook.meet_date.split('T')[0]
             const meetDate = new Date(dateStr + 'T00:00:00')
             const today = new Date()
@@ -203,13 +211,7 @@ export default function BookClub() {
                 </div>
               </div>
             )
-          })()
-          ) : (
-            <div className="text-center py-4">
-              <Calendar size={32} className="mx-auto text-gray-300 dark:text-gray-600 mb-2" />
-              <p className="text-sm text-text-secondary dark:text-gray-400">No meeting scheduled</p>
-            </div>
-          )}
+          })()}
         </div>
 
         {/* Up Next - Vote — lg:col-span-2 */}
