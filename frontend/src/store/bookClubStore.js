@@ -42,8 +42,13 @@ export const useBookClubStore = create((set, get) => ({
     await get().fetchBooks()
   },
 
-  setCurrent: async (id) => {
-    await bookClubApi.setCurrent(id)
+  setCurrent: async (id, meetDate) => {
+    await bookClubApi.setCurrent(id, meetDate ? { meet_date: meetDate } : undefined)
+    await get().fetchBooks()
+  },
+
+  shelveBook: async (id) => {
+    await bookClubApi.shelve(id)
     await get().fetchBooks()
   },
 

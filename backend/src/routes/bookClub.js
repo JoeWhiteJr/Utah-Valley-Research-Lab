@@ -77,7 +77,7 @@ router.post('/', authenticate, requireRole('admin'), [
   body('title').trim().notEmpty(),
   body('author').trim().notEmpty(),
   body('description').optional(),
-  body('meet_date').optional().isISO8601()
+  body('meet_date').optional({ values: 'falsy' }).isISO8601()
 ], async (req, res, next) => {
   try {
     const errors = validationResult(req);
@@ -104,7 +104,7 @@ router.put('/:id', authenticate, requireRole('admin'), [
   body('author').optional().trim().notEmpty(),
   body('description').optional(),
   body('status').optional().isIn(['upcoming', 'current', 'past']),
-  body('meet_date').optional().isISO8601()
+  body('meet_date').optional({ values: 'falsy' }).isISO8601()
 ], async (req, res, next) => {
   try {
     const errors = validationResult(req);
@@ -129,7 +129,7 @@ router.put('/:id', authenticate, requireRole('admin'), [
     if (author !== undefined) { updates.push(`author = $${paramCount++}`); values.push(author); }
     if (description !== undefined) { updates.push(`description = $${paramCount++}`); values.push(description); }
     if (status !== undefined) { updates.push(`status = $${paramCount++}`); values.push(status); }
-    if (meet_date !== undefined) { updates.push(`meet_date = $${paramCount++}`); values.push(meet_date); }
+    if (meet_date !== undefined) { updates.push(`meet_date = $${paramCount++}`); values.push(meet_date || null); }
 
     if (values.length === 0) {
       return res.status(400).json({ error: { message: 'No fields to update' } });
@@ -179,10 +179,11 @@ router.post('/:id/set-current', authenticate, requireRole('admin'), async (req, 
       "UPDATE book_club_books SET status = 'past' WHERE status = 'current' AND deleted_at IS NULL"
     );
 
-    // Set the target book as current
+    // Set the target book as current (with optional meet_date)
+    const { meet_date } = req.body || {};
     const result = await db.query(
-      "UPDATE book_club_books SET status = 'current' WHERE id = $1 AND deleted_at IS NULL RETURNING *",
-      [req.params.id]
+      `UPDATE book_club_books SET status = 'current'${meet_date ? ', meet_date = $2' : ''} WHERE id = $1 AND deleted_at IS NULL RETURNING *`,
+      meet_date ? [req.params.id, meet_date] : [req.params.id]
     );
 
     if (result.rows.length === 0) {
@@ -198,6 +199,24 @@ router.post('/:id/set-current', authenticate, requireRole('admin'), async (req, 
     res.json({ book: result.rows[0] });
   } catch (error) {
     await db.query('ROLLBACK');
+    next(error);
+  }
+});
+
+// Shelve book (move current to past)
+router.post('/:id/shelve', authenticate, requireRole('admin'), async (req, res, next) => {
+  try {
+    const result = await db.query(
+      "UPDATE book_club_books SET status = 'past' WHERE id = $1 AND deleted_at IS NULL RETURNING *",
+      [req.params.id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: { message: 'Book not found' } });
+    }
+
+    res.json({ book: result.rows[0] });
+  } catch (error) {
     next(error);
   }
 });

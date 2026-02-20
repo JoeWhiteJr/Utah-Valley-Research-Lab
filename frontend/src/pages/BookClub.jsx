@@ -7,7 +7,7 @@ import Modal from '../components/Modal'
 import Input from '../components/Input'
 import AudioPlayer from '../components/AudioPlayer'
 import RichTextEditor from '../components/RichTextEditor'
-import { BookOpen, Plus, Check, Trash2, Edit3, Calendar, ChevronRight, Clock, Upload, FileText, Sparkles } from 'lucide-react'
+import { BookOpen, Plus, Check, Trash2, Edit3, Calendar, ChevronRight, Clock, Upload, FileText, Sparkles, Archive } from 'lucide-react'
 
 export default function BookClub() {
   // Auth store
@@ -17,13 +17,15 @@ export default function BookClub() {
   // Book club store
   const {
     currentBook, upcomingBooks, pastBooks, userVoteBookId, isLoading,
-    fetchBooks, createBook, updateBook, deleteBook, setCurrent, vote, removeVote, updateMeeting
+    fetchBooks, createBook, updateBook, deleteBook, setCurrent, shelveBook, vote, removeVote, updateMeeting
   } = useBookClubStore()
 
   // Local state
   const [showBookModal, setShowBookModal] = useState(false)
   const [editingBook, setEditingBook] = useState(null)
-  const [bookForm, setBookForm] = useState({ title: '', author: '', description: '', meet_date: '' })
+  const [bookForm, setBookForm] = useState({ title: '', author: '', description: '' })
+  const [setCurrentModal, setSetCurrentModal] = useState(null)
+  const [setCurrentDate, setSetCurrentDate] = useState('')
   const [viewingMeeting, setViewingMeeting] = useState(null)
   const [meetingNotes, setMeetingNotes] = useState('')
   const [meetingSummary, setMeetingSummary] = useState('')
@@ -41,11 +43,11 @@ export default function BookClub() {
         title: book.title || '',
         author: book.author || '',
         description: book.description || '',
-        meet_date: book.meet_date || ''
+        meet_date: book.meet_date ? book.meet_date.split('T')[0] : ''
       })
       setEditingBook(book)
     } else {
-      setBookForm({ title: '', author: '', description: '', meet_date: '' })
+      setBookForm({ title: '', author: '', description: '' })
       setEditingBook(null)
     }
     setShowBookModal(true)
@@ -55,7 +57,8 @@ export default function BookClub() {
     if (editingBook) {
       await updateBook(editingBook.id, bookForm)
     } else {
-      await createBook(bookForm)
+      const { meet_date, ...createData } = bookForm
+      await createBook(createData)
     }
     setShowBookModal(false)
   }, [editingBook, bookForm, updateBook, createBook])
@@ -64,9 +67,22 @@ export default function BookClub() {
     await deleteBook(id)
   }, [deleteBook])
 
-  const handleSetCurrent = useCallback(async (id) => {
-    await setCurrent(id)
-  }, [setCurrent])
+  const handleOpenSetCurrent = useCallback((book) => {
+    setSetCurrentModal(book)
+    setSetCurrentDate('')
+  }, [])
+
+  const handleConfirmSetCurrent = useCallback(async () => {
+    if (!setCurrentModal) return
+    await setCurrent(setCurrentModal.id, setCurrentDate || null)
+    setSetCurrentModal(null)
+    setSetCurrentDate('')
+  }, [setCurrentModal, setCurrentDate, setCurrent])
+
+  const handleShelveBook = useCallback(async (id) => {
+    if (!window.confirm('Move this book to past books?')) return
+    await shelveBook(id)
+  }, [shelveBook])
 
   const handleVote = useCallback(async (bookId) => {
     if (userVoteBookId === bookId) {
@@ -142,6 +158,9 @@ export default function BookClub() {
                   </Button>
                   <Button size="sm" variant="outline" onClick={() => handleOpenMeeting(currentBook)}>
                     <FileText size={14} className="mr-1" /> Meeting Notes
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={() => handleShelveBook(currentBook.id)}>
+                    <Archive size={14} className="mr-1" /> Shelve Book
                   </Button>
                 </div>
               )}
@@ -219,7 +238,7 @@ export default function BookClub() {
                   </span>
                   {isAdmin && (
                     <div className="flex gap-1">
-                      <button onClick={() => handleSetCurrent(book.id)} title="Set as current book"
+                      <button onClick={() => handleOpenSetCurrent(book)} title="Set as current book"
                         className="p-1.5 rounded-lg text-text-secondary hover:text-primary-600 hover:bg-primary-50 dark:hover:bg-primary-900/30 transition-colors">
                         <BookOpen size={14} />
                       </button>
@@ -301,12 +320,30 @@ export default function BookClub() {
               placeholder="What's this book about?"
             />
           </div>
-          <Input label="Meeting Date" type="date" value={bookForm.meet_date} onChange={(e) => setBookForm({ ...bookForm, meet_date: e.target.value })} />
+          {editingBook && (
+            <Input label="Meeting Date" type="date" value={bookForm.meet_date || ''} onChange={(e) => setBookForm({ ...bookForm, meet_date: e.target.value })} />
+          )}
           <div className="flex justify-end gap-3">
             <Button type="button" variant="secondary" onClick={() => setShowBookModal(false)}>Cancel</Button>
             <Button type="submit">{editingBook ? 'Save Changes' : 'Add Book'}</Button>
           </div>
         </form>
+      </Modal>
+
+      {/* Set as Current Modal */}
+      <Modal isOpen={!!setCurrentModal} onClose={() => setSetCurrentModal(null)} title="Set as Current Book" size="sm">
+        {setCurrentModal && (
+          <div className="space-y-4">
+            <p className="text-sm text-text-secondary dark:text-gray-400">
+              Set <span className="font-medium text-text-primary dark:text-gray-100">{setCurrentModal.title}</span> as the current book? Any existing current book will be moved to past books.
+            </p>
+            <Input label="Meeting Date (optional)" type="date" value={setCurrentDate} onChange={(e) => setSetCurrentDate(e.target.value)} />
+            <div className="flex justify-end gap-3">
+              <Button variant="secondary" onClick={() => setSetCurrentModal(null)}>Cancel</Button>
+              <Button onClick={handleConfirmSetCurrent}>Confirm</Button>
+            </div>
+          </div>
+        )}
       </Modal>
 
       {/* Meeting View Modal — full screen, same pattern as ProjectDetail */}
