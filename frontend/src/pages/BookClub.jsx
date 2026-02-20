@@ -7,7 +7,7 @@ import Modal from '../components/Modal'
 import Input from '../components/Input'
 import AudioPlayer from '../components/AudioPlayer'
 import RichTextEditor from '../components/RichTextEditor'
-import { BookOpen, Plus, Check, Trash2, Edit3, Calendar, ChevronRight, Clock, Upload, FileText, Sparkles, X } from 'lucide-react'
+import { BookOpen, Plus, Check, Trash2, Edit3, Calendar, ChevronRight, Clock, Upload, FileText, Sparkles } from 'lucide-react'
 
 export default function BookClub() {
   // Auth store
