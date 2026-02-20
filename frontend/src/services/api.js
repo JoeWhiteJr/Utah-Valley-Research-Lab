@@ -163,6 +163,26 @@ export const personalNotesApi = {
   delete: (id) => api.delete(`/personal-notes/${id}`),
 }
 
+// Book Club
+export const bookClubApi = {
+  list: () => api.get('/book-club'),
+  create: (data) => api.post('/book-club', data),
+  update: (id, data) => api.put(`/book-club/${id}`, data),
+  delete: (id) => api.delete(`/book-club/${id}`),
+  setCurrent: (id) => api.post(`/book-club/${id}/set-current`),
+  vote: (id) => api.post(`/book-club/${id}/vote`),
+  removeVote: (id) => api.delete(`/book-club/${id}/vote`),
+  updateMeeting: (id, data) => api.put(`/book-club/${id}/meeting`, data),
+  uploadAudio: (id, audioFile) => {
+    const formData = new FormData()
+    formData.append('audio', audioFile)
+    return api.put(`/book-club/${id}/audio`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    })
+  },
+  getAudio: (id) => api.get(`/book-club/${id}/audio`, { responseType: 'blob' }),
+}
+
 // Notes
 export const notesApi = {
   list: (projectId, search) => api.get(`/notes/project/${projectId}`, { params: search ? { search } : undefined }),

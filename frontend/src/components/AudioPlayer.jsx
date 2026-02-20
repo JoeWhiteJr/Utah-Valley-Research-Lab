@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import { Play, Pause, Volume2, VolumeX, Loader2 } from 'lucide-react'
 import { meetingsApi } from '../services/api'
 
-export default function AudioPlayer({ src, meetingId, className = '' }) {
+export default function AudioPlayer({ src, meetingId, audioFetchFn, className = '' }) {
   const audioRef = useRef(null)
 
   const [isPlaying, setIsPlaying] = useState(false)
@@ -18,8 +18,8 @@ export default function AudioPlayer({ src, meetingId, className = '' }) {
 
   // Fetch audio blob for authenticated playback
   useEffect(() => {
-    if (!meetingId && !src) return
-    if (src && !meetingId) {
+    if (!meetingId && !src && !audioFetchFn) return
+    if (src && !meetingId && !audioFetchFn) {
       // Direct URL (e.g., blob URL already provided)
       setBlobUrl(src)
       return
@@ -29,7 +29,8 @@ export default function AudioPlayer({ src, meetingId, className = '' }) {
     setIsLoadingAudio(true)
     setLoadError(false)
 
-    meetingsApi.getAudio(meetingId)
+    const fetchFn = audioFetchFn ? audioFetchFn() : meetingsApi.getAudio(meetingId)
+    fetchFn
       .then(({ data }) => {
         if (!cancelled) {
           setBlobUrl(URL.createObjectURL(data))
@@ -45,16 +46,16 @@ export default function AudioPlayer({ src, meetingId, className = '' }) {
     return () => {
       cancelled = true
     }
-  }, [meetingId, src])
+  }, [meetingId, src, audioFetchFn])
 
   // Cleanup blob URL on unmount
   useEffect(() => {
     return () => {
-      if (blobUrl && meetingId) {
+      if (blobUrl && (meetingId || audioFetchFn)) {
         URL.revokeObjectURL(blobUrl)
       }
     }
-  }, [blobUrl, meetingId])
+  }, [blobUrl, meetingId, audioFetchFn])
 
   useEffect(() => {
     const audio = audioRef.current
@@ -149,7 +150,7 @@ export default function AudioPlayer({ src, meetingId, className = '' }) {
     return `${minutes}:${seconds.toString().padStart(2, '0')}`
   }
 
-  if (!src && !meetingId) {
+  if (!src && !meetingId && !audioFetchFn) {
     return null
   }
 

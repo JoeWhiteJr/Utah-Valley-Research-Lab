@@ -3,7 +3,7 @@ import { useAuthStore } from '../store/authStore'
 import { getUploadUrl } from '../services/api'
 import { useThemeStore } from '../store/themeStore'
 import { useNotificationStore } from '../store/notificationStore'
-import { LayoutDashboard, User, FolderKanban, Settings, LogOut, Menu, X, MessageCircle, Shield, ExternalLink, Search, Sun, Moon, WifiOff } from 'lucide-react'
+import { LayoutDashboard, User, FolderKanban, Settings, LogOut, Menu, X, MessageCircle, Shield, ExternalLink, Search, Sun, Moon, WifiOff, BookOpen } from 'lucide-react'
 import { useState, useEffect, useRef, useCallback } from 'react'
 import socket from '../services/socket'
 import NotificationBell from './NotificationBell'
@@ -72,6 +72,7 @@ export default function Layout() {
     { to: '/dashboard/my-dashboard', icon: User, label: 'My Dashboard', badge: dashboardBadge },
     { to: '/dashboard/projects', icon: FolderKanban, label: 'Projects', badge: projectsBadge },
     { to: '/dashboard/chat', icon: MessageCircle, label: 'Chat' },
+    { to: '/dashboard/book-club', icon: BookOpen, label: 'Book Club' },
     ...(user?.role === 'admin' ? [{ to: '/dashboard/admin', icon: Shield, label: 'Admin', badge: adminBadge }] : []),
     { to: '/dashboard/settings', icon: Settings, label: 'Settings' },
   ]

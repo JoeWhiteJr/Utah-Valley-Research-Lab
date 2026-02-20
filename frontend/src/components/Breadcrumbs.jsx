@@ -10,6 +10,7 @@ const routeLabels = {
   'chat': 'Chat',
   'settings': 'Settings',
   'admin': 'Admin',
+  'book-club': 'Book Club',
 }
 
 export default function Breadcrumbs() {

@@ -22,6 +22,7 @@ const ForgotPassword = lazy(() => import('./pages/ForgotPassword'))
 const ResetPassword = lazy(() => import('./pages/ResetPassword'))
 const AccessRevoked = lazy(() => import('./pages/AccessRevoked'))
 const NotFound = lazy(() => import('./pages/NotFound'))
+const BookClub = lazy(() => import('./pages/BookClub'))
 
 // Jared's public site components
 import PublicLayout from './components/public/layout/PublicLayout'
@@ -136,6 +137,7 @@ function App() {
               <Route path="settings" element={<Settings />} />
               <Route path="chat" element={<Chat />} />
               <Route path="chat/:roomId" element={<Chat />} />
+              <Route path="book-club" element={<BookClub />} />
               <Route path="admin" element={<AdminRoute><Admin /></AdminRoute>} />
             </Route>
 
