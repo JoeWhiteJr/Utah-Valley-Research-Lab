@@ -52,6 +52,11 @@ export const useBookClubStore = create((set, get) => ({
     await get().fetchBooks()
   },
 
+  moveToUpcoming: async (id) => {
+    await bookClubApi.moveToUpcoming(id)
+    await get().fetchBooks()
+  },
+
   vote: async (bookId) => {
     // Optimistic update
     const prev = get().userVoteBookId

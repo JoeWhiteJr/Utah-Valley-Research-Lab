@@ -7,7 +7,7 @@ import Modal from '../components/Modal'
 import Input from '../components/Input'
 import AudioPlayer from '../components/AudioPlayer'
 import RichTextEditor from '../components/RichTextEditor'
-import { BookOpen, Plus, Check, Trash2, Edit3, Calendar, ChevronRight, Clock, Upload, FileText, Sparkles, Archive } from 'lucide-react'
+import { BookOpen, Plus, Check, Trash2, Edit3, Calendar, ChevronRight, Clock, Upload, FileText, Sparkles, Archive, Undo2 } from 'lucide-react'
 
 export default function BookClub() {
   // Auth store
@@ -17,7 +17,7 @@ export default function BookClub() {
   // Book club store
   const {
     currentBook, upcomingBooks, pastBooks, userVoteBookId, isLoading,
-    fetchBooks, createBook, updateBook, deleteBook, setCurrent, shelveBook, vote, removeVote, updateMeeting
+    fetchBooks, createBook, updateBook, deleteBook, setCurrent, shelveBook, moveToUpcoming, vote, removeVote, updateMeeting
   } = useBookClubStore()
 
   // Local state
@@ -83,6 +83,11 @@ export default function BookClub() {
     if (!window.confirm('Move this book to past books?')) return
     await shelveBook(id)
   }, [shelveBook])
+
+  const handleMoveToUpcoming = useCallback(async (id) => {
+    if (!window.confirm('Move this book back to the book list?')) return
+    await moveToUpcoming(id)
+  }, [moveToUpcoming])
 
   const handleVote = useCallback(async (bookId) => {
     if (userVoteBookId === bookId) {
@@ -162,6 +167,9 @@ export default function BookClub() {
                   <Button size="sm" variant="outline" onClick={() => handleShelveBook(currentBook.id)}>
                     <Archive size={14} className="mr-1" /> Shelve Book
                   </Button>
+                  <Button size="sm" variant="outline" onClick={() => handleMoveToUpcoming(currentBook.id)}>
+                    <Undo2 size={14} className="mr-1" /> Move to Book List
+                  </Button>
                 </div>
               )}
             </div>
@@ -173,30 +181,29 @@ export default function BookClub() {
         {/* Next Meeting — lg:col-span-1 */}
         <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
           <h2 className="text-lg font-display font-semibold text-text-primary dark:text-gray-100 mb-4">Next Meeting</h2>
-          {currentBook?.meet_date ? (
-            <div className="text-center">
-              <p className="text-3xl font-display font-bold text-primary-600 dark:text-primary-400">
-                {new Date(currentBook.meet_date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long' })}
-              </p>
-              <p className="text-lg text-text-primary dark:text-gray-200 mt-1">
-                {new Date(currentBook.meet_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
-              </p>
-              <div className="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 bg-primary-50 dark:bg-primary-900/30 rounded-full">
-                <Clock size={14} className="text-primary-600 dark:text-primary-400" />
-                <span className="text-sm font-medium text-primary-600 dark:text-primary-400">
-                  {(() => {
-                    const today = new Date()
-                    today.setHours(0, 0, 0, 0)
-                    const meetDate = new Date(currentBook.meet_date + 'T00:00:00')
-                    const diffDays = Math.ceil((meetDate - today) / (1000 * 60 * 60 * 24))
-                    if (diffDays === 0) return 'Today!'
-                    if (diffDays === 1) return 'Tomorrow'
-                    if (diffDays < 0) return `${Math.abs(diffDays)} days ago`
-                    return `${diffDays} days away`
-                  })()}
-                </span>
+          {currentBook?.meet_date ? (() => {
+            const dateStr = currentBook.meet_date.split('T')[0]
+            const meetDate = new Date(dateStr + 'T00:00:00')
+            const today = new Date()
+            today.setHours(0, 0, 0, 0)
+            const diffDays = Math.ceil((meetDate - today) / (1000 * 60 * 60 * 24))
+            return (
+              <div className="text-center">
+                <p className="text-3xl font-display font-bold text-primary-600 dark:text-primary-400">
+                  {meetDate.toLocaleDateString('en-US', { weekday: 'long' })}
+                </p>
+                <p className="text-lg text-text-primary dark:text-gray-200 mt-1">
+                  {meetDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+                </p>
+                <div className="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 bg-primary-50 dark:bg-primary-900/30 rounded-full">
+                  <Clock size={14} className="text-primary-600 dark:text-primary-400" />
+                  <span className="text-sm font-medium text-primary-600 dark:text-primary-400">
+                    {diffDays === 0 ? 'Today!' : diffDays === 1 ? 'Tomorrow' : diffDays < 0 ? `${Math.abs(diffDays)} days ago` : `${diffDays} days away`}
+                  </span>
+                </div>
               </div>
-            </div>
+            )
+          })()
           ) : (
             <div className="text-center py-4">
               <Calendar size={32} className="mx-auto text-gray-300 dark:text-gray-600 mb-2" />
@@ -277,7 +284,7 @@ export default function BookClub() {
                         <p className="text-sm font-medium text-text-primary dark:text-gray-100 truncate">{book.title}</p>
                         <p className="text-xs text-text-secondary dark:text-gray-400">
                           {book.author}
-                          {book.meet_date && ` — ${new Date(book.meet_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`}
+                          {book.meet_date && ` — ${new Date(book.meet_date.split('T')[0] + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`}
                         </p>
                       </div>
                     </div>
@@ -288,12 +295,22 @@ export default function BookClub() {
                       {book.notes && (
                         <p className="text-xs text-text-secondary dark:text-gray-400 mb-2 line-clamp-3" dangerouslySetInnerHTML={{ __html: book.notes }} />
                       )}
-                      <button
-                        onClick={() => handleOpenMeeting(book)}
-                        className="text-xs font-medium text-primary-600 dark:text-primary-400 hover:text-primary-700"
-                      >
-                        Open Meeting
-                      </button>
+                      <div className="flex items-center gap-3">
+                        <button
+                          onClick={() => handleOpenMeeting(book)}
+                          className="text-xs font-medium text-primary-600 dark:text-primary-400 hover:text-primary-700"
+                        >
+                          Open Meeting
+                        </button>
+                        {isAdmin && (
+                          <button
+                            onClick={() => handleMoveToUpcoming(book.id)}
+                            className="text-xs font-medium text-text-secondary dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 flex items-center gap-1"
+                          >
+                            <Undo2 size={12} /> Move to Book List
+                          </button>
+                        )}
+                      </div>
                     </div>
                   )}
                 </div>
@@ -357,7 +374,7 @@ export default function BookClub() {
             </div>
             {viewingMeeting.meet_date && (
               <p className="text-xs text-text-secondary dark:text-gray-400 mb-4 px-2">
-                {new Date(viewingMeeting.meet_date + 'T00:00:00').toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
+                {new Date(viewingMeeting.meet_date.split('T')[0] + 'T00:00:00').toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
               </p>
             )}
 

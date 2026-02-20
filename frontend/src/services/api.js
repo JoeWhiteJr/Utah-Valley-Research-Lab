@@ -171,6 +171,7 @@ export const bookClubApi = {
   delete: (id) => api.delete(`/book-club/${id}`),
   setCurrent: (id, data) => api.post(`/book-club/${id}/set-current`, data),
   shelve: (id) => api.post(`/book-club/${id}/shelve`),
+  moveToUpcoming: (id) => api.post(`/book-club/${id}/move-to-upcoming`),
   vote: (id) => api.post(`/book-club/${id}/vote`),
   removeVote: (id) => api.delete(`/book-club/${id}/vote`),
   updateMeeting: (id, data) => api.put(`/book-club/${id}/meeting`, data),

@@ -203,6 +203,24 @@ router.post('/:id/set-current', authenticate, requireRole('admin'), async (req, 
   }
 });
 
+// Move book back to upcoming (undo current or past)
+router.post('/:id/move-to-upcoming', authenticate, requireRole('admin'), async (req, res, next) => {
+  try {
+    const result = await db.query(
+      "UPDATE book_club_books SET status = 'upcoming' WHERE id = $1 AND deleted_at IS NULL RETURNING *",
+      [req.params.id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: { message: 'Book not found' } });
+    }
+
+    res.json({ book: result.rows[0] });
+  } catch (error) {
+    next(error);
+  }
+});
+
 // Shelve book (move current to past)
 router.post('/:id/shelve', authenticate, requireRole('admin'), async (req, res, next) => {
   try {
