@@ -342,7 +342,7 @@ export default function LabDashboard() {
               ) : (
                 <div className="p-8 text-center text-text-secondary dark:text-gray-400 text-sm">
                   No news posted yet
-                  {isAdmin && <span className="block mt-1">Click "Post News" to share an update with the lab.</span>}
+                  {isAdmin && <span className="block mt-1">Click &ldquo;Post News&rdquo; to share an update with the lab.</span>}
                 </div>
               )}
             </div>
