@@ -314,15 +314,38 @@ export default function LabDashboard() {
 
   return (
     <div className="space-y-6">
-      {/* Header row: Title + date | inline stats + AI Summary */}
+      {/* Header row: Title + tabs | inline stats + AI Summary */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="font-display font-bold text-2xl md:text-3xl text-text-primary dark:text-gray-100">
-            Lab Dashboard
-          </h1>
-          <p className="text-text-secondary dark:text-gray-400 mt-1">
-            {format(new Date(), 'EEEE, MMMM d, yyyy')}
-          </p>
+        <div className="flex items-center gap-4 flex-wrap">
+          <div>
+            <h1 className="font-display font-bold text-2xl md:text-3xl text-text-primary dark:text-gray-100">
+              Lab Dashboard
+            </h1>
+            <p className="text-text-secondary dark:text-gray-400 mt-1">
+              {format(new Date(), 'EEEE, MMMM d, yyyy')}
+            </p>
+          </div>
+          {/* Tab navigation — inline with title */}
+          <div className="flex items-center gap-1 bg-gray-100 dark:bg-gray-700 rounded-xl p-1">
+            {[
+              { key: 'overview', icon: LayoutGrid, label: 'Overview' },
+              { key: 'calendar', icon: Calendar, label: 'Calendar' },
+              { key: 'resources', icon: Library, label: 'Resources' },
+            ].map(tab => (
+              <button
+                key={tab.key}
+                onClick={() => setActiveTab(tab.key)}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                  activeTab === tab.key
+                    ? 'bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 shadow-sm'
+                    : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+                }`}
+              >
+                <tab.icon size={16} />
+                {tab.label}
+              </button>
+            ))}
+          </div>
         </div>
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2 px-3 py-2 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
@@ -350,80 +373,86 @@ export default function LabDashboard() {
         </div>
       </div>
 
-      {/* Tab navigation */}
-      <div className="flex items-center gap-1 bg-gray-100 dark:bg-gray-700 rounded-xl p-1 w-fit">
-        {[
-          { key: 'overview', icon: LayoutGrid, label: 'Overview' },
-          { key: 'calendar', icon: Calendar, label: 'Calendar' },
-          { key: 'resources', icon: Library, label: 'Resources' },
-        ].map(tab => (
-          <button
-            key={tab.key}
-            onClick={() => setActiveTab(tab.key)}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-              activeTab === tab.key
-                ? 'bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 shadow-sm'
-                : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
-            }`}
-          >
-            <tab.icon size={16} />
-            {tab.label}
-          </button>
-        ))}
-      </div>
-
       {/* Tab content */}
       {activeTab === 'overview' ? (
         <>
           {/* Two-column: Latest News (2/3) + New Projects (1/3) */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
-            {/* Latest News — takes 2/3 */}
-            <section className="lg:col-span-2">
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-2">
-                  <Newspaper size={20} className="text-primary-600 dark:text-primary-400" />
-                  <h2 className="font-display font-bold text-lg text-text-primary dark:text-gray-100">Latest News</h2>
-                </div>
-                {isAdmin && (
-                  <Button variant="outline" size="sm" onClick={() => openNewsModal()}>
-                    <Plus size={14} />
-                    Post News
-                  </Button>
-                )}
-              </div>
-              <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 divide-y divide-gray-100 dark:divide-gray-700">
-                {loadingNews ? (
-                  <div className="p-6 text-center text-text-secondary dark:text-gray-400 text-sm">Loading news...</div>
-                ) : news.length > 0 ? (
-                  news.map(item => (
-                    <div key={item.id} className="p-5">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="flex-1 min-w-0">
-                          <h3 className="font-semibold text-text-primary dark:text-gray-100">{item.title}</h3>
-                          {item.body && <p className="text-sm text-text-secondary dark:text-gray-400 mt-1 line-clamp-2">{item.body}</p>}
-                          <div className="flex items-center gap-2 mt-2 text-xs text-text-secondary dark:text-gray-500">
-                            <span>{item.author_name}</span>
-                            <span>&middot;</span>
-                            <span>{format(new Date(item.created_at), 'MMM d, yyyy')}</span>
-                          </div>
-                        </div>
-                        {isAdmin && (
-                          <div className="flex items-center gap-1 flex-shrink-0">
-                            <button onClick={() => openNewsModal(item)} className="p-1.5 rounded-lg text-gray-400 hover:text-primary-600 hover:bg-primary-50 dark:hover:bg-primary-900/30 transition-colors"><Pencil size={14} /></button>
-                            <button onClick={() => handleDeleteNews(item.id)} className="p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors"><Trash2 size={14} /></button>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  ))
-                ) : (
-                  <div className="p-8 text-center text-text-secondary dark:text-gray-400 text-sm">
-                    No news posted yet
-                    {isAdmin && <span className="block mt-1">Click &ldquo;Post News&rdquo; to share an update with the lab.</span>}
+            {/* Left column: Latest News + Stats Lab Goal stacked (2/3) */}
+            <div className="lg:col-span-2 space-y-6">
+              <section>
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2">
+                    <Newspaper size={20} className="text-primary-600 dark:text-primary-400" />
+                    <h2 className="font-display font-bold text-lg text-text-primary dark:text-gray-100">Latest News</h2>
                   </div>
+                  {isAdmin && (
+                    <Button variant="outline" size="sm" onClick={() => openNewsModal()}>
+                      <Plus size={14} />
+                      Post News
+                    </Button>
+                  )}
+                </div>
+                <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 divide-y divide-gray-100 dark:divide-gray-700">
+                  {loadingNews ? (
+                    <div className="p-6 text-center text-text-secondary dark:text-gray-400 text-sm">Loading news...</div>
+                  ) : news.length > 0 ? (
+                    news.map(item => (
+                      <div key={item.id} className="p-5">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex-1 min-w-0">
+                            <h3 className="font-semibold text-text-primary dark:text-gray-100">{item.title}</h3>
+                            {item.body && <p className="text-sm text-text-secondary dark:text-gray-400 mt-1 line-clamp-2">{item.body}</p>}
+                            <div className="flex items-center gap-2 mt-2 text-xs text-text-secondary dark:text-gray-500">
+                              <span>{item.author_name}</span>
+                              <span>&middot;</span>
+                              <span>{format(new Date(item.created_at), 'MMM d, yyyy')}</span>
+                            </div>
+                          </div>
+                          {isAdmin && (
+                            <div className="flex items-center gap-1 flex-shrink-0">
+                              <button onClick={() => openNewsModal(item)} className="p-1.5 rounded-lg text-gray-400 hover:text-primary-600 hover:bg-primary-50 dark:hover:bg-primary-900/30 transition-colors"><Pencil size={14} /></button>
+                              <button onClick={() => handleDeleteNews(item.id)} className="p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors"><Trash2 size={14} /></button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="p-8 text-center text-text-secondary dark:text-gray-400 text-sm">
+                      No news posted yet
+                      {isAdmin && <span className="block mt-1">Click &ldquo;Post News&rdquo; to share an update with the lab.</span>}
+                    </div>
+                  )}
+                </div>
+              </section>
+
+              {/* Stats Lab Goal — under Latest News */}
+              <section className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2">
+                    <Target size={20} className="text-primary-600 dark:text-primary-400" />
+                    <h2 className="font-display font-bold text-lg text-text-primary dark:text-gray-100">Stats Lab Goal</h2>
+                  </div>
+                  {isAdmin && !editingGoal && (
+                    <Button variant="ghost" size="sm" onClick={() => { setGoalDraft(goal); setEditingGoal(true) }}>
+                      <Pencil size={14} /> Edit
+                    </Button>
+                  )}
+                </div>
+                {editingGoal ? (
+                  <div className="space-y-3">
+                    <RichTextEditor value={goalDraft} onChange={setGoalDraft} placeholder="Describe the lab's current goal..." minHeight="120px" />
+                    <div className="flex justify-end gap-2">
+                      <Button variant="secondary" size="sm" onClick={() => setEditingGoal(false)}>Cancel</Button>
+                      <Button size="sm" onClick={handleSaveGoal} loading={savingGoal}>Save</Button>
+                    </div>
+                  </div>
+                ) : (
+                  <RichTextContent content={goal} className="text-text-secondary dark:text-gray-300" />
                 )}
-              </div>
-            </section>
+              </section>
+            </div>
 
             {/* New Projects — right sidebar panel (1/3) */}
             <section className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
@@ -478,32 +507,6 @@ export default function LabDashboard() {
               </div>
             </section>
           </div>
-
-          {/* Stats Lab Goal — full width below */}
-          <section className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2">
-                <Target size={20} className="text-primary-600 dark:text-primary-400" />
-                <h2 className="font-display font-bold text-lg text-text-primary dark:text-gray-100">Stats Lab Goal</h2>
-              </div>
-              {isAdmin && !editingGoal && (
-                <Button variant="ghost" size="sm" onClick={() => { setGoalDraft(goal); setEditingGoal(true) }}>
-                  <Pencil size={14} /> Edit
-                </Button>
-              )}
-            </div>
-            {editingGoal ? (
-              <div className="space-y-3">
-                <RichTextEditor value={goalDraft} onChange={setGoalDraft} placeholder="Describe the lab's current goal..." minHeight="120px" />
-                <div className="flex justify-end gap-2">
-                  <Button variant="secondary" size="sm" onClick={() => setEditingGoal(false)}>Cancel</Button>
-                  <Button size="sm" onClick={handleSaveGoal} loading={savingGoal}>Save</Button>
-                </div>
-              </div>
-            ) : (
-              <RichTextContent content={goal} className="text-text-secondary dark:text-gray-300" />
-            )}
-          </section>
         </>
       ) : activeTab === 'calendar' ? (
         <section>
