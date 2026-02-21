@@ -12,7 +12,6 @@ const routeLabels = {
   'admin': 'Admin',
   'book-club': 'Book Club',
   'vvc': 'VVC',
-  'resources': 'Resources',
 }
 
 export default function Breadcrumbs() {
