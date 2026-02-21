@@ -275,9 +275,6 @@ export default function MyDashboard() {
       {/* Main grid: Calendar + AI Planner (left) | Tasks & Projects (right) */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
         <div className="lg:col-span-2 space-y-6">
-          {/* Calendar first */}
-          <CalendarView scope="dashboard" compact />
-
           {/* Collapsible AI Planner */}
           <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
             <button
@@ -353,6 +350,9 @@ export default function MyDashboard() {
               </>
             )}
           </div>
+
+          {/* Calendar */}
+          <CalendarView scope="dashboard" compact />
         </div>
         <div className="space-y-6">
           {/* Collapsible My Tasks */}
