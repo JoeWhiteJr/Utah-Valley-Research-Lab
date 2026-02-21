@@ -236,8 +236,6 @@ export const usersApi = {
   updatePreferences: (data) => api.put('/users/preferences', data),
   getStreak: () => api.get('/users/streak'),
   blockUser: (userId) => api.post(`/users/${userId}/block`),
-  unblockUser: (userId) => api.delete(`/users/${userId}/block`),
-  getBlocks: () => api.get('/users/blocks'),
   uploadAvatar: (file) => {
     const formData = new FormData()
     formData.append('avatar', file)
@@ -309,9 +307,6 @@ export const chatApi = {
         : undefined
     })
   },
-  // Push notifications
-  pushSubscribe: (subscription) => api.post('/chats/push-subscribe', subscription),
-  pushUnsubscribe: (endpoint) => api.post('/chats/push-unsubscribe', { endpoint }),
   // Project chat room
   getProjectRoom: (projectId) => api.get(`/chats/project/${projectId}`)
 }
@@ -447,8 +442,6 @@ export const assistantApi = {
   deleteConversation: (id) => api.delete(`/assistant/conversations/${id}`),
   sendMessage: (conversationId, message) =>
     api.post(`/assistant/conversations/${conversationId}/messages`, { message }),
-  getFileStatus: (fileId) => api.get(`/assistant/files/${fileId}/status`),
-  reindexFile: (fileId) => api.post(`/assistant/reindex/${fileId}`)
 }
 
 export default api

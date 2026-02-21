@@ -1,6 +1,5 @@
 const express = require('express');
 const db = require('../config/database');
-const logger = require('../config/logger');
 const { authenticate } = require('../middleware/auth');
 
 const router = express.Router();
@@ -26,15 +25,3 @@ router.get('/', authenticate, async (req, res, next) => {
 });
 
 module.exports = router;
-
-// Helper: log an activity (exported for use by other routes)
-module.exports.logActivityEvent = async (userId, action, entityType, entityId, entityTitle, projectId, metadata) => {
-  try {
-    await db.query(`
-      INSERT INTO activity_log (user_id, action, entity_type, entity_id, entity_title, project_id, metadata)
-      VALUES ($1, $2, $3, $4, $5, $6, $7)
-    `, [userId, action, entityType, entityId || null, entityTitle || null, projectId || null, metadata || {}]);
-  } catch (error) {
-    logger.error({ err: error }, 'Failed to log activity');
-  }
-};
