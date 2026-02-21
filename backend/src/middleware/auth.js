@@ -127,4 +127,40 @@ const generateToken = (userId) => {
   return jwt.sign({ userId }, jwtSecret, { expiresIn: '7d' });
 };
 
-module.exports = { authenticate, requireRole, requireProjectAccess, generateToken };
+const optionalAuthenticate = async (req, res, next) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return next();
+    }
+
+    const token = authHeader.split(' ')[1];
+    const decoded = jwt.verify(token, jwtSecret);
+
+    const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+    const cachedAt = blockedTokenCache.get(tokenHash);
+    if (cachedAt && (Date.now() - cachedAt < CACHE_TTL_MS)) {
+      return next();
+    }
+
+    const blocked = await db.query('SELECT 1 FROM token_blocklist WHERE token_hash = $1', [tokenHash]);
+    if (blocked.rows.length > 0) {
+      blockedTokenCache.set(tokenHash, Date.now());
+      return next();
+    }
+
+    const result = await db.query(
+      'SELECT id, email, name, first_name, last_name, role, is_super_admin, deleted_at, avatar_url FROM users WHERE id = $1',
+      [decoded.userId]
+    );
+
+    if (result.rows.length > 0 && !result.rows[0].deleted_at) {
+      req.user = result.rows[0];
+    }
+    next();
+  } catch {
+    next();
+  }
+};
+
+module.exports = { authenticate, optionalAuthenticate, requireRole, requireProjectAccess, generateToken };

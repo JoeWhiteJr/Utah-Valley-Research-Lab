@@ -5,14 +5,15 @@ import { useAuthStore } from '../store/authStore'
 import { useProjectStore } from '../store/projectStore'
 import { usePublishStore } from '../store/publishStore'
 import { useNotificationStore } from '../store/notificationStore'
-import { usersApi, projectsApi } from '../services/api'
+import { usersApi, projectsApi, recommendationsApi } from '../services/api'
 import { toast } from '../store/toastStore'
 import Button from '../components/Button'
 import Modal from '../components/Modal'
-import { LayoutDashboard, Users, Trash2, Sparkles, Globe, Pencil, XCircle, BrainCircuit, Calendar, FolderKanban, FileEdit, UserCircle } from 'lucide-react'
+import { LayoutDashboard, Users, Trash2, Sparkles, Globe, Pencil, XCircle, BrainCircuit, Calendar, FolderKanban, FileEdit, UserCircle, Lightbulb } from 'lucide-react'
 import SiteContentTab from '../components/admin/SiteContentTab'
 import PublicTeamTab from '../components/admin/PublicTeamTab'
 import TrashTab from '../components/admin/TrashTab'
+import RecommendationsTab from '../components/admin/RecommendationsTab'
 
 export default function Admin() {
   const [activeTab, setActiveTab] = useState('dashboard')
@@ -26,7 +27,11 @@ export default function Admin() {
   const tabNotifications = {
     applications: (unreadCountsByType.application || 0) > 0,
     projects: (unreadCountsByType.join_request || 0) > 0,
+    recommendations: recNewCount > 0,
   }
+
+  // Recommendations new count
+  const [recNewCount, setRecNewCount] = useState(0)
 
   // Team state
   const [teamMembers, setTeamMembers] = useState([])
@@ -53,7 +58,10 @@ export default function Admin() {
     document.title = 'Admin - Stats Lab'
   }, [])
 
-  useEffect(() => { fetchStats(); fetchApplications(); fetchUnreadCountsByType() }, [fetchStats, fetchApplications, fetchUnreadCountsByType])
+  useEffect(() => {
+    fetchStats(); fetchApplications(); fetchUnreadCountsByType()
+    recommendationsApi.getNewCount().then(({ data }) => setRecNewCount(data.count)).catch(() => {})
+  }, [fetchStats, fetchApplications, fetchUnreadCountsByType])
 
   const loadTeam = useCallback(async () => {
     setIsLoadingTeam(true)
@@ -201,12 +209,16 @@ export default function Admin() {
     <div>
       <h1 className="font-display font-bold text-2xl mb-6 text-text-primary dark:text-gray-100">Admin Dashboard</h1>
       <div className="flex gap-2 border-b border-gray-200 dark:border-gray-700 mb-6">
-        {[['dashboard', 'Dashboard', LayoutDashboard], ['applications', 'Applications', Users], ['team', 'Team', Users], ['projects', 'Projects', FolderKanban], ['publish', 'Publish', Globe], ['trash', 'Trash', Trash2], ['site-content', 'Site Content', FileEdit], ['public-team', 'Public Team', UserCircle]].map(([id, label, Icon]) => (
+        {[['dashboard', 'Dashboard', LayoutDashboard], ['applications', 'Applications', Users], ['team', 'Team', Users], ['projects', 'Projects', FolderKanban], ['publish', 'Publish', Globe], ['recommendations', 'Suggestions', Lightbulb], ['trash', 'Trash', Trash2], ['site-content', 'Site Content', FileEdit], ['public-team', 'Public Team', UserCircle]].map(([id, label, Icon]) => (
           <button key={id} onClick={() => setActiveTab(id)} className={`flex items-center gap-2 px-4 py-3 border-b-2 text-text-secondary dark:text-gray-400 ${activeTab === id ? 'border-primary-500 text-primary-600 dark:text-primary-400' : 'border-transparent'}`}>
             <Icon size={18} />{label}
-            {tabNotifications[id] && (
+            {id === 'recommendations' && recNewCount > 0 ? (
+              <span className="min-w-[18px] h-[18px] rounded-full bg-red-500 text-white text-xs font-medium flex items-center justify-center ml-1 flex-shrink-0 px-1">
+                {recNewCount}
+              </span>
+            ) : tabNotifications[id] ? (
               <span className="w-2 h-2 rounded-full bg-red-500 ml-1 flex-shrink-0" />
-            )}
+            ) : null}
           </button>
         ))}
       </div>
@@ -549,6 +561,7 @@ export default function Admin() {
         </div>
       )}
 
+      {activeTab === 'recommendations' && <RecommendationsTab />}
       {activeTab === 'trash' && <TrashTab />}
       {activeTab === 'site-content' && <SiteContentTab />}
       {activeTab === 'public-team' && <PublicTeamTab />}

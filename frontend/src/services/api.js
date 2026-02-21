@@ -444,4 +444,13 @@ export const assistantApi = {
     api.post(`/assistant/conversations/${conversationId}/messages`, { message }),
 }
 
+// Recommendations
+export const recommendationsApi = {
+  submit: (data) => api.post('/recommendations', data),
+  list: (params) => api.get('/recommendations', { params }),
+  getNewCount: () => api.get('/recommendations/new-count'),
+  update: (id, data) => api.put(`/recommendations/${id}`, data),
+  delete: (id) => api.delete(`/recommendations/${id}`)
+}
+
 export default api

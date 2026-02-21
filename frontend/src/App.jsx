@@ -7,6 +7,7 @@ import ErrorBoundary from './components/ErrorBoundary'
 // Joe's existing components (protected app)
 import Layout from './components/Layout'
 import ToastContainer from './components/Toast'
+import RecommendationButton from './components/RecommendationButton'
 
 // Lazy-loaded pages
 const Login = lazy(() => import('./pages/Login'))
@@ -98,6 +99,7 @@ function App() {
     <ErrorBoundary>
       <BrowserRouter>
         <ToastContainer />
+        <RecommendationButton />
         <Suspense fallback={<LoadingFallback />}>
           <Routes>
             {/* Public Routes - Jared's public-facing pages */}
