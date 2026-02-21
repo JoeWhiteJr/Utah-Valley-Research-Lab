@@ -137,7 +137,6 @@ export default function VVC() {
       const result = await uploadImages(viewingSession.id, Array.from(files))
       // Update the viewing session with new images
       setViewingSession(prev => prev ? { ...prev, images: result?.images || prev.images } : null)
-      setImageFiles(null)
     } finally {
       setImageUploading(false)
     }
