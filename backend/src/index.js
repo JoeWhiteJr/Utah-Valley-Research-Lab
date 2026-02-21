@@ -84,6 +84,7 @@ app.use(express.urlencoded({ extended: true }));
 const uploadDir = process.env.UPLOAD_DIR || path.join(__dirname, '../uploads');
 app.use('/uploads/covers', express.static(path.join(uploadDir, 'covers'), { maxAge: '1d' }));
 app.use('/uploads/avatars', express.static(path.join(uploadDir, 'avatars'), { maxAge: '1d' }));
+app.use('/uploads/resources', express.static(path.join(uploadDir, 'resources'), { maxAge: '1d' }));
 
 // Rate limiting
 const authLimiter = rateLimit({

@@ -12,21 +12,27 @@ import {
   FolderKanban, Users, Sparkles, Calendar, LayoutGrid, Brain, Loader2,
   Newspaper, Target, Plus, Pencil, Trash2, Library,
   BookOpen, GraduationCap, ExternalLink, ChevronDown, ChevronRight,
-  Linkedin, Mail, MessageSquare
+  Linkedin, Mail, MessageSquare, FileText, Upload
 } from 'lucide-react'
 import { format, isAfter, subDays } from 'date-fns'
 import { toast } from '../store/toastStore'
 import { PROJECT_STATUS_COLORS } from '../constants'
 
-function LinkListEditor({ items, onSave, saving }) {
+function ResourceListEditor({ items, onSave, saving }) {
   const [list, setList] = useState(items || [])
   const [editIndex, setEditIndex] = useState(null)
   const [form, setForm] = useState({ title: '', url: '', description: '' })
+  const [uploading, setUploading] = useState(false)
 
   useEffect(() => { setList(items || []) }, [items])
 
   const openAdd = () => { setEditIndex(-1); setForm({ title: '', url: '', description: '' }) }
-  const openEdit = (i) => { setEditIndex(i); setForm(list[i]) }
+  const openEdit = (i) => {
+    const item = list[i]
+    // Don't allow editing file items as links — only delete is supported
+    if (item.isFile) return
+    setEditIndex(i); setForm(item)
+  }
 
   const handleSave = () => {
     if (!form.title.trim() || !form.url.trim()) return
@@ -36,10 +42,43 @@ function LinkListEditor({ items, onSave, saving }) {
     onSave(next)
   }
 
-  const handleDelete = (i) => {
+  const handleDelete = async (i) => {
+    const item = list[i]
+    // If it's a file, also delete from server
+    if (item.isFile && item.url) {
+      const filename = item.url.split('/').pop()
+      try {
+        await resourcesApi.deleteFile(filename)
+      } catch { /* file may already be gone */ }
+    }
     const next = list.filter((_, idx) => idx !== i)
     setList(next)
     onSave(next)
+  }
+
+  const handleFileUpload = async (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    // Reset input so the same file can be re-selected
+    e.target.value = ''
+    setUploading(true)
+    try {
+      const { data } = await resourcesApi.uploadFile(file)
+      const newItem = {
+        title: data.file.originalName,
+        url: data.file.url,
+        description: '',
+        isFile: true,
+        originalName: data.file.originalName,
+      }
+      const next = [...list, newItem]
+      setList(next)
+      onSave(next)
+    } catch {
+      toast.error('Failed to upload file')
+    } finally {
+      setUploading(false)
+    }
   }
 
   return (
@@ -47,13 +86,13 @@ function LinkListEditor({ items, onSave, saving }) {
       {list.map((item, i) => (
         <div key={i} className="flex items-start gap-3 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
           <div className="flex-1 min-w-0">
-            <a href={item.url} target="_blank" rel="noopener noreferrer" className="font-medium text-primary-600 dark:text-primary-400 hover:underline inline-flex items-center gap-1">
-              {item.title} <ExternalLink size={12} />
+            <a href={item.isFile ? getUploadUrl(item.url) : item.url} target="_blank" rel="noopener noreferrer" className="font-medium text-primary-600 dark:text-primary-400 hover:underline inline-flex items-center gap-1">
+              {item.title} {item.isFile ? <FileText size={12} /> : <ExternalLink size={12} />}
             </a>
             {item.description && <p className="text-sm text-text-secondary dark:text-gray-400 mt-0.5">{item.description}</p>}
           </div>
           <div className="flex items-center gap-1 flex-shrink-0">
-            <button onClick={() => openEdit(i)} className="p-1 rounded text-gray-400 hover:text-primary-600 transition-colors"><Pencil size={14} /></button>
+            {!item.isFile && <button onClick={() => openEdit(i)} className="p-1 rounded text-gray-400 hover:text-primary-600 transition-colors"><Pencil size={14} /></button>}
             <button onClick={() => handleDelete(i)} className="p-1 rounded text-gray-400 hover:text-red-600 transition-colors"><Trash2 size={14} /></button>
           </div>
         </div>
@@ -69,9 +108,21 @@ function LinkListEditor({ items, onSave, saving }) {
           </div>
         </div>
       ) : (
-        <button onClick={openAdd} className="flex items-center gap-1.5 text-sm text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 font-medium">
-          <Plus size={14} /> Add link
-        </button>
+        <div className="flex items-center gap-3">
+          <button onClick={openAdd} className="flex items-center gap-1.5 text-sm text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 font-medium">
+            <Plus size={14} /> Add link
+          </button>
+          <label className="flex items-center gap-1.5 text-sm text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 font-medium cursor-pointer">
+            {uploading ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />} Upload file
+            <input
+              type="file"
+              className="hidden"
+              accept=".pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.png,.jpg,.jpeg,.gif,.webp"
+              onChange={handleFileUpload}
+              disabled={uploading}
+            />
+          </label>
+        </div>
       )}
     </div>
   )
@@ -324,83 +375,57 @@ export default function LabDashboard() {
       {/* Tab content */}
       {activeTab === 'overview' ? (
         <>
-          {/* Latest News — at the top */}
-          <section>
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2">
-                <Newspaper size={20} className="text-primary-600 dark:text-primary-400" />
-                <h2 className="font-display font-bold text-lg text-text-primary dark:text-gray-100">Latest News</h2>
-              </div>
-              {isAdmin && (
-                <Button variant="outline" size="sm" onClick={() => openNewsModal()}>
-                  <Plus size={14} />
-                  Post News
-                </Button>
-              )}
-            </div>
-            <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 divide-y divide-gray-100 dark:divide-gray-700">
-              {loadingNews ? (
-                <div className="p-6 text-center text-text-secondary dark:text-gray-400 text-sm">Loading news...</div>
-              ) : news.length > 0 ? (
-                news.map(item => (
-                  <div key={item.id} className="p-5">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex-1 min-w-0">
-                        <h3 className="font-semibold text-text-primary dark:text-gray-100">{item.title}</h3>
-                        {item.body && <p className="text-sm text-text-secondary dark:text-gray-400 mt-1 line-clamp-2">{item.body}</p>}
-                        <div className="flex items-center gap-2 mt-2 text-xs text-text-secondary dark:text-gray-500">
-                          <span>{item.author_name}</span>
-                          <span>&middot;</span>
-                          <span>{format(new Date(item.created_at), 'MMM d, yyyy')}</span>
-                        </div>
-                      </div>
-                      {isAdmin && (
-                        <div className="flex items-center gap-1 flex-shrink-0">
-                          <button onClick={() => openNewsModal(item)} className="p-1.5 rounded-lg text-gray-400 hover:text-primary-600 hover:bg-primary-50 dark:hover:bg-primary-900/30 transition-colors"><Pencil size={14} /></button>
-                          <button onClick={() => handleDeleteNews(item.id)} className="p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors"><Trash2 size={14} /></button>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <div className="p-8 text-center text-text-secondary dark:text-gray-400 text-sm">
-                  No news posted yet
-                  {isAdmin && <span className="block mt-1">Click &ldquo;Post News&rdquo; to share an update with the lab.</span>}
-                </div>
-              )}
-            </div>
-          </section>
-
-          {/* Two-column: Stats Lab Goal (left) + New Projects (right) */}
+          {/* Two-column: Latest News (2/3) + New Projects (1/3) */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
-            {/* Stats Lab Goal — takes 2/3 */}
-            <section className="lg:col-span-2 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
+            {/* Latest News — takes 2/3 */}
+            <section className="lg:col-span-2">
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-2">
-                  <Target size={20} className="text-primary-600 dark:text-primary-400" />
-                  <h2 className="font-display font-bold text-lg text-text-primary dark:text-gray-100">Stats Lab Goal</h2>
+                  <Newspaper size={20} className="text-primary-600 dark:text-primary-400" />
+                  <h2 className="font-display font-bold text-lg text-text-primary dark:text-gray-100">Latest News</h2>
                 </div>
-                {isAdmin && !editingGoal && (
-                  <Button variant="ghost" size="sm" onClick={() => { setGoalDraft(goal); setEditingGoal(true) }}>
-                    <Pencil size={14} /> Edit
+                {isAdmin && (
+                  <Button variant="outline" size="sm" onClick={() => openNewsModal()}>
+                    <Plus size={14} />
+                    Post News
                   </Button>
                 )}
               </div>
-              {editingGoal ? (
-                <div className="space-y-3">
-                  <RichTextEditor value={goalDraft} onChange={setGoalDraft} placeholder="Describe the lab's current goal..." minHeight="120px" />
-                  <div className="flex justify-end gap-2">
-                    <Button variant="secondary" size="sm" onClick={() => setEditingGoal(false)}>Cancel</Button>
-                    <Button size="sm" onClick={handleSaveGoal} loading={savingGoal}>Save</Button>
+              <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 divide-y divide-gray-100 dark:divide-gray-700">
+                {loadingNews ? (
+                  <div className="p-6 text-center text-text-secondary dark:text-gray-400 text-sm">Loading news...</div>
+                ) : news.length > 0 ? (
+                  news.map(item => (
+                    <div key={item.id} className="p-5">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex-1 min-w-0">
+                          <h3 className="font-semibold text-text-primary dark:text-gray-100">{item.title}</h3>
+                          {item.body && <p className="text-sm text-text-secondary dark:text-gray-400 mt-1 line-clamp-2">{item.body}</p>}
+                          <div className="flex items-center gap-2 mt-2 text-xs text-text-secondary dark:text-gray-500">
+                            <span>{item.author_name}</span>
+                            <span>&middot;</span>
+                            <span>{format(new Date(item.created_at), 'MMM d, yyyy')}</span>
+                          </div>
+                        </div>
+                        {isAdmin && (
+                          <div className="flex items-center gap-1 flex-shrink-0">
+                            <button onClick={() => openNewsModal(item)} className="p-1.5 rounded-lg text-gray-400 hover:text-primary-600 hover:bg-primary-50 dark:hover:bg-primary-900/30 transition-colors"><Pencil size={14} /></button>
+                            <button onClick={() => handleDeleteNews(item.id)} className="p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors"><Trash2 size={14} /></button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="p-8 text-center text-text-secondary dark:text-gray-400 text-sm">
+                    No news posted yet
+                    {isAdmin && <span className="block mt-1">Click &ldquo;Post News&rdquo; to share an update with the lab.</span>}
                   </div>
-                </div>
-              ) : (
-                <RichTextContent content={goal} className="text-text-secondary dark:text-gray-300" />
-              )}
+                )}
+              </div>
             </section>
 
-            {/* New Projects — right sidebar panel */}
+            {/* New Projects — right sidebar panel (1/3) */}
             <section className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
               <div className="p-4 border-b border-gray-100 dark:border-gray-700">
                 <div className="flex items-center gap-2">
@@ -453,6 +478,32 @@ export default function LabDashboard() {
               </div>
             </section>
           </div>
+
+          {/* Stats Lab Goal — full width below */}
+          <section className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <Target size={20} className="text-primary-600 dark:text-primary-400" />
+                <h2 className="font-display font-bold text-lg text-text-primary dark:text-gray-100">Stats Lab Goal</h2>
+              </div>
+              {isAdmin && !editingGoal && (
+                <Button variant="ghost" size="sm" onClick={() => { setGoalDraft(goal); setEditingGoal(true) }}>
+                  <Pencil size={14} /> Edit
+                </Button>
+              )}
+            </div>
+            {editingGoal ? (
+              <div className="space-y-3">
+                <RichTextEditor value={goalDraft} onChange={setGoalDraft} placeholder="Describe the lab's current goal..." minHeight="120px" />
+                <div className="flex justify-end gap-2">
+                  <Button variant="secondary" size="sm" onClick={() => setEditingGoal(false)}>Cancel</Button>
+                  <Button size="sm" onClick={handleSaveGoal} loading={savingGoal}>Save</Button>
+                </div>
+              </div>
+            ) : (
+              <RichTextContent content={goal} className="text-text-secondary dark:text-gray-300" />
+            )}
+          </section>
         </>
       ) : activeTab === 'calendar' ? (
         <section>
@@ -592,13 +643,13 @@ export default function LabDashboard() {
                 {researchExpanded && (
                   <div className="border-t border-gray-100 dark:border-gray-700 p-4">
                     {isAdmin ? (
-                      <LinkListEditor items={researchLinks} onSave={handleSaveResearchLinks} saving={savingLinks} />
+                      <ResourceListEditor items={researchLinks} onSave={handleSaveResearchLinks} saving={savingLinks} />
                     ) : researchLinks.length > 0 ? (
                       <div className="space-y-2">
                         {researchLinks.map((item, i) => (
                           <div key={i} className="p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
-                            <a href={item.url} target="_blank" rel="noopener noreferrer" className="font-medium text-primary-600 dark:text-primary-400 hover:underline inline-flex items-center gap-1 text-sm">
-                              {item.title} <ExternalLink size={12} />
+                            <a href={item.isFile ? getUploadUrl(item.url) : item.url} target="_blank" rel="noopener noreferrer" className="font-medium text-primary-600 dark:text-primary-400 hover:underline inline-flex items-center gap-1 text-sm">
+                              {item.title} {item.isFile ? <FileText size={12} /> : <ExternalLink size={12} />}
                             </a>
                             {item.description && <p className="text-xs text-text-secondary dark:text-gray-400 mt-0.5">{item.description}</p>}
                           </div>
@@ -626,13 +677,13 @@ export default function LabDashboard() {
                 {learningExpanded && (
                   <div className="border-t border-gray-100 dark:border-gray-700 p-4">
                     {isAdmin ? (
-                      <LinkListEditor items={learningLinks} onSave={handleSaveLearningLinks} saving={savingLinks} />
+                      <ResourceListEditor items={learningLinks} onSave={handleSaveLearningLinks} saving={savingLinks} />
                     ) : learningLinks.length > 0 ? (
                       <div className="space-y-2">
                         {learningLinks.map((item, i) => (
                           <div key={i} className="p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
-                            <a href={item.url} target="_blank" rel="noopener noreferrer" className="font-medium text-primary-600 dark:text-primary-400 hover:underline inline-flex items-center gap-1 text-sm">
-                              {item.title} <ExternalLink size={12} />
+                            <a href={item.isFile ? getUploadUrl(item.url) : item.url} target="_blank" rel="noopener noreferrer" className="font-medium text-primary-600 dark:text-primary-400 hover:underline inline-flex items-center gap-1 text-sm">
+                              {item.title} {item.isFile ? <FileText size={12} /> : <ExternalLink size={12} />}
                             </a>
                             {item.description && <p className="text-xs text-text-secondary dark:text-gray-400 mt-0.5">{item.description}</p>}
                           </div>

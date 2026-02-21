@@ -515,6 +515,14 @@ export const labDashboardApi = {
 export const resourcesApi = {
   getContent: () => api.get('/public/site-content/resources'),
   updateContent: (key, value) => api.put('/admin/site-content/resources', { key, value }),
+  uploadFile: (file) => {
+    const formData = new FormData()
+    formData.append('file', file)
+    return api.post('/lab-dashboard/resources/upload', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    })
+  },
+  deleteFile: (filename) => api.delete(`/lab-dashboard/resources/file/${filename}`),
 }
 
 export default api

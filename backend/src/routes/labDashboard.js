@@ -1,9 +1,54 @@
 const express = require('express');
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
+const { v4: uuidv4 } = require('uuid');
 const { body, param, validationResult } = require('express-validator');
 const db = require('../config/database');
 const { authenticate, requireRole } = require('../middleware/auth');
 
 const router = express.Router();
+
+// Configure multer for resource file uploads
+const resourceUploadDir = path.join(
+  process.env.UPLOAD_DIR || path.join(__dirname, '../../uploads'),
+  'resources'
+);
+
+const resourceStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    if (!fs.existsSync(resourceUploadDir)) {
+      fs.mkdirSync(resourceUploadDir, { recursive: true });
+    }
+    cb(null, resourceUploadDir);
+  },
+  filename: (req, file, cb) => {
+    const uniqueName = `${uuidv4()}${path.extname(file.originalname)}`;
+    cb(null, uniqueName);
+  }
+});
+
+const resourceUpload = multer({
+  storage: resourceStorage,
+  limits: { fileSize: 50 * 1024 * 1024 }, // 50MB
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = [
+      'application/pdf',
+      'application/msword',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'application/vnd.ms-powerpoint',
+      'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+      'application/vnd.ms-excel',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'image/jpeg', 'image/png', 'image/gif', 'image/webp',
+    ];
+    if (allowedTypes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error('File type not allowed'), false);
+    }
+  }
+});
 
 // All routes require authentication
 router.use(authenticate);
@@ -179,6 +224,44 @@ router.put('/content', requireRole('admin'), [
   } catch (error) {
     next(error);
   }
+});
+
+// ─── Resource File Uploads ──────────────────────────────────────────
+
+// POST /api/lab-dashboard/resources/upload  (admin only)
+router.post('/resources/upload', requireRole('admin'), (req, res, next) => {
+  resourceUpload.single('file')(req, res, (err) => {
+    if (err) {
+      if (err instanceof multer.MulterError) {
+        return res.status(400).json({ error: { message: err.code === 'LIMIT_FILE_SIZE' ? 'File too large (max 50 MB)' : err.message } });
+      }
+      return res.status(400).json({ error: { message: err.message || 'Upload failed' } });
+    }
+    if (!req.file) {
+      return res.status(400).json({ error: { message: 'No file provided' } });
+    }
+    res.status(201).json({
+      file: {
+        url: `/uploads/resources/${req.file.filename}`,
+        originalName: req.file.originalname,
+        fileSize: req.file.size,
+        fileType: req.file.mimetype,
+      }
+    });
+  });
+});
+
+// DELETE /api/lab-dashboard/resources/file/:filename  (admin only)
+router.delete('/resources/file/:filename', requireRole('admin'), (req, res) => {
+  const filename = path.basename(req.params.filename); // prevent path traversal
+  const filePath = path.join(resourceUploadDir, filename);
+
+  if (!fs.existsSync(filePath)) {
+    return res.status(404).json({ error: { message: 'File not found' } });
+  }
+
+  fs.unlinkSync(filePath);
+  res.json({ message: 'File deleted' });
 });
 
 module.exports = router;
