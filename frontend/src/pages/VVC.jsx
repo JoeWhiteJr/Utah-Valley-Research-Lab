@@ -40,7 +40,6 @@ export default function VVC() {
   const [editNotes, setEditNotes] = useState('')
   const [detailVideoFile, setDetailVideoFile] = useState(null)
   const [detailSaving, setDetailSaving] = useState(false)
-  const [imageFiles, setImageFiles] = useState(null)
   const [imageUploading, setImageUploading] = useState(false)
 
   // Resources edit state
@@ -111,7 +110,6 @@ export default function VVC() {
     setEditNotes(session.notes || '')
     setDetailTab('summary')
     setDetailVideoFile(null)
-    setImageFiles(null)
   }, [])
 
   const handleSaveDetail = useCallback(async () => {
@@ -215,12 +213,6 @@ export default function VVC() {
     return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
   }
 
-  // Get auth header for image URLs
-  const getAuthHeaders = () => {
-    const token = localStorage.getItem('token')
-    return token ? { Authorization: `Bearer ${token}` } : {}
-  }
-
   return (
     <div className="space-y-6">
       {/* Page header */}
@@ -230,7 +222,7 @@ export default function VVC() {
             <Code className="text-primary-600 dark:text-primary-400" size={22} />
           </div>
           <div>
-            <h1 className="text-2xl font-display font-bold text-text-primary dark:text-gray-100">Vasu's Vibe Coding</h1>
+            <h1 className="text-2xl font-display font-bold text-text-primary dark:text-gray-100">Vasu&apos;s Vibe Coding</h1>
             <p className="text-sm text-text-secondary dark:text-gray-400">Learn to vibe code with Claude Code</p>
           </div>
         </div>
@@ -421,7 +413,7 @@ export default function VVC() {
           ) : (
             <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-8 text-center">
               <Rocket size={40} className="mx-auto text-gray-300 dark:text-gray-600 mb-3" />
-              <p className="text-text-secondary dark:text-gray-400">No projects shared yet. Be the first to show off what you've built!</p>
+              <p className="text-text-secondary dark:text-gray-400">No projects shared yet. Be the first to show off what you&apos;ve built!</p>
             </div>
           )}
         </div>
