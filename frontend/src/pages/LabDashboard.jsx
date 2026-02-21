@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../store/authStore'
 import { useProjectStore } from '../store/projectStore'
 import { aiApi, usersApi, labDashboardApi, resourcesApi } from '../services/api'
@@ -12,7 +11,8 @@ import { CalendarView } from '../components/calendar/CalendarView'
 import {
   FolderKanban, Users, Sparkles, Calendar, LayoutGrid, Brain, Loader2,
   Newspaper, Target, Plus, Pencil, Trash2, Library,
-  Mail, BookOpen, GraduationCap, ExternalLink
+  BookOpen, GraduationCap, ExternalLink, ChevronDown, ChevronRight,
+  Linkedin, Mail, MessageSquare
 } from 'lucide-react'
 import { format, isAfter, subDays } from 'date-fns'
 import { toast } from '../store/toastStore'
@@ -78,7 +78,6 @@ function LinkListEditor({ items, onSave, saving }) {
 }
 
 export default function LabDashboard() {
-  const navigate = useNavigate()
   const { user } = useAuthStore()
   const { projects, fetchProjects } = useProjectStore()
   const [activeTab, setActiveTab] = useState('overview')
@@ -114,13 +113,11 @@ export default function LabDashboard() {
 
   // Resources tab state
   const [resourcesLoading, setResourcesLoading] = useState(true)
-  const [contactInfo, setContactInfo] = useState('')
   const [researchLinks, setResearchLinks] = useState([])
   const [learningLinks, setLearningLinks] = useState([])
-  const [editingContact, setEditingContact] = useState(false)
-  const [contactDraft, setContactDraft] = useState('')
-  const [savingContact, setSavingContact] = useState(false)
   const [savingLinks, setSavingLinks] = useState(false)
+  const [researchExpanded, setResearchExpanded] = useState(false)
+  const [learningExpanded, setLearningExpanded] = useState(false)
 
   const activeProjects = projects.filter((p) => p.status === 'active')
   const newProjects = projects.filter((p) => {
@@ -162,7 +159,6 @@ export default function LabDashboard() {
     resourcesApi.getContent()
       .then(({ data }) => {
         const c = data.content || {}
-        if (c.contact_info) setContactInfo(c.contact_info)
         if (c.research_links) {
           try {
             const parsed = typeof c.research_links === 'string' ? JSON.parse(c.research_links) : c.research_links
@@ -241,25 +237,10 @@ export default function LabDashboard() {
   }
 
   const handleProjectClick = (project) => {
-    if (user?.role === 'admin' || project.membership_status === 'member') {
-      navigate(`/dashboard/projects/${project.id}`)
-    } else {
-      setPreviewProject(project)
-    }
+    setPreviewProject(project)
   }
 
   // Resources handlers
-  const handleSaveContact = async () => {
-    setSavingContact(true)
-    try {
-      await resourcesApi.updateContent('contact_info', contactDraft)
-      setContactInfo(contactDraft)
-      setEditingContact(false)
-      toast.success('Contact info updated')
-    } catch { toast.error('Failed to update contact info') }
-    finally { setSavingContact(false) }
-  }
-
   const handleSaveResearchLinks = async (links) => {
     setSavingLinks(true)
     try {
@@ -484,112 +465,186 @@ export default function LabDashboard() {
             <Loader2 size={24} className="animate-spin text-primary-500" />
           </div>
         ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Contact Info */}
-            <section className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-2">
+          <div className="flex flex-col lg:flex-row gap-6 items-start">
+            {/* Left column: Contact Info + Member Directory */}
+            <div className="flex-1 min-w-0 space-y-6">
+              {/* Contact Info — hardcoded */}
+              <section className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
+                <div className="flex items-center gap-2 mb-5">
                   <Mail size={20} className="text-primary-600 dark:text-primary-400" />
                   <h2 className="font-display font-bold text-lg text-text-primary dark:text-gray-100">Contact Info</h2>
                 </div>
-                {isAdmin && !editingContact && (
-                  <Button variant="ghost" size="sm" onClick={() => { setContactDraft(contactInfo); setEditingContact(true) }}>
-                    <Pencil size={14} /> Edit
-                  </Button>
-                )}
-              </div>
-              {editingContact ? (
-                <div className="space-y-3">
-                  <RichTextEditor value={contactDraft} onChange={setContactDraft} placeholder="Enter contact information..." minHeight="120px" />
-                  <div className="flex justify-end gap-2">
-                    <Button variant="secondary" size="sm" onClick={() => setEditingContact(false)}>Cancel</Button>
-                    <Button size="sm" onClick={handleSaveContact} loading={savingContact}>Save</Button>
-                  </div>
-                </div>
-              ) : contactInfo ? (
-                <RichTextContent content={contactInfo} className="text-text-secondary dark:text-gray-300" />
-              ) : (
-                <p className="text-sm text-text-secondary dark:text-gray-400">No contact info added yet.</p>
-              )}
-            </section>
 
-            {/* Research Resources */}
-            <section className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
-              <div className="flex items-center gap-2 mb-4">
-                <BookOpen size={20} className="text-primary-600 dark:text-primary-400" />
-                <h2 className="font-display font-bold text-lg text-text-primary dark:text-gray-100">Research Resources</h2>
-              </div>
-              {isAdmin ? (
-                <LinkListEditor items={researchLinks} onSave={handleSaveResearchLinks} saving={savingLinks} />
-              ) : researchLinks.length > 0 ? (
-                <div className="space-y-2">
-                  {researchLinks.map((item, i) => (
-                    <div key={i} className="p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
-                      <a href={item.url} target="_blank" rel="noopener noreferrer" className="font-medium text-primary-600 dark:text-primary-400 hover:underline inline-flex items-center gap-1">
-                        {item.title} <ExternalLink size={12} />
-                      </a>
-                      {item.description && <p className="text-sm text-text-secondary dark:text-gray-400 mt-0.5">{item.description}</p>}
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-sm text-text-secondary dark:text-gray-400">No research resources added yet.</p>
-              )}
-            </section>
-
-            {/* Member Directory */}
-            <section className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6 lg:col-span-2">
-              <div className="flex items-center gap-2 mb-4">
-                <Users size={20} className="text-primary-600 dark:text-primary-400" />
-                <h2 className="font-display font-bold text-lg text-text-primary dark:text-gray-100">Member Directory</h2>
-                <span className="px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-700 text-text-secondary dark:text-gray-400 text-xs font-medium">{members.length}</span>
-              </div>
-              {loadingMembers ? (
-                <div className="flex items-center justify-center py-8"><Loader2 size={20} className="animate-spin text-primary-500" /></div>
-              ) : members.length > 0 ? (
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
-                  {members.map(m => (
-                    <div key={m.id} className="flex flex-col items-center text-center p-3 rounded-lg bg-gray-50 dark:bg-gray-700/50">
-                      <div className="w-12 h-12 rounded-full bg-primary-100 dark:bg-primary-900/30 flex items-center justify-center overflow-hidden mb-2">
-                        {m.avatar_url ? (
-                          <img src={getUploadUrl(m.avatar_url)} alt="" className="w-full h-full object-cover" />
-                        ) : (
-                          <span className="text-primary-700 dark:text-primary-300 font-medium text-lg">{m.name?.charAt(0)?.toUpperCase() || '?'}</span>
-                        )}
+                {/* Professors */}
+                <h3 className="text-xs font-semibold uppercase tracking-wider text-text-secondary dark:text-gray-400 mb-3">Professors</h3>
+                <div className="space-y-3 mb-5">
+                  {[
+                    { name: 'Dr. Ronald Miller', email: 'ronald.miller@uvu.edu', linkedin: 'https://www.linkedin.com/in/ronald-miller-uvu/' },
+                    { name: 'Dr. David Benson', email: 'david.benson@uvu.edu', linkedin: 'https://www.linkedin.com/in/david-benson-uvu/' },
+                  ].map(person => (
+                    <div key={person.name} className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                      <div className="w-10 h-10 rounded-full bg-primary-100 dark:bg-primary-900/30 flex items-center justify-center flex-shrink-0">
+                        <span className="text-primary-700 dark:text-primary-300 font-bold text-sm">{person.name.split(' ').pop()?.charAt(0)}</span>
                       </div>
-                      <p className="font-medium text-sm text-text-primary dark:text-gray-100 line-clamp-1">{m.name}</p>
-                      <p className="text-xs text-text-secondary dark:text-gray-400 capitalize">{m.role?.replace('_', ' ')}</p>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-sm text-text-primary dark:text-gray-100">{person.name}</p>
+                        <div className="flex items-center gap-3 mt-0.5">
+                          <a href={`mailto:${person.email}`} className="inline-flex items-center gap-1 text-xs text-primary-600 dark:text-primary-400 hover:underline">
+                            <Mail size={11} /> {person.email}
+                          </a>
+                          <a href={person.linkedin} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs text-primary-600 dark:text-primary-400 hover:underline">
+                            <Linkedin size={11} /> LinkedIn
+                          </a>
+                        </div>
+                      </div>
                     </div>
                   ))}
                 </div>
-              ) : (
-                <p className="text-sm text-text-secondary dark:text-gray-400">No members found.</p>
-              )}
-            </section>
 
-            {/* Stats Learning */}
-            <section className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6 lg:col-span-2">
-              <div className="flex items-center gap-2 mb-4">
-                <GraduationCap size={20} className="text-primary-600 dark:text-primary-400" />
-                <h2 className="font-display font-bold text-lg text-text-primary dark:text-gray-100">Stats Learning</h2>
-              </div>
-              {isAdmin ? (
-                <LinkListEditor items={learningLinks} onSave={handleSaveLearningLinks} saving={savingLinks} />
-              ) : learningLinks.length > 0 ? (
-                <div className="space-y-2">
-                  {learningLinks.map((item, i) => (
-                    <div key={i} className="p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
-                      <a href={item.url} target="_blank" rel="noopener noreferrer" className="font-medium text-primary-600 dark:text-primary-400 hover:underline inline-flex items-center gap-1">
-                        {item.title} <ExternalLink size={12} />
-                      </a>
-                      {item.description && <p className="text-sm text-text-secondary dark:text-gray-400 mt-0.5">{item.description}</p>}
+                {/* Stats Leads */}
+                <h3 className="text-xs font-semibold uppercase tracking-wider text-text-secondary dark:text-gray-400 mb-3">Stats Leads</h3>
+                <div className="space-y-3 mb-5">
+                  {[
+                    { name: 'Sam Johnston', email: 'sam.johnston@uvu.edu', linkedin: 'https://www.linkedin.com/in/sam-johnston-uvu/' },
+                    { name: 'Joseph White Jr', email: 'joseph.white@uvu.edu', linkedin: 'https://www.linkedin.com/in/joseph-white-jr/' },
+                  ].map(person => (
+                    <div key={person.name} className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                      <div className="w-10 h-10 rounded-full bg-secondary-100 dark:bg-secondary-900/30 flex items-center justify-center flex-shrink-0">
+                        <span className="text-secondary-700 dark:text-secondary-300 font-bold text-sm">{person.name.charAt(0)}</span>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-sm text-text-primary dark:text-gray-100">{person.name}</p>
+                        <div className="flex items-center gap-3 mt-0.5">
+                          <a href={`mailto:${person.email}`} className="inline-flex items-center gap-1 text-xs text-primary-600 dark:text-primary-400 hover:underline">
+                            <Mail size={11} /> {person.email}
+                          </a>
+                          <a href={person.linkedin} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs text-primary-600 dark:text-primary-400 hover:underline">
+                            <Linkedin size={11} /> LinkedIn
+                          </a>
+                        </div>
+                      </div>
                     </div>
                   ))}
                 </div>
-              ) : (
-                <p className="text-sm text-text-secondary dark:text-gray-400">No learning resources added yet.</p>
-              )}
-            </section>
+
+                {/* Signal Chat */}
+                <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                  <div className="flex items-center gap-2 mb-2">
+                    <MessageSquare size={16} className="text-blue-600 dark:text-blue-400" />
+                    <h3 className="font-semibold text-sm text-blue-900 dark:text-blue-200">Join the Signal Group Chat</h3>
+                  </div>
+                  <p className="text-sm text-blue-800 dark:text-blue-300">
+                    Download <a href="https://signal.org/download/" target="_blank" rel="noopener noreferrer" className="font-medium underline hover:no-underline">Signal</a> and
+                    message a Stats Lead to be added to the lab group chat.
+                  </p>
+                </div>
+              </section>
+
+              {/* Member Directory */}
+              <section className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
+                <div className="flex items-center gap-2 mb-4">
+                  <Users size={20} className="text-primary-600 dark:text-primary-400" />
+                  <h2 className="font-display font-bold text-lg text-text-primary dark:text-gray-100">Member Directory</h2>
+                  <span className="px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-700 text-text-secondary dark:text-gray-400 text-xs font-medium">{members.length}</span>
+                </div>
+                {loadingMembers ? (
+                  <div className="flex items-center justify-center py-8"><Loader2 size={20} className="animate-spin text-primary-500" /></div>
+                ) : members.length > 0 ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                    {members.map(m => (
+                      <div key={m.id} className="flex items-center gap-3 p-3 rounded-lg bg-gray-50 dark:bg-gray-700/50">
+                        <div className="w-10 h-10 rounded-full bg-primary-100 dark:bg-primary-900/30 flex items-center justify-center overflow-hidden flex-shrink-0">
+                          {m.avatar_url ? (
+                            <img src={getUploadUrl(m.avatar_url)} alt="" className="w-full h-full object-cover" />
+                          ) : (
+                            <span className="text-primary-700 dark:text-primary-300 font-medium text-sm">{m.name?.charAt(0)?.toUpperCase() || '?'}</span>
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-sm text-text-primary dark:text-gray-100 truncate">{m.name}</p>
+                          {m.email && (
+                            <a href={`mailto:${m.email}`} className="text-xs text-primary-600 dark:text-primary-400 hover:underline truncate block">{m.email}</a>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-text-secondary dark:text-gray-400">No members found.</p>
+                )}
+              </section>
+            </div>
+
+            {/* Right column: Research Resources + Stats Learning (collapsible) */}
+            <div className="w-full lg:w-80 xl:w-96 shrink-0 space-y-4">
+              {/* Research Resources — collapsible */}
+              <section className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+                <button
+                  onClick={() => setResearchExpanded(!researchExpanded)}
+                  className="w-full flex items-center justify-between p-4 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
+                >
+                  <div className="flex items-center gap-2">
+                    <BookOpen size={18} className="text-primary-600 dark:text-primary-400" />
+                    <h2 className="font-display font-bold text-base text-text-primary dark:text-gray-100">Research Resources</h2>
+                  </div>
+                  {researchExpanded ? <ChevronDown size={18} className="text-gray-400" /> : <ChevronRight size={18} className="text-gray-400" />}
+                </button>
+                {researchExpanded && (
+                  <div className="border-t border-gray-100 dark:border-gray-700 p-4">
+                    {isAdmin ? (
+                      <LinkListEditor items={researchLinks} onSave={handleSaveResearchLinks} saving={savingLinks} />
+                    ) : researchLinks.length > 0 ? (
+                      <div className="space-y-2">
+                        {researchLinks.map((item, i) => (
+                          <div key={i} className="p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                            <a href={item.url} target="_blank" rel="noopener noreferrer" className="font-medium text-primary-600 dark:text-primary-400 hover:underline inline-flex items-center gap-1 text-sm">
+                              {item.title} <ExternalLink size={12} />
+                            </a>
+                            {item.description && <p className="text-xs text-text-secondary dark:text-gray-400 mt-0.5">{item.description}</p>}
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-text-secondary dark:text-gray-400">No research resources added yet.</p>
+                    )}
+                  </div>
+                )}
+              </section>
+
+              {/* Stats Learning — collapsible */}
+              <section className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+                <button
+                  onClick={() => setLearningExpanded(!learningExpanded)}
+                  className="w-full flex items-center justify-between p-4 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
+                >
+                  <div className="flex items-center gap-2">
+                    <GraduationCap size={18} className="text-primary-600 dark:text-primary-400" />
+                    <h2 className="font-display font-bold text-base text-text-primary dark:text-gray-100">Stats Learning</h2>
+                  </div>
+                  {learningExpanded ? <ChevronDown size={18} className="text-gray-400" /> : <ChevronRight size={18} className="text-gray-400" />}
+                </button>
+                {learningExpanded && (
+                  <div className="border-t border-gray-100 dark:border-gray-700 p-4">
+                    {isAdmin ? (
+                      <LinkListEditor items={learningLinks} onSave={handleSaveLearningLinks} saving={savingLinks} />
+                    ) : learningLinks.length > 0 ? (
+                      <div className="space-y-2">
+                        {learningLinks.map((item, i) => (
+                          <div key={i} className="p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                            <a href={item.url} target="_blank" rel="noopener noreferrer" className="font-medium text-primary-600 dark:text-primary-400 hover:underline inline-flex items-center gap-1 text-sm">
+                              {item.title} <ExternalLink size={12} />
+                            </a>
+                            {item.description && <p className="text-xs text-text-secondary dark:text-gray-400 mt-0.5">{item.description}</p>}
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-text-secondary dark:text-gray-400">No learning resources added yet.</p>
+                    )}
+                  </div>
+                )}
+              </section>
+            </div>
           </div>
         )
       )}
