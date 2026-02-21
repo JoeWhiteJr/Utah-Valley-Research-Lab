@@ -519,21 +519,21 @@ export default function ProjectDetail() {
 
   return (
     <div className="space-y-4">
-      {/* Back button — dynamic label from route */}
-      {backLabel && (
-        <button
-          onClick={() => navigate(-1)}
-          className="inline-flex items-center gap-1.5 text-sm text-text-secondary dark:text-gray-400 hover:text-text-primary dark:hover:text-gray-100"
-        >
-          <ArrowLeft size={16} />
-          {backLabel}
-        </button>
-      )}
+      {/* Compact header: Back button + Image + Info + Actions — all one row */}
+      <div className="flex items-start gap-4">
+        {/* Back button */}
+        {backLabel && (
+          <button
+            onClick={() => navigate(-1)}
+            className="inline-flex items-center gap-1.5 text-sm text-text-secondary dark:text-gray-400 hover:text-text-primary dark:hover:text-gray-100 mt-2 flex-shrink-0"
+          >
+            <ArrowLeft size={16} />
+            {backLabel}
+          </button>
+        )}
 
-      {/* Header: Image + Info + Actions */}
-      <div className="flex flex-col md:flex-row gap-5">
-        {/* Left: Project image */}
-        <div className="flex-shrink-0 w-full md:w-48 lg:w-56 h-36 md:h-40 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden bg-gray-100 dark:bg-gray-800">
+        {/* Project image — smaller */}
+        <div className="flex-shrink-0 w-20 h-20 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden bg-gray-100 dark:bg-gray-800">
           {currentProject.header_image ? (
             <img
               src={getUploadUrl(currentProject.header_image)}
@@ -542,84 +542,79 @@ export default function ProjectDetail() {
             />
           ) : (
             <div className="w-full h-full flex items-center justify-center">
-              <ImageIcon size={36} className="text-gray-300 dark:text-gray-600" />
+              <ImageIcon size={24} className="text-gray-300 dark:text-gray-600" />
             </div>
           )}
         </div>
 
-        {/* Right: Title, subtitle, description */}
-        <div className="flex-1 min-w-0 flex flex-col">
-          <div className="flex items-start justify-between gap-4">
-            <div className="min-w-0">
-              <div className="flex items-center gap-3 flex-wrap">
-                <h1 className="font-display font-bold text-2xl md:text-3xl text-text-primary dark:text-gray-100">
-                  {currentProject.title}
-                </h1>
-                <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${
-                  currentProject.status === 'active' ? 'bg-secondary-100 text-secondary-700 dark:bg-secondary-900/30 dark:text-secondary-300' :
-                  currentProject.status === 'completed' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300' :
-                  currentProject.status === 'inactive' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300' :
-                  'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400'
-                }`}>
-                  {currentProject.status}
-                </span>
-              </div>
-              {currentProject.subheader && (
-                <p className="mt-1 text-text-secondary dark:text-gray-400">{currentProject.subheader}</p>
-              )}
-            </div>
+        {/* Title, subtitle, description */}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-3 flex-wrap">
+            <h1 className="font-display font-bold text-xl md:text-2xl text-text-primary dark:text-gray-100">
+              {currentProject.title}
+            </h1>
+            <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${
+              currentProject.status === 'active' ? 'bg-secondary-100 text-secondary-700 dark:bg-secondary-900/30 dark:text-secondary-300' :
+              currentProject.status === 'completed' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300' :
+              currentProject.status === 'inactive' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300' :
+              'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400'
+            }`}>
+              {currentProject.status}
+            </span>
+          </div>
+          {currentProject.subheader && (
+            <p className="text-sm text-text-secondary dark:text-gray-400">{currentProject.subheader}</p>
+          )}
+          {currentProject.description && (
+            <p className="text-sm text-text-secondary dark:text-gray-400 mt-0.5 line-clamp-1">{currentProject.description}</p>
+          )}
+        </div>
 
-            {/* Action buttons — top right */}
-            {canEdit && (
-              <div className="flex gap-2 items-center flex-shrink-0">
-                <Button variant="outline" onClick={handleGenerateAiSummary} disabled={aiSummaryLoading}>
-                  {aiSummaryLoading ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
-                  AI Summary
+        {/* Action buttons — far right */}
+        {canEdit && (
+          <div className="flex gap-2 items-center flex-shrink-0">
+            <Button variant="outline" onClick={handleGenerateAiSummary} disabled={aiSummaryLoading}>
+              {aiSummaryLoading ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
+              AI Summary
+            </Button>
+            <Button variant="outline" onClick={() => setShowEditModal(true)}>
+              <Edit3 size={16} />
+              Edit
+            </Button>
+            {canDelete && (
+              <Button variant="danger" onClick={() => setShowDeleteConfirm(true)}>
+                <Trash2 size={16} />
+              </Button>
+            )}
+            {canEditMeta && (
+              <div className="relative">
+                <Button variant="outline" onClick={() => setShowSettingsMenu(!showSettingsMenu)} className="!p-2">
+                  <MoreVertical size={16} />
                 </Button>
-                <Button variant="outline" onClick={() => setShowEditModal(true)}>
-                  <Edit3 size={16} />
-                  Edit
-                </Button>
-                {canDelete && (
-                  <Button variant="danger" onClick={() => setShowDeleteConfirm(true)}>
-                    <Trash2 size={16} />
-                  </Button>
-                )}
-                {canEditMeta && (
-                  <div className="relative">
-                    <Button variant="outline" onClick={() => setShowSettingsMenu(!showSettingsMenu)} className="!p-2">
-                      <MoreVertical size={16} />
-                    </Button>
-                    {showSettingsMenu && (
-                      <>
-                        <div className="fixed inset-0 z-10" onClick={() => setShowSettingsMenu(false)} />
-                        <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1 z-20">
-                          <div className="px-3 py-2 text-xs font-semibold text-text-secondary dark:text-gray-400 uppercase tracking-wider">Set Status</div>
-                          {PROJECT_STATUSES.map((status) => (
-                            <button key={status} onClick={() => handleStatusChange(status)}
-                              className={`w-full px-3 py-2 text-left text-sm flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-700 ${
-                                currentProject.status === status ? 'bg-gray-50 dark:bg-gray-700 text-primary-600 dark:text-primary-300' : 'text-text-primary dark:text-gray-100'
-                              }`}>
-                              <span className="capitalize">{status}</span>
-                              {currentProject.status === status && <Check size={16} />}
-                            </button>
-                          ))}
-                        </div>
-                      </>
-                    )}
-                  </div>
+                {showSettingsMenu && (
+                  <>
+                    <div className="fixed inset-0 z-10" onClick={() => setShowSettingsMenu(false)} />
+                    <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1 z-20">
+                      <div className="px-3 py-2 text-xs font-semibold text-text-secondary dark:text-gray-400 uppercase tracking-wider">Set Status</div>
+                      {PROJECT_STATUSES.map((status) => (
+                        <button key={status} onClick={() => handleStatusChange(status)}
+                          className={`w-full px-3 py-2 text-left text-sm flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-700 ${
+                            currentProject.status === status ? 'bg-gray-50 dark:bg-gray-700 text-primary-600 dark:text-primary-300' : 'text-text-primary dark:text-gray-100'
+                          }`}>
+                          <span className="capitalize">{status}</span>
+                          {currentProject.status === status && <Check size={16} />}
+                        </button>
+                      ))}
+                    </div>
+                  </>
                 )}
               </div>
             )}
           </div>
-
-          {currentProject.description && (
-            <p className="mt-2 text-sm text-text-secondary dark:text-gray-400">{currentProject.description}</p>
-          )}
-        </div>
+        )}
       </div>
 
-      {/* Tabs — larger */}
+      {/* Tabs */}
       <div className="border-b border-gray-200 dark:border-gray-700">
         <nav className="flex gap-1 -mb-px overflow-x-auto">
           {tabs.map(({ id: tabId, label, icon: Icon }) => (

@@ -43,6 +43,7 @@ export default function MyDashboard() {
   const [projectsExpanded, setProjectsExpanded] = useState(false)
   const [editingDescription, setEditingDescription] = useState({})
   const [plannerTab, setPlannerTab] = useState('daily')
+  const [plannerExpanded, setPlannerExpanded] = useState(false)
   const [personalNotes, setPersonalNotes] = useState([])
   const [loadingNotes, setLoadingNotes] = useState(true)
   const [notesExpanded, setNotesExpanded] = useState(false)
@@ -218,59 +219,46 @@ export default function MyDashboard() {
 
   return (
     <div className="space-y-6">
-      {/* Row 1: Personal Header — light/dark adaptive */}
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-slate-100 via-white to-primary-50 dark:from-slate-900 dark:via-slate-800 dark:to-primary-900 p-8 md:p-10">
-        {/* Dot pattern — light mode */}
-        <div className="absolute inset-0 opacity-[0.04] dark:opacity-0" style={{backgroundImage: 'radial-gradient(circle at 2px 2px, rgba(0,0,0,1) 1px, transparent 0)', backgroundSize: '24px 24px'}}></div>
-        {/* Dot pattern — dark mode */}
-        <div className="absolute inset-0 opacity-0 dark:opacity-20" style={{backgroundImage: 'radial-gradient(circle at 2px 2px, rgba(255,255,255,0.1) 1px, transparent 0)', backgroundSize: '24px 24px'}}></div>
-        <div className="relative">
-          {/* Top row: Avatar + Greeting | Stats mini-cards */}
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
-            <div className="flex items-center gap-5">
-              <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-primary-400 to-secondary-400 flex items-center justify-center text-white text-2xl font-bold shadow-lg ring-4 ring-white/20 dark:ring-white/10">
-                {user?.name?.charAt(0)?.toUpperCase() || 'U'}
-              </div>
-              <div>
-                <h1 className="font-display font-bold text-2xl md:text-3xl text-text-primary dark:text-white mb-1">
-                  {getGreeting()}, {user?.name?.split(' ')[0]}
-                </h1>
-                <p className="text-text-secondary dark:text-slate-400">
-                  Here&apos;s your personal research overview
-                </p>
-              </div>
-            </div>
-            {/* Stats mini-cards */}
-            <div className="flex items-center gap-3">
-              <div className="bg-white/60 dark:bg-white/10 backdrop-blur-sm rounded-xl px-4 py-3 flex items-center gap-2.5">
-                <CheckCircle2 size={16} className="text-green-600 dark:text-green-300" />
-                <div>
-                  <p className="text-lg font-display font-bold text-text-primary dark:text-white leading-none">{completedCount}</p>
-                  <p className="text-[11px] text-text-secondary dark:text-slate-400">Completed</p>
-                </div>
-              </div>
-              <div className="bg-white/60 dark:bg-white/10 backdrop-blur-sm rounded-xl px-4 py-3 flex items-center gap-2.5">
-                <Target size={16} className="text-amber-600 dark:text-amber-300" />
-                <div>
-                  <p className="text-lg font-display font-bold text-text-primary dark:text-white leading-none">{pendingTasks}</p>
-                  <p className="text-[11px] text-text-secondary dark:text-slate-400">Remaining</p>
-                </div>
-              </div>
-              <div className="bg-white/60 dark:bg-white/10 backdrop-blur-sm rounded-xl px-4 py-3 flex items-center gap-2.5">
-                <Award size={16} className="text-primary-600 dark:text-primary-300" />
-                <div>
-                  <p className="text-lg font-display font-bold text-text-primary dark:text-white leading-none">{myProjects.length}</p>
-                  <p className="text-[11px] text-text-secondary dark:text-slate-400">Projects</p>
-                </div>
-              </div>
+      {/* Row 1: Compact Personal Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div className="flex items-center gap-4">
+          <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-primary-400 to-secondary-400 flex items-center justify-center text-white text-lg font-bold shadow-sm">
+            {user?.name?.charAt(0)?.toUpperCase() || 'U'}
+          </div>
+          <div>
+            <h1 className="font-display font-bold text-2xl md:text-3xl text-text-primary dark:text-gray-100">
+              {getGreeting()}, {user?.name?.split(' ')[0]}
+            </h1>
+            <p className="text-text-secondary dark:text-gray-400 text-sm">
+              Here&apos;s your personal research overview
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 px-3 py-2 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+            <CheckCircle2 size={16} className="text-green-600 dark:text-green-300" />
+            <div>
+              <p className="text-lg font-display font-bold text-text-primary dark:text-gray-100 leading-none">{completedCount}</p>
+              <p className="text-[11px] text-text-secondary dark:text-gray-400">Completed</p>
             </div>
           </div>
-          {/* Bottom row: Streak beneath subtitle */}
-          <div className="flex items-center gap-3 mt-3">
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/60 dark:bg-white/10 backdrop-blur-sm">
-              <Zap size={14} className="text-amber-400" />
-              <span className="text-sm font-medium text-text-primary dark:text-white">{streak} day streak</span>
+          <div className="flex items-center gap-2 px-3 py-2 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+            <Target size={16} className="text-amber-600 dark:text-amber-300" />
+            <div>
+              <p className="text-lg font-display font-bold text-text-primary dark:text-gray-100 leading-none">{pendingTasks}</p>
+              <p className="text-[11px] text-text-secondary dark:text-gray-400">Remaining</p>
             </div>
+          </div>
+          <div className="flex items-center gap-2 px-3 py-2 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+            <Award size={16} className="text-primary-600 dark:text-primary-300" />
+            <div>
+              <p className="text-lg font-display font-bold text-text-primary dark:text-gray-100 leading-none">{myProjects.length}</p>
+              <p className="text-[11px] text-text-secondary dark:text-gray-400">Projects</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 px-3 py-2 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+            <Zap size={14} className="text-amber-400" />
+            <span className="text-sm font-medium text-text-primary dark:text-gray-100">{streak} day streak</span>
           </div>
         </div>
       </div>
@@ -284,78 +272,87 @@ export default function MyDashboard() {
         />
       )}
 
-      {/* AI Planner title (standalone above grid) */}
-      <h2 className="font-display font-bold text-xl text-text-primary dark:text-gray-100">AI Planner</h2>
-
-      {/* Main grid: Plan + Calendar (left) | Tasks & Projects (right) */}
+      {/* Main grid: Calendar + AI Planner (left) | Tasks & Projects (right) */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
         <div className="lg:col-span-2 space-y-6">
-          <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
-            {/* Tab bar */}
-            <div className="flex border-b border-gray-200 dark:border-gray-700">
-              <button
-                onClick={() => setPlannerTab('daily')}
-                className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
-                  plannerTab === 'daily'
-                    ? 'text-primary-700 dark:text-primary-300 border-b-2 border-primary-500'
-                    : 'text-text-secondary dark:text-gray-400 hover:text-text-primary dark:hover:text-gray-200'
-                }`}
-              >
-                Daily
-              </button>
-              <button
-                onClick={() => setPlannerTab('weekly')}
-                className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
-                  plannerTab === 'weekly'
-                    ? 'text-primary-700 dark:text-primary-300 border-b-2 border-primary-500'
-                    : 'text-text-secondary dark:text-gray-400 hover:text-text-primary dark:hover:text-gray-200'
-                }`}
-              >
-                Weekly
-              </button>
-            </div>
-
-            {/* Tab content — scrollable */}
-            <div className="overflow-y-auto" style={{ maxHeight: '600px' }}>
-              {plannerTab === 'daily' ? (
-                plan ? (
-                  <DailyPlanCard
-                    plan={plan}
-                    steps={planSteps}
-                    onToggleStep={toggleStep}
-                    onRegenerate={() => generatePlan(true)}
-                    isGenerating={isGenerating}
-                    embedded
-                  />
-                ) : (
-                  <PlannerEmptyState
-                    onGenerate={() => generatePlan(false)}
-                    isGenerating={isGenerating}
-                  />
-                )
-              ) : (
-                weeklyReview ? (
-                  <WeeklyReviewCard
-                    review={weeklyReview}
-                    onGenerate={generateWeeklyReview}
-                    isGenerating={isGenerating && !plan}
-                    embedded
-                  />
-                ) : (
-                  <PlannerEmptyState
-                    onGenerate={generateWeeklyReview}
-                    isGenerating={isGenerating && !plan}
-                    title="AI Weekly Review"
-                    description="Get an AI-generated summary of your week including accomplishments, missed items, and insights for next week."
-                    buttonLabel="Generate My Weekly Review"
-                  />
-                )
-              )}
-            </div>
-          </div>
-
-          {/* Calendar */}
+          {/* Calendar first */}
           <CalendarView scope="dashboard" compact />
+
+          {/* Collapsible AI Planner */}
+          <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+            <button
+              onClick={() => setPlannerExpanded(!plannerExpanded)}
+              className="w-full flex items-center justify-between px-5 py-3.5 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
+            >
+              <h2 className="font-display font-bold text-lg text-text-primary dark:text-gray-100">AI Planner</h2>
+              {plannerExpanded ? <ChevronDown size={18} className="text-gray-400" /> : <ChevronRight size={18} className="text-gray-400" />}
+            </button>
+            {plannerExpanded && (
+              <>
+                {/* Tab bar */}
+                <div className="flex border-t border-b border-gray-200 dark:border-gray-700">
+                  <button
+                    onClick={() => setPlannerTab('daily')}
+                    className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
+                      plannerTab === 'daily'
+                        ? 'text-primary-700 dark:text-primary-300 border-b-2 border-primary-500'
+                        : 'text-text-secondary dark:text-gray-400 hover:text-text-primary dark:hover:text-gray-200'
+                    }`}
+                  >
+                    Daily
+                  </button>
+                  <button
+                    onClick={() => setPlannerTab('weekly')}
+                    className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
+                      plannerTab === 'weekly'
+                        ? 'text-primary-700 dark:text-primary-300 border-b-2 border-primary-500'
+                        : 'text-text-secondary dark:text-gray-400 hover:text-text-primary dark:hover:text-gray-200'
+                    }`}
+                  >
+                    Weekly
+                  </button>
+                </div>
+
+                {/* Tab content — scrollable */}
+                <div className="overflow-y-auto" style={{ maxHeight: '600px' }}>
+                  {plannerTab === 'daily' ? (
+                    plan ? (
+                      <DailyPlanCard
+                        plan={plan}
+                        steps={planSteps}
+                        onToggleStep={toggleStep}
+                        onRegenerate={() => generatePlan(true)}
+                        isGenerating={isGenerating}
+                        embedded
+                      />
+                    ) : (
+                      <PlannerEmptyState
+                        onGenerate={() => generatePlan(false)}
+                        isGenerating={isGenerating}
+                      />
+                    )
+                  ) : (
+                    weeklyReview ? (
+                      <WeeklyReviewCard
+                        review={weeklyReview}
+                        onGenerate={generateWeeklyReview}
+                        isGenerating={isGenerating && !plan}
+                        embedded
+                      />
+                    ) : (
+                      <PlannerEmptyState
+                        onGenerate={generateWeeklyReview}
+                        isGenerating={isGenerating && !plan}
+                        title="AI Weekly Review"
+                        description="Get an AI-generated summary of your week including accomplishments, missed items, and insights for next week."
+                        buttonLabel="Generate My Weekly Review"
+                      />
+                    )
+                  )}
+                </div>
+              </>
+            )}
+          </div>
         </div>
         <div className="space-y-6">
           {/* Collapsible My Tasks */}

@@ -214,8 +214,8 @@ export default function VVC() {
 
   return (
     <div className="space-y-6">
-      {/* Page header */}
-      <div className="flex items-center justify-between">
+      {/* Page header + tabs inline */}
+      <div className="flex items-center gap-4 flex-wrap">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-primary-100 dark:bg-primary-900/50 flex items-center justify-center">
             <Code className="text-primary-600 dark:text-primary-400" size={22} />
@@ -225,40 +225,38 @@ export default function VVC() {
             <p className="text-sm text-text-secondary dark:text-gray-400">Learn to vibe code with Claude Code</p>
           </div>
         </div>
-      </div>
-
-      {/* Tabs */}
-      <div className="flex border-b border-gray-200 dark:border-gray-700">
-        <button
-          onClick={() => setActiveTab('sessions')}
-          className={`px-4 py-2.5 text-sm font-medium transition-colors ${
-            activeTab === 'sessions'
-              ? 'text-primary-600 dark:text-primary-300 border-b-2 border-primary-500'
-              : 'text-text-secondary dark:text-gray-400 hover:text-text-primary dark:hover:text-gray-200'
-          }`}
-        >
-          Sessions
-        </button>
-        <button
-          onClick={() => setActiveTab('projects')}
-          className={`px-4 py-2.5 text-sm font-medium transition-colors ${
-            activeTab === 'projects'
-              ? 'text-primary-600 dark:text-primary-300 border-b-2 border-primary-500'
-              : 'text-text-secondary dark:text-gray-400 hover:text-text-primary dark:hover:text-gray-200'
-          }`}
-        >
-          Projects
-        </button>
-        <button
-          onClick={() => setActiveTab('resources')}
-          className={`px-4 py-2.5 text-sm font-medium transition-colors ${
-            activeTab === 'resources'
-              ? 'text-primary-600 dark:text-primary-300 border-b-2 border-primary-500'
-              : 'text-text-secondary dark:text-gray-400 hover:text-text-primary dark:hover:text-gray-200'
-          }`}
-        >
-          Resources
-        </button>
+        <div className="flex border-b border-gray-200 dark:border-gray-700 ml-auto">
+          <button
+            onClick={() => setActiveTab('sessions')}
+            className={`px-4 py-2.5 text-sm font-medium transition-colors ${
+              activeTab === 'sessions'
+                ? 'text-primary-600 dark:text-primary-300 border-b-2 border-primary-500'
+                : 'text-text-secondary dark:text-gray-400 hover:text-text-primary dark:hover:text-gray-200'
+            }`}
+          >
+            Sessions
+          </button>
+          <button
+            onClick={() => setActiveTab('projects')}
+            className={`px-4 py-2.5 text-sm font-medium transition-colors ${
+              activeTab === 'projects'
+                ? 'text-primary-600 dark:text-primary-300 border-b-2 border-primary-500'
+                : 'text-text-secondary dark:text-gray-400 hover:text-text-primary dark:hover:text-gray-200'
+            }`}
+          >
+            Projects
+          </button>
+          <button
+            onClick={() => setActiveTab('resources')}
+            className={`px-4 py-2.5 text-sm font-medium transition-colors ${
+              activeTab === 'resources'
+                ? 'text-primary-600 dark:text-primary-300 border-b-2 border-primary-500'
+                : 'text-text-secondary dark:text-gray-400 hover:text-text-primary dark:hover:text-gray-200'
+            }`}
+          >
+            Resources
+          </button>
+        </div>
       </div>
 
       {/* Sessions Tab */}
