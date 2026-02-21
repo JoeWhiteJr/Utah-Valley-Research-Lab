@@ -53,7 +53,7 @@ router.get('/team', authenticate, async (req, res, next) => {
     const total = parseInt(countResult.rows[0].count);
 
     const result = await db.query(
-      'SELECT id, name, role, avatar_url FROM users WHERE deleted_at IS NULL ORDER BY name ASC LIMIT $1 OFFSET $2',
+      'SELECT id, name, email, role, avatar_url FROM users WHERE deleted_at IS NULL ORDER BY name ASC LIMIT $1 OFFSET $2',
       [limit, offset]
     );
     res.json({ users: result.rows, total, limit, offset });
