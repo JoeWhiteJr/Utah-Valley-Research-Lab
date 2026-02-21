@@ -80,16 +80,6 @@ const requireRole = (...roles) => {
   };
 };
 
-const requireSuperAdmin = (req, res, next) => {
-  if (!req.user) {
-    return res.status(401).json({ error: { message: 'Not authenticated' } });
-  }
-  if (!req.user.is_super_admin) {
-    return res.status(403).json({ error: { message: 'Super admin access required' } });
-  }
-  next();
-};
-
 const requireProjectAccess = (paramName = 'projectId') => {
   return async (req, res, next) => {
     try {
@@ -137,4 +127,4 @@ const generateToken = (userId) => {
   return jwt.sign({ userId }, jwtSecret, { expiresIn: '7d' });
 };
 
-module.exports = { authenticate, requireRole, requireSuperAdmin, requireProjectAccess, generateToken };
+module.exports = { authenticate, requireRole, requireProjectAccess, generateToken };

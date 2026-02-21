@@ -34,9 +34,6 @@ export { default as AudioRecorder } from './AudioRecorder'
 // Layout
 export { default as Layout } from './Layout'
 
-// Loading
-export { CardSkeleton, ListSkeleton, StatSkeleton, TextSkeleton } from './LoadingSkeleton'
-
 // Calendar
 export { CalendarView } from './calendar/CalendarView'
 export { EventModal } from './calendar/EventModal'
