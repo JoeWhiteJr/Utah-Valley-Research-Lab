@@ -140,4 +140,126 @@ describe('Study API', () => {
       expect(res.status).toBe(400);
     });
   });
+
+  describe('GET /api/study/participants (list)', () => {
+    it('rejects unauthenticated requests', async () => {
+      const res = await request(app).get('/api/study/participants');
+      expect(res.status).toBe(401);
+    });
+
+    it('rejects non-admin users', async () => {
+      const res = await request(app)
+        .get('/api/study/participants')
+        .set('Authorization', `Bearer ${researcherToken}`);
+      expect(res.status).toBe(403);
+    });
+
+    it('returns recent participants with assignment metadata', async () => {
+      const res = await request(app)
+        .get('/api/study/participants')
+        .set('Authorization', `Bearer ${adminToken}`);
+      expect(res.status).toBe(200);
+      expect(Array.isArray(res.body.participants)).toBe(true);
+      if (res.body.participants.length > 0) {
+        const row = res.body.participants[0];
+        expect(row).toHaveProperty('participant_code');
+        expect(row).toHaveProperty('experiment');
+        expect(row).toHaveProperty('condition');
+      }
+    });
+
+    it('filters by experiment', async () => {
+      const res = await request(app)
+        .get('/api/study/participants?experiment=treasure_hunt')
+        .set('Authorization', `Bearer ${adminToken}`);
+      expect(res.status).toBe(200);
+      for (const row of res.body.participants) {
+        expect(row.experiment).toBe('treasure_hunt');
+      }
+    });
+
+    it('rejects invalid experiment filter', async () => {
+      const res = await request(app)
+        .get('/api/study/participants?experiment=garbage')
+        .set('Authorization', `Bearer ${adminToken}`);
+      expect(res.status).toBe(400);
+    });
+  });
+
+  describe('GET /api/study/participants/:code (detail)', () => {
+    let detailCode;
+
+    beforeAll(async () => {
+      // Use a unique X-Forwarded-For so the prior test's completed session
+      // doesn't trip the same-IP dedup check.
+      const start = await request(app)
+        .post('/api/study/start')
+        .set('X-Forwarded-For', '10.99.0.1');
+      detailCode = start.body.participant_code;
+      await request(app)
+        .post('/api/study/consent')
+        .send({ participant_code: detailCode, demographics: { age: 25 } });
+      await request(app)
+        .post('/api/study/save')
+        .send({ participant_code: detailCode, payload: { total_coins: 7 } });
+    });
+
+    it('rejects unauthenticated requests', async () => {
+      const res = await request(app).get(`/api/study/participants/${detailCode}`);
+      expect(res.status).toBe(401);
+    });
+
+    it('rejects non-admin users', async () => {
+      const res = await request(app)
+        .get(`/api/study/participants/${detailCode}`)
+        .set('Authorization', `Bearer ${researcherToken}`);
+      expect(res.status).toBe(403);
+    });
+
+    it('returns full participant + assignment + responses', async () => {
+      const res = await request(app)
+        .get(`/api/study/participants/${detailCode}`)
+        .set('Authorization', `Bearer ${adminToken}`);
+      expect(res.status).toBe(200);
+      expect(res.body.participant.participant_code).toBe(detailCode);
+      expect(res.body.assignment).toBeTruthy();
+      expect(res.body.assignment.experiment).toBeTruthy();
+      expect(res.body.responses.length).toBeGreaterThanOrEqual(1);
+      expect(res.body.responses[0]).toHaveProperty('payload');
+    });
+
+    it('returns 404 for unknown participant_code', async () => {
+      const res = await request(app)
+        .get('/api/study/participants/TH_does_not_exist_xxx')
+        .set('Authorization', `Bearer ${adminToken}`);
+      expect(res.status).toBe(404);
+    });
+  });
+
+  describe('Dedup by ip_hash', () => {
+    it('rejects a second start within the dedup window if a prior session completed from same IP', async () => {
+      const TEST_IP = '10.99.0.42';
+      const start1 = await request(app)
+        .post('/api/study/start')
+        .set('X-Forwarded-For', TEST_IP);
+      expect(start1.status).toBe(201);
+      await request(app)
+        .post('/api/study/save')
+        .send({ participant_code: start1.body.participant_code, payload: { total_coins: 1 } });
+
+      // Second start from the same IP should be rejected with 409.
+      const start2 = await request(app)
+        .post('/api/study/start')
+        .set('X-Forwarded-For', TEST_IP);
+      expect(start2.status).toBe(409);
+      expect(start2.body.error.message).toMatch(/already completed/i);
+    });
+
+    it('allows starts from a different IP', async () => {
+      const start = await request(app)
+        .post('/api/study/start')
+        .set('X-Forwarded-For', '10.99.0.99');
+      expect(start.status).toBe(201);
+    });
+  });
 });

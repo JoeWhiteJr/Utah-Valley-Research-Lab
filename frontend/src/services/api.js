@@ -536,6 +536,9 @@ export const studyApi = {
     api.post('/study/snapshot', { participant_code, payload }),
   stats: () => api.get('/study/stats'),
   exportUrl: (experiment) => `${API_URL}/study/export/${experiment}`,
+  listParticipants: (params = {}) =>
+    api.get('/study/participants', { params }),
+  getParticipant: (code) => api.get(`/study/participants/${code}`),
 }
 
 export default api

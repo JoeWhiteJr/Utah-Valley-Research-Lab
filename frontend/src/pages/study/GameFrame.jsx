@@ -8,10 +8,19 @@ const EXPERIMENT_PATH = {
   pattern_memory: '/study-games/experiment3/index.html',
 }
 
+// Treasure Hunt is a rapid-clicking task; touchscreens haven't been validated.
+// Warn the participant before loading the iframe and let them opt in.
+const MOBILE_BREAKPOINT_PX = 768
+const TOUCH_UNFRIENDLY_EXPERIMENTS = new Set(['treasure_hunt'])
+
 export default function StudyGameFrame() {
   const { participant_code, experiment, condition, markComplete } = useStudyStore()
   const iframeRef = useRef(null)
   const [iframeError, setIframeError] = useState(false)
+  const [mobileOverride, setMobileOverride] = useState(false)
+  const [isSmallViewport, setIsSmallViewport] = useState(
+    typeof window !== 'undefined' ? window.innerWidth < MOBILE_BREAKPOINT_PX : false
+  )
 
   useEffect(() => {
     const handler = (event) => {
@@ -23,6 +32,12 @@ export default function StudyGameFrame() {
     window.addEventListener('message', handler)
     return () => window.removeEventListener('message', handler)
   }, [participant_code, markComplete])
+
+  useEffect(() => {
+    const onResize = () => setIsSmallViewport(window.innerWidth < MOBILE_BREAKPOINT_PX)
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [])
 
   if (!participant_code || !experiment) {
     return (
@@ -48,6 +63,39 @@ export default function StudyGameFrame() {
   }
 
   const src = `${path}?pid=${encodeURIComponent(participant_code)}&cond=${encodeURIComponent(condition || '')}`
+
+  if (
+    TOUCH_UNFRIENDLY_EXPERIMENTS.has(experiment) &&
+    isSmallViewport &&
+    !mobileOverride
+  ) {
+    return (
+      <div className="flex items-center justify-center min-h-screen p-4">
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8 max-w-md w-full text-center space-y-4">
+          <h2 className="font-display font-bold text-xl text-text-primary dark:text-gray-100">
+            This task works best on a larger screen
+          </h2>
+          <p className="text-sm text-text-secondary dark:text-gray-400">
+            You&apos;ve been assigned an interactive clicking task that hasn&apos;t been tested on mobile devices. For the best experience, please return to this link on a laptop or desktop computer.
+          </p>
+          <p className="text-xs text-text-secondary dark:text-gray-500">
+            Your participant code has been saved — if you reopen this link on a desktop, you&apos;ll resume where you left off.
+          </p>
+          <div className="flex flex-col gap-2 pt-2">
+            <Button onClick={() => setMobileOverride(true)} variant="outline" className="w-full">
+              Continue anyway
+            </Button>
+            <a
+              href="/"
+              className="text-xs text-primary-600 dark:text-primary-400 underline"
+            >
+              Leave for now
+            </a>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col">

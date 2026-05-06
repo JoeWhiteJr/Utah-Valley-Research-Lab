@@ -101,14 +101,51 @@ export default function PrivacyPolicy() {
             <li>Withdraw consent where processing is based on consent</li>
           </ul>
 
-          <h2 className="text-2xl font-bold text-gray-900 mt-10 mb-4">8. Changes to This Policy</h2>
+          <h2 className="text-2xl font-bold text-gray-900 mt-10 mb-4">8. Research Study Data</h2>
+          <p className="text-gray-600 mb-4">
+            UVRL hosts research studies that members of the public can take by visiting{' '}
+            <Link to="/study" className="text-pub-blue-600 hover:text-pub-blue-700">
+              /study
+            </Link>
+            . Data collected through these studies is treated separately from normal site use and
+            is governed by additional rules described here.
+          </p>
+          <p className="text-gray-600 mb-4">
+            <strong>What we collect when you take a study:</strong>
+          </p>
+          <ul className="list-disc pl-6 text-gray-600 space-y-2 mb-6">
+            <li>A randomly assigned participant code (e.g. <code>TH_1714234567_a1b2c3d4</code>) that has no relationship to you outside this session</li>
+            <li>Your responses to the interactive task and the demographics survey (age, gender, race/ethnicity, education, native language)</li>
+            <li>Your browser&apos;s user-agent string and a one-way SHA-256 hash of your network address (used only to detect duplicate submissions &mdash; the address itself is never stored)</li>
+            <li>Timestamps for when you started and finished</li>
+          </ul>
+          <p className="text-gray-600 mb-4">
+            <strong>What we do NOT collect:</strong> name, email address, phone number, geographic
+            location, or any other information that could identify you personally. Participation
+            does not create a user account and does not require one.
+          </p>
+          <p className="text-gray-600 mb-4">
+            <strong>Retention and sharing:</strong> Research data is stored indefinitely for ongoing
+            and future analysis. Aggregated, de-identified results may be shared in published
+            research, conference presentations, and public datasets. Because no identifying
+            information is collected, individual responses cannot be traced back to you.
+          </p>
+          <p className="text-gray-600 mb-6">
+            <strong>Your rights for research data:</strong> Participation is voluntary and you can
+            stop at any time by closing the tab. Once your responses are submitted we cannot remove
+            your individual data &mdash; we have no way of identifying which row was yours. If you
+            have questions about a research study you participated in, contact the research team
+            via the email below.
+          </p>
+
+          <h2 className="text-2xl font-bold text-gray-900 mt-10 mb-4">9. Changes to This Policy</h2>
           <p className="text-gray-600 mb-6">
             We may update this Privacy Policy from time to time. We will notify you of any changes by
             posting the new policy on this page and updating the &quot;Last updated&quot; date. Your continued
             use of our website after any changes constitutes acceptance of the updated policy.
           </p>
 
-          <h2 className="text-2xl font-bold text-gray-900 mt-10 mb-4">9. Contact Us</h2>
+          <h2 className="text-2xl font-bold text-gray-900 mt-10 mb-4">10. Contact Us</h2>
           <p className="text-gray-600 mb-6">
             If you have any questions about this Privacy Policy or wish to exercise your rights,
             please contact us:

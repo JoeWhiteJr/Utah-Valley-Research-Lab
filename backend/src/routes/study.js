@@ -49,11 +49,17 @@ function generateParticipantCode(experiment) {
   return `${prefix}_${Date.now()}_${random}`;
 }
 
-async function pickBalancedCondition(experiment) {
+// Pickers run inside the same transaction as the INSERT, gated by a Postgres
+// advisory lock so concurrent /start calls can't all read the same counts and
+// land in the same condition. The lock is held only for the picker + insert,
+// not for the entire request. `xact_lock` auto-releases on COMMIT/ROLLBACK.
+const BALANCE_LOCK_KEY = 'study_balance';
+
+async function pickBalancedConditionTx(client, experiment) {
   const conditions = EXPERIMENTS[experiment];
   if (!conditions) throw new Error(`Unknown experiment: ${experiment}`);
 
-  const result = await db.query(
+  const result = await client.query(
     `SELECT condition, COUNT(*)::int AS n
      FROM study_assignments
      WHERE experiment = $1
@@ -71,9 +77,9 @@ async function pickBalancedCondition(experiment) {
   return candidates[Math.floor(Math.random() * candidates.length)];
 }
 
-async function pickBalancedExperiment() {
+async function pickBalancedExperimentTx(client) {
   const experiments = Object.keys(EXPERIMENTS);
-  const result = await db.query(
+  const result = await client.query(
     `SELECT experiment, COUNT(*)::int AS n
      FROM study_assignments
      GROUP BY experiment`
@@ -87,17 +93,43 @@ async function pickBalancedExperiment() {
   return candidates[Math.floor(Math.random() * candidates.length)];
 }
 
+// Window inside which we treat a same-IP completion as a duplicate attempt.
+const DEDUP_WINDOW_HOURS = 24;
+
 // Start a study session: assign experiment + condition, create participant row.
+// Atomic under load via pg_advisory_xact_lock; rejects same-IP repeats within DEDUP_WINDOW_HOURS.
 router.post('/start', startLimiter, async (req, res, next) => {
   const client = await db.getClient();
   try {
-    const experiment = await pickBalancedExperiment();
-    const condition = await pickBalancedCondition(experiment);
-    const code = generateParticipantCode(experiment);
     const userAgent = req.get('User-Agent') || null;
     const ipHash = hashIp(req.ip);
 
+    // Dedup: same IP completed a session within the last 24h. Done outside the
+    // lock since it's a read-only check and doesn't need to serialize.
+    if (ipHash) {
+      const recent = await client.query(
+        `SELECT 1 FROM study_participants
+         WHERE ip_hash = $1
+           AND completed_at IS NOT NULL
+           AND completed_at > NOW() - INTERVAL '${DEDUP_WINDOW_HOURS} hours'
+         LIMIT 1`,
+        [ipHash]
+      );
+      if (recent.rows.length > 0) {
+        return res.status(409).json({
+          error: { message: 'You have already completed this study recently. Thank you for your interest.' }
+        });
+      }
+    }
+
     await client.query('BEGIN');
+    // Serialize concurrent assignment picks so balance counts remain consistent.
+    await client.query(`SELECT pg_advisory_xact_lock(hashtext($1))`, [BALANCE_LOCK_KEY]);
+
+    const experiment = await pickBalancedExperimentTx(client);
+    const condition = await pickBalancedConditionTx(client, experiment);
+    const code = generateParticipantCode(experiment);
+
     const participant = await client.query(
       `INSERT INTO study_participants (participant_code, user_agent, ip_hash)
        VALUES ($1, $2, $3) RETURNING id, participant_code`,
@@ -329,37 +361,149 @@ const EXPORT_COLUMNS = {
   ]
 };
 
+// Streaming CSV export: writes the header, then iterates rows in batches and
+// `res.write()`s each row. Avoids materializing the full result set in memory
+// when datasets grow into the thousands.
 router.get('/export/:experiment', authenticate, requireRole('admin'), [
   param('experiment').isIn(Object.keys(EXPERIMENTS))
 ], async (req, res, next) => {
+  const PAGE_SIZE = 200;
+  let client;
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       return res.status(400).json({ error: { message: 'Invalid experiment' } });
     }
     const { experiment } = req.params;
-
-    const result = await db.query(
-      `SELECT p.participant_code, a.condition, a.assigned_at, a.completed_at, r.payload
-       FROM study_responses r
-       JOIN study_assignments a ON a.id = r.assignment_id
-       JOIN study_participants p ON p.id = a.participant_id
-       WHERE r.is_snapshot = false AND a.experiment = $1
-       ORDER BY a.completed_at ASC NULLS LAST, p.participant_code ASC`,
-      [experiment]
-    );
-
     const columns = EXPORT_COLUMNS[experiment];
-    let csv = csvRow(columns.map(c => c[0]));
-    for (const row of result.rows) {
-      csv += csvRow(columns.map(c => c[1](row)));
-    }
 
-    res.setHeader('Content-Type', 'text/csv');
-    res.setHeader('Content-Disposition', `attachment; filename=${experiment}_responses.csv`);
-    res.send(csv);
+    res.writeHead(200, {
+      'Content-Type': 'text/csv',
+      'Content-Disposition': `attachment; filename=${experiment}_responses.csv`,
+    });
+    res.write(csvRow(columns.map(c => c[0])));
+
+    client = await db.getClient();
+    let offset = 0;
+    let more = true;
+    while (more) {
+      const result = await client.query(
+        `SELECT p.participant_code, a.condition, a.assigned_at, a.completed_at, r.payload
+         FROM study_responses r
+         JOIN study_assignments a ON a.id = r.assignment_id
+         JOIN study_participants p ON p.id = a.participant_id
+         WHERE r.is_snapshot = false AND a.experiment = $1
+         ORDER BY a.completed_at ASC NULLS LAST, p.participant_code ASC
+         LIMIT $2 OFFSET $3`,
+        [experiment, PAGE_SIZE, offset]
+      );
+      for (const row of result.rows) {
+        res.write(csvRow(columns.map(c => c[1](row))));
+      }
+      more = result.rows.length === PAGE_SIZE;
+      offset += PAGE_SIZE;
+    }
+    res.end();
   } catch (error) {
     logger.error({ err: error }, 'Failed to export study responses');
+    if (!res.headersSent) return next(error);
+    res.end();
+  } finally {
+    if (client) client.release();
+  }
+});
+
+// Admin: list recent participants. Supports filtering by experiment and completion state,
+// plus pagination.
+router.get('/participants', authenticate, requireRole('admin'), [
+  body('experiment').not().exists().withMessage('use query string')
+], async (req, res, next) => {
+  try {
+    const limit = Math.min(parseInt(req.query.limit, 10) || 50, 200);
+    const offset = Math.max(parseInt(req.query.offset, 10) || 0, 0);
+    const experiment = req.query.experiment;
+    const completed = req.query.completed;
+
+    if (experiment && !Object.keys(EXPERIMENTS).includes(experiment)) {
+      return res.status(400).json({ error: { message: 'Invalid experiment filter' } });
+    }
+    if (completed && !['true', 'false', 'all'].includes(completed)) {
+      return res.status(400).json({ error: { message: 'Invalid completed filter' } });
+    }
+
+    const where = [];
+    const params = [];
+    if (experiment) {
+      params.push(experiment);
+      where.push(`a.experiment = $${params.length}`);
+    }
+    if (completed === 'true') where.push(`a.completed_at IS NOT NULL`);
+    if (completed === 'false') where.push(`a.completed_at IS NULL`);
+    const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
+
+    params.push(limit, offset);
+    const result = await db.query(
+      `SELECT p.participant_code, a.experiment, a.condition,
+              p.created_at, a.completed_at,
+              (p.consent_given_at IS NOT NULL) AS consented
+       FROM study_assignments a
+       JOIN study_participants p ON p.id = a.participant_id
+       ${whereSql}
+       ORDER BY p.created_at DESC
+       LIMIT $${params.length - 1} OFFSET $${params.length}`,
+      params
+    );
+    res.json({ participants: result.rows });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Admin: full detail for one participant — assignment + every response payload.
+router.get('/participants/:code', authenticate, requireRole('admin'), [
+  param('code').isString().trim().isLength({ min: 6, max: 64 })
+], async (req, res, next) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ error: { message: 'Invalid participant code' } });
+    }
+    const { code } = req.params;
+
+    const participant = await db.query(
+      `SELECT id, participant_code, consent_given_at, demographics,
+              user_agent, ip_hash, completed_at, created_at, updated_at
+       FROM study_participants WHERE participant_code = $1`,
+      [code]
+    );
+    if (participant.rows.length === 0) {
+      return res.status(404).json({ error: { message: 'Participant not found' } });
+    }
+    const p = participant.rows[0];
+
+    const assignment = await db.query(
+      `SELECT id, experiment, condition, assigned_at, completed_at
+       FROM study_assignments WHERE participant_id = $1
+       ORDER BY assigned_at DESC LIMIT 1`,
+      [p.id]
+    );
+    const a = assignment.rows[0] || null;
+
+    const responses = a
+      ? await db.query(
+          `SELECT id, payload, is_snapshot, submitted_at
+           FROM study_responses WHERE assignment_id = $1
+           ORDER BY submitted_at ASC`,
+          [a.id]
+        )
+      : { rows: [] };
+
+    res.json({
+      participant: p,
+      assignment: a,
+      responses: responses.rows,
+    });
+  } catch (error) {
     next(error);
   }
 });
