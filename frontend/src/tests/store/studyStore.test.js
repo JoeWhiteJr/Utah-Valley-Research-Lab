@@ -60,24 +60,40 @@ describe('studyStore', () => {
   })
 
   it('submitConsent() requires an active participant_code', async () => {
-    const ok = await useStudyStore.getState().submitConsent({ age: 30 })
+    const ok = await useStudyStore.getState().submitConsent()
     expect(ok).toBe(false)
     expect(useStudyStore.getState().error).toMatch(/no active session/i)
     expect(studyApi.consent).not.toHaveBeenCalled()
   })
 
-  it('submitConsent() POSTs demographics and advances to game', async () => {
-    useStudyStore.setState({ participant_code: 'TH_x', step: 'demographics' })
+  it('submitConsent() POSTs an empty consent and advances to game', async () => {
+    useStudyStore.setState({ participant_code: 'TH_x', step: 'consent' })
     studyApi.consent.mockResolvedValue({ data: { ok: true } })
-    const ok = await useStudyStore.getState().submitConsent({ age: 25 })
+    const ok = await useStudyStore.getState().submitConsent()
     expect(ok).toBe(true)
-    expect(studyApi.consent).toHaveBeenCalledWith('TH_x', { age: 25 })
+    expect(studyApi.consent).toHaveBeenCalledWith('TH_x', {})
     expect(useStudyStore.getState().step).toBe('game')
   })
 
-  it('markComplete() moves to debrief; finish() moves to done', () => {
-    useStudyStore.getState().markComplete()
+  it('submitDemographics() POSTs demographics and advances to debrief', async () => {
+    useStudyStore.setState({ participant_code: 'TH_x', step: 'demographics' })
+    studyApi.consent.mockResolvedValue({ data: { ok: true } })
+    const ok = await useStudyStore.getState().submitDemographics({ age: 25 })
+    expect(ok).toBe(true)
+    expect(studyApi.consent).toHaveBeenCalledWith('TH_x', { age: 25 })
     expect(useStudyStore.getState().step).toBe('debrief')
+  })
+
+  it('submitDemographics() requires an active participant_code', async () => {
+    const ok = await useStudyStore.getState().submitDemographics({ age: 30 })
+    expect(ok).toBe(false)
+    expect(useStudyStore.getState().error).toMatch(/no active session/i)
+    expect(studyApi.consent).not.toHaveBeenCalled()
+  })
+
+  it('markComplete() moves to demographics; finish() moves to done', () => {
+    useStudyStore.getState().markComplete()
+    expect(useStudyStore.getState().step).toBe('demographics')
     useStudyStore.getState().finish()
     expect(useStudyStore.getState().step).toBe('done')
   })
