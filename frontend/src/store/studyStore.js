@@ -39,7 +39,7 @@ export const useStudyStore = create(
         }
       },
 
-      submitConsent: async (demographics) => {
+      submitConsent: async () => {
         const { participant_code } = get()
         if (!participant_code) {
           set({ error: 'No active session. Please refresh and try again.' })
@@ -47,7 +47,7 @@ export const useStudyStore = create(
         }
         set({ loading: true, error: null })
         try {
-          await studyApi.consent(participant_code, demographics)
+          await studyApi.consent(participant_code, {})
           set({ step: 'game', loading: false })
           return true
         } catch (err) {
@@ -59,7 +59,27 @@ export const useStudyStore = create(
         }
       },
 
-      markComplete: () => set({ step: 'debrief' }),
+      submitDemographics: async (demographics) => {
+        const { participant_code } = get()
+        if (!participant_code) {
+          set({ error: 'No active session. Please refresh and try again.' })
+          return false
+        }
+        set({ loading: true, error: null })
+        try {
+          await studyApi.consent(participant_code, demographics)
+          set({ step: 'debrief', loading: false })
+          return true
+        } catch (err) {
+          set({
+            loading: false,
+            error: err.response?.data?.error?.message || 'Failed to record demographics',
+          })
+          return false
+        }
+      },
+
+      markComplete: () => set({ step: 'demographics' }),
 
       finish: () => set({ step: 'done' }),
 

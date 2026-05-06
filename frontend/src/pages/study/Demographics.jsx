@@ -26,7 +26,7 @@ const EDUCATION_OPTIONS = [
 ]
 
 export default function StudyDemographics() {
-  const { submitConsent, loading, error } = useStudyStore()
+  const { submitDemographics, loading, error } = useStudyStore()
   const [form, setForm] = useState({
     age: '',
     gender: '',
@@ -50,7 +50,7 @@ export default function StudyDemographics() {
       native_english: form.native_english,
       submitted_at: new Date().toISOString(),
     }
-    await submitConsent(demographics)
+    await submitDemographics(demographics)
   }
 
   const isValid =
@@ -60,10 +60,10 @@ export default function StudyDemographics() {
     <div className="flex items-center justify-center min-h-screen p-4">
       <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8 max-w-xl w-full">
         <h1 className="font-display font-bold text-2xl text-text-primary dark:text-gray-100 mb-2">
-          A few quick questions
+          One last thing
         </h1>
         <p className="text-text-secondary dark:text-gray-400 mb-6 text-sm">
-          These help us describe the participant pool. All answers are anonymous.
+          A few quick questions about you to help us describe the participant pool. All answers are anonymous.
         </p>
         {error && (
           <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-700 rounded-lg text-red-700 dark:text-red-400 text-sm">
@@ -98,7 +98,7 @@ export default function StudyDemographics() {
             options={['Yes', 'No', 'Prefer not to say']}
           />
           <Button type="submit" loading={loading} disabled={!isValid} className="w-full" size="lg">
-            Start the task
+            Continue
           </Button>
         </form>
       </div>

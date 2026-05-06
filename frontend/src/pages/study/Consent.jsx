@@ -13,7 +13,7 @@ const CONSENT_PARAGRAPHS = [
 ]
 
 export default function StudyConsent() {
-  const { setStep } = useStudyStore()
+  const { submitConsent, loading, error } = useStudyStore()
   const [agreed, setAgreed] = useState(false)
 
   return (
@@ -27,6 +27,11 @@ export default function StudyConsent() {
             <p key={i}>{p}</p>
           ))}
         </div>
+        {error && (
+          <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-700 rounded-lg text-red-700 dark:text-red-400 text-sm">
+            {error}
+          </div>
+        )}
         <label className="flex items-start gap-3 mb-6 cursor-pointer">
           <input
             type="checkbox"
@@ -50,11 +55,12 @@ export default function StudyConsent() {
             Decline
           </Button>
           <Button
-            onClick={() => setStep('demographics')}
+            onClick={submitConsent}
             disabled={!agreed}
+            loading={loading}
             className="flex-1"
           >
-            I agree &mdash; continue
+            I agree &mdash; start the task
           </Button>
         </div>
       </div>
