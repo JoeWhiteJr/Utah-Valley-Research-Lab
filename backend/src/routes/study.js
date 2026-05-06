@@ -20,17 +20,23 @@ const EXPERIMENT_PREFIX = {
   pattern_memory: 'PM'
 };
 
-const startLimiter = rateLimit({
-  windowMs: 60 * 1000,
-  max: 10,
-  message: { error: { message: 'Too many study sessions started, please try again later' } }
-});
+const isTestEnv = process.env.NODE_ENV === 'test';
 
-const saveLimiter = rateLimit({
-  windowMs: 60 * 1000,
-  max: 60,
-  message: { error: { message: 'Too many save requests, please slow down' } }
-});
+const startLimiter = isTestEnv
+  ? (req, res, next) => next()
+  : rateLimit({
+      windowMs: 60 * 1000,
+      max: 10,
+      message: { error: { message: 'Too many study sessions started, please try again later' } }
+    });
+
+const saveLimiter = isTestEnv
+  ? (req, res, next) => next()
+  : rateLimit({
+      windowMs: 60 * 1000,
+      max: 60,
+      message: { error: { message: 'Too many save requests, please slow down' } }
+    });
 
 function hashIp(ip) {
   if (!ip) return null;
