@@ -1,0 +1,633 @@
+<!DOCTYPE html>
+<!--
+================================================================================
+EXPERIMENT 1: DIGITAL TREASURE HUNT - Web Version
+================================================================================
+
+Description:
+    HTML page for running the Treasure Hunt experiment in a web browser.
+    Uses jsPsych 7.x for experiment control.
+
+Setup:
+    1. Include jsPsych library from CDN or local copy
+    2. Include required plugins
+    3. Serve from a web server (not file://)
+
+Author: Research Games Project
+Date: January 2025
+================================================================================
+-->
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Treasure Hunt Study</title>
+
+    <!-- jsPsych CSS -->
+    <link href="https://unpkg.com/jspsych@7.3.4/css/jspsych.css" rel="stylesheet">
+
+    <!-- Custom styles -->
+    <style>
+        /* Base styles */
+        body {
+            background-color: #2c3e50;
+            margin: 0;
+            padding: 0;
+        }
+
+        /* jsPsych content area */
+        .jspsych-content {
+            max-width: 800px;
+            font-size: 18px;
+            line-height: 1.6;
+        }
+
+        /* Button styling */
+        .jspsych-btn {
+            background-color: #27ae60;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            font-size: 18px;
+            border-radius: 8px;
+            cursor: pointer;
+            margin: 10px 5px;
+            transition: background-color 0.2s;
+        }
+
+        .jspsych-btn:hover {
+            background-color: #219a52;
+        }
+
+        /* Progress bar at top */
+        .jspsych-progress-bar-container {
+            background-color: #34495e;
+        }
+
+        .jspsych-progress-bar-inner {
+            background-color: #3498db;
+        }
+
+        /* Loading message */
+        #loading-message {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: #2c3e50;
+            color: white;
+            font-size: 24px;
+            font-family: Arial, sans-serif;
+            z-index: 9999;
+        }
+
+        .spinner {
+            border: 4px solid rgba(255, 255, 255, 0.3);
+            border-top: 4px solid #3498db;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin-right: 20px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <!-- Loading indicator -->
+    <div id="loading-message">
+        <div class="spinner"></div>
+        Loading experiment...
+    </div>
+
+    <!-- jsPsych will render here -->
+    <div id="jspsych-target"></div>
+
+    <!-- jsPsych Library -->
+    <script src="https://unpkg.com/jspsych@7.3.4"></script>
+
+    <!-- jsPsych Plugins -->
+    <script src="https://unpkg.com/@jspsych/plugin-html-button-response@1.1.3"></script>
+    <script src="https://unpkg.com/@jspsych/plugin-html-keyboard-response@1.1.3"></script>
+    <script src="https://unpkg.com/@jspsych/plugin-survey@0.2.2"></script>
+    <script src="https://unpkg.com/@jspsych/plugin-call-function@1.1.3"></script>
+
+    <!-- UVRL study integration shim: only active when ?pid=... is in the URL -->
+    <script>
+    (function () {
+      var params = new URLSearchParams(window.location.search);
+      window.UVRL_STUDY = {
+        pid: params.get('pid') || null,
+        cond: params.get('cond') || null,
+        completed: false
+      };
+      if (!window.UVRL_STUDY.pid) return;
+
+      // The treasure_hunt experiment reads ?condition=... from the URL.
+      // Mirror our `cond` param into `condition` if not already set.
+      if (window.UVRL_STUDY.cond && !params.get('condition')) {
+        var newUrl = new URL(window.location.href);
+        newUrl.searchParams.set('condition', window.UVRL_STUDY.cond);
+        window.history.replaceState({}, '', newUrl.toString());
+      }
+
+      var origFetch = window.fetch.bind(window);
+      window.fetch = function (input, init) {
+        var url = typeof input === 'string' ? input : (input && input.url) || '';
+        if (url === '/api/save' && init && init.body) {
+          try {
+            var data = JSON.parse(init.body);
+            var isSnapshot = !!data.last_snapshot;
+            var routedUrl = isSnapshot ? '/api/study/snapshot' : '/api/study/save';
+            var routedBody = JSON.stringify({
+              participant_code: window.UVRL_STUDY.pid,
+              payload: data
+            });
+            var promise = origFetch(routedUrl, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: routedBody
+            });
+            if (!isSnapshot) {
+              promise.then(function (r) {
+                if (r && r.ok && !window.UVRL_STUDY.completed) {
+                  window.UVRL_STUDY.completed = true;
+                  try {
+                    window.parent.postMessage({
+                      type: 'study_complete',
+                      participant_code: window.UVRL_STUDY.pid
+                    }, '*');
+                  } catch (e) { /* ignore */ }
+                }
+              }).catch(function () { /* original handler reports errors */ });
+            }
+            return promise;
+          } catch (e) {
+            console.warn('UVRL study shim: failed to rewrap save', e);
+          }
+        }
+        return origFetch(input, init);
+      };
+    })();
+    </script>
+
+    <!-- Experiment Code -->
+    <script>
+        // jsPsych instance — assigned in DOMContentLoaded, referenced by
+        // trial definitions below. In v7 `timelineVariable` lives on the
+        // instance returned by initJsPsych(), not the global namespace.
+        let jsPsych;
+
+        // ====================================================================
+        // CONFIGURATION
+        // ====================================================================
+
+        const CONFIG = {
+            experiment_name: 'TreasureHunt',
+            version: '1.0.0',
+            n_practice: 5,
+            n_acquisition: 20,
+            n_extinction_max: 30,
+            outcome_display_time: 1500,
+            clicks_baseline: 3,
+            clicks_high_effort: 10,
+            coins_per_chest: 5,
+            conditions: ['BASELINE', 'HIGH_EFFORT', 'NR_PATTERN', 'RN_PATTERN']
+        };
+
+        // ====================================================================
+        // SEQUENCE GENERATORS
+        // ====================================================================
+
+        function generateRandomSequence(n = 20, rewards = 10) {
+            const seq = Array(rewards).fill(1).concat(Array(n - rewards).fill(0));
+            for (let i = seq.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [seq[i], seq[j]] = [seq[j], seq[i]];
+            }
+            return seq;
+        }
+
+        function generateNRSequence(n = 20) {
+            return Array.from({length: n}, (_, i) => i % 2);
+        }
+
+        function generateRNSequence(n = 20) {
+            return Array.from({length: n}, (_, i) => 1 - (i % 2));
+        }
+
+        function getSequence(condition) {
+            if (condition === 'NR_PATTERN') return generateNRSequence();
+            if (condition === 'RN_PATTERN') return generateRNSequence();
+            return generateRandomSequence();
+        }
+
+        function getClicks(condition, outcome) {
+            return (condition === 'HIGH_EFFORT' && outcome === 1)
+                ? CONFIG.clicks_high_effort : CONFIG.clicks_baseline;
+        }
+
+        // ====================================================================
+        // EXPERIMENT DATA
+        // ====================================================================
+
+        let expData = {
+            experiment: 'treasure_hunt',
+            participant_id: `TR_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+            condition: null,
+            start_time: new Date().toISOString(),
+            total_coins: 0,
+            practice_coins: 0,
+            practice_trials: [],
+            acquisition_trials: [],
+            extinction_trials: [],
+            phase_timings: {}
+        };
+
+        function startPhase(name) {
+            expData.phase_timings[name] = {
+                start: new Date().toISOString(),
+                start_perf: performance.now(),
+            };
+        }
+
+        function endPhase(name) {
+            const t = expData.phase_timings[name];
+            if (!t || t.end) return;
+            t.end = new Date().toISOString();
+            t.duration_ms = Math.round(performance.now() - t.start_perf);
+            // start_perf is a runtime monotonic clock value; not useful in the
+            // saved JSON. Drop it so the saved record only has wall-clock fields.
+            delete t.start_perf;
+        }
+
+        /**
+         * Fire-and-forget incremental save. Errors are logged to the console
+         * but do not block the experiment. The server overwrites a single
+         * per-participant file, so calling this often is cheap.
+         */
+        function saveSnapshot(label) {
+            try {
+                fetch('/api/save', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        ...expData,
+                        last_snapshot: label,
+                        last_snapshot_time: new Date().toISOString(),
+                    })
+                }).then(r => {
+                    if (!r.ok) console.warn(`Snapshot ${label} HTTP ${r.status}`);
+                }).catch(e => console.warn(`Snapshot ${label} failed`, e));
+            } catch (e) {
+                console.warn(`Snapshot ${label} threw`, e);
+            }
+        }
+
+        // ====================================================================
+        // CUSTOM CHEST CLICK TRIAL
+        // ====================================================================
+
+        const chestClickTrial = {
+            type: jsPsychHtmlButtonResponse,
+            stimulus: function() {
+                const trial = jsPsych.timelineVariable('trial_data');
+                const displayCoins = trial.phase === 'practice'
+                    ? expData.practice_coins
+                    : expData.total_coins;
+                return `
+                    <div style="text-align: center;">
+                        <div style="margin-bottom: 20px;">
+                            <span style="font-size: 18px; color: #7f8c8d;">
+                                ${trial.phase === 'extinction' ? 'Extended Hunt' : `Trial ${trial.num}`}
+                            </span>
+                            <span style="font-size: 24px; color: #f1c40f; margin-left: 40px;">
+                                🪙 ${displayCoins} coins
+                            </span>
+                        </div>
+
+                        <div id="chest-container" style="font-size: 100px; cursor: pointer; margin: 30px 0;">
+                            📦
+                        </div>
+
+                        <div style="width: 300px; height: 20px; background: #ecf0f1;
+                                    border-radius: 10px; margin: 20px auto; overflow: hidden;">
+                            <div id="progress" style="height: 100%; background: #3498db;
+                                                      width: 0%; transition: width 0.1s;"></div>
+                        </div>
+
+                        <p id="click-count" style="color: #7f8c8d;">
+                            Clicks: 0 / ${trial.clicks_required}
+                        </p>
+                    </div>
+                `;
+            },
+            choices: function() {
+                const trial = jsPsych.timelineVariable('trial_data');
+                return trial.phase === 'extinction' ? ["I'M DONE HUNTING"] : [];
+            },
+            button_html: '<button class="jspsych-btn" style="background: #e74c3c; margin-top: 20px;">%choice%</button>',
+            on_load: function() {
+                const trial = jsPsych.timelineVariable('trial_data');
+
+                // Hoisted onto the trial object so on_finish can read the
+                // click count even when the participant clicks QUIT before
+                // the chest is fully opened.
+                chestClickTrial._state = {
+                    clicks: 0,
+                    completed: false,
+                    started_at: performance.now(),
+                };
+
+                const container = document.getElementById('chest-container');
+                const progress = document.getElementById('progress');
+                const clickText = document.getElementById('click-count');
+
+                container.addEventListener('click', function() {
+                    const state = chestClickTrial._state;
+                    if (state.completed) return;
+
+                    state.clicks++;
+                    const pct = (state.clicks / trial.clicks_required) * 100;
+                    progress.style.width = `${Math.min(pct, 100)}%`;
+                    clickText.textContent = `Clicks: ${state.clicks} / ${trial.clicks_required}`;
+
+                    if (state.clicks >= trial.clicks_required) {
+                        state.completed = true;
+
+                        // Update coins (acquisition only — practice has its own counter,
+                        // extinction is always empty)
+                        if (trial.outcome === 1 && trial.phase === 'acquisition') {
+                            expData.total_coins += CONFIG.coins_per_chest;
+                        }
+                        if (trial.outcome === 1 && trial.phase === 'practice') {
+                            expData.practice_coins += CONFIG.coins_per_chest;
+                        }
+
+                        // Show outcome
+                        container.innerHTML = trial.outcome === 1
+                            ? `<div style="color: #f1c40f;">+${CONFIG.coins_per_chest} COINS! 🪙</div>`
+                            : `<div style="color: #e74c3c;">EMPTY ❌</div>`;
+
+                        // Record data
+                        const data = {
+                            clicks: state.clicks,
+                            clicks_required: trial.clicks_required,
+                            outcome: trial.outcome,
+                            completed: true,
+                            phase: trial.phase,
+                            quit: false,
+                            duration_ms: Math.round(performance.now() - state.started_at),
+                        };
+
+                        if (trial.phase === 'practice') expData.practice_trials.push(data);
+                        else if (trial.phase === 'acquisition') expData.acquisition_trials.push(data);
+                        else expData.extinction_trials.push(data);
+
+                        // Auto-advance after the outcome display.
+                        // Do NOT click the on-screen button: in extinction the only
+                        // button is the QUIT button, and clicking it would falsely
+                        // record the trial as a quit and end the timeline.
+                        setTimeout(() => {
+                            jsPsych.finishTrial();
+                        }, CONFIG.outcome_display_time);
+                    }
+                });
+            },
+            on_finish: function(data) {
+                const trial = jsPsych.timelineVariable('trial_data');
+                if (trial.phase === 'extinction' && data.response === 0) {
+                    // Quit button pressed — capture partial click count.
+                    const state = chestClickTrial._state || {clicks: 0, started_at: performance.now()};
+                    expData.extinction_trials.push({
+                        clicks: state.clicks,
+                        clicks_required: trial.clicks_required,
+                        outcome: trial.outcome,
+                        completed: false,
+                        quit: true,
+                        phase: 'extinction',
+                        duration_ms: Math.round(performance.now() - state.started_at),
+                    });
+                    jsPsych.endCurrentTimeline();
+                }
+                // Snapshot after every extinction trial — the primary DV
+                // accrues here, so we want it persisted as it grows.
+                if (trial.phase === 'extinction') {
+                    saveSnapshot(`extinction_${expData.extinction_trials.length}`);
+                }
+            }
+        };
+
+        // ====================================================================
+        // BUILD TIMELINE
+        // ====================================================================
+
+        function buildTimeline(condition) {
+            const timeline = [];
+
+            // Welcome
+            timeline.push({
+                type: jsPsychHtmlButtonResponse,
+                stimulus: `
+                    <h1 style="color: #f1c40f;">🏴‍☠️ TREASURE HUNT! 🏴‍☠️</h1>
+                    <p>Welcome! Your mission: Open treasure chests to collect gold coins.</p>
+                    <ul style="text-align: left; max-width: 400px; margin: 20px auto;">
+                        <li>Some chests contain <span style="color: #f1c40f;">5 GOLD COINS 🪙</span></li>
+                        <li>Some chests are <span style="color: #e74c3c;">EMPTY ❌</span></li>
+                        <li>Click rapidly to open each chest!</li>
+                    </ul>
+                `,
+                choices: ["Let's Play!"]
+            });
+
+            // Practice
+            timeline.push({
+                type: jsPsychHtmlButtonResponse,
+                stimulus: '<h2>PRACTICE ROUND</h2><p>Let\'s practice opening 5 chests.</p>',
+                choices: ['Start Practice'],
+                on_finish: function() { startPhase('practice'); }
+            });
+
+            const practiceOutcomes = [1, 0, 1, 1, 0];
+            for (let i = 0; i < 5; i++) {
+                timeline.push({
+                    timeline: [chestClickTrial],
+                    timeline_variables: [{
+                        trial_data: {
+                            num: i + 1,
+                            outcome: practiceOutcomes[i],
+                            clicks_required: CONFIG.clicks_baseline,
+                            phase: 'practice'
+                        }
+                    }]
+                });
+            }
+
+            // Transition
+            timeline.push({
+                type: jsPsychHtmlButtonResponse,
+                stimulus: function() {
+                    return `
+                        <h2>PRACTICE COMPLETE!</h2>
+                        <p>Now the REAL treasure hunt begins!</p>
+                        <p>You'll have ${CONFIG.n_acquisition} chests to open.</p>
+                    `;
+                },
+                choices: ['Start Treasure Hunt'],
+                on_load: function() {
+                    endPhase('practice');
+                    saveSnapshot('after_practice');
+                },
+                on_finish: function() { startPhase('acquisition'); }
+            });
+
+            // Acquisition
+            const sequence = getSequence(condition);
+            for (let i = 0; i < CONFIG.n_acquisition; i++) {
+                const outcome = sequence[i];
+                timeline.push({
+                    timeline: [chestClickTrial],
+                    timeline_variables: [{
+                        trial_data: {
+                            num: i + 1,
+                            outcome: outcome,
+                            clicks_required: getClicks(condition, outcome),
+                            phase: 'acquisition'
+                        }
+                    }]
+                });
+            }
+
+            // Extinction transition
+            timeline.push({
+                type: jsPsychHtmlButtonResponse,
+                stimulus: function() {
+                    return `
+                        <h2>PHASE 1 COMPLETE!</h2>
+                        <p>You collected <strong>${expData.total_coins}</strong> coins!</p>
+                        <p>Now explore a NEW AREA with more chests.</p>
+                        <p style="color: #e74c3c;">You can stop anytime.</p>
+                    `;
+                },
+                choices: ['Continue Hunting'],
+                on_load: function() {
+                    endPhase('acquisition');
+                    saveSnapshot('after_acquisition');
+                },
+                on_finish: function() { startPhase('extinction'); }
+            });
+
+            // Extinction loop
+            const extinctionTrials = [];
+            for (let i = 0; i < CONFIG.n_extinction_max; i++) {
+                extinctionTrials.push({
+                    trial_data: {
+                        num: i + 1,
+                        outcome: 0,  // All empty
+                        clicks_required: CONFIG.clicks_baseline,
+                        phase: 'extinction'
+                    }
+                });
+            }
+
+            timeline.push({
+                timeline: [chestClickTrial],
+                timeline_variables: extinctionTrials,
+                loop_function: function() {
+                    const lastTrial = expData.extinction_trials[expData.extinction_trials.length - 1];
+                    return !lastTrial?.quit && expData.extinction_trials.length < CONFIG.n_extinction_max;
+                }
+            });
+
+            // Debrief
+            timeline.push({
+                type: jsPsychHtmlButtonResponse,
+                stimulus: function() {
+                    const extCount = expData.extinction_trials.filter(t => t.completed).length;
+                    return `
+                        <h2>THANK YOU!</h2>
+                        <p>You collected <strong>${expData.total_coins}</strong> coins.</p>
+                        <p>You opened <strong>${extCount}</strong> chests in the extended hunt.</p>
+                        <hr style="margin: 20px 0;">
+                        <p><strong>About this study:</strong></p>
+                        <p>We tested two theories about why people persist after rewards stop.</p>
+                        <p>In Phase 2, all chests were empty—we measured how long you kept trying!</p>
+                        <p>Thank you for contributing to science!</p>
+                    `;
+                },
+                choices: ['Finish'],
+                on_load: function() { endPhase('extinction'); }
+            });
+
+            return timeline;
+        }
+
+        // ====================================================================
+        // INITIALIZE EXPERIMENT
+        // ====================================================================
+
+        document.addEventListener('DOMContentLoaded', function() {
+            // Hide loading message
+            document.getElementById('loading-message').style.display = 'none';
+
+            // Get condition from URL or assign randomly
+            const params = new URLSearchParams(window.location.search);
+            let condition = params.get('condition');
+
+            if (!CONFIG.conditions.includes(condition)) {
+                condition = CONFIG.conditions[Math.floor(Math.random() * CONFIG.conditions.length)];
+            }
+
+            expData.condition = condition;
+
+            // Initialize jsPsych
+            jsPsych = initJsPsych({
+                display_element: 'jspsych-target',
+                show_progress_bar: true,
+                on_finish: function() {
+                    expData.end_time = new Date().toISOString();
+                    // Match the schema the R analysis (and PsychoPy implementation) expects.
+                    expData.extinction_chests_opened =
+                        expData.extinction_trials.filter(t => t.completed).length;
+                    expData.extinction_quit_pressed =
+                        expData.extinction_trials.some(t => t.quit);
+                    expData.extinction_completed_all =
+                        expData.extinction_chests_opened >= CONFIG.n_extinction_max;
+
+                    // Final save. Treat non-OK HTTP responses as failures so
+                    // the JSON-download fallback still triggers if the server
+                    // is up but rejects the save (e.g. 4xx/5xx).
+                    fetch('/api/save', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify(expData)
+                    }).then(r => {
+                        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+                    }).catch(err => {
+                        console.warn('Final save failed, downloading locally', err);
+                        const blob = new Blob(
+                            [JSON.stringify(expData, null, 2)],
+                            {type: 'application/json'}
+                        );
+                        const a = document.createElement('a');
+                        a.href = URL.createObjectURL(blob);
+                        a.download = `data_${expData.participant_id}.json`;
+                        a.click();
+                    });
+                }
+            });
+
+            // Run experiment
+            jsPsych.run(buildTimeline(condition));
+        });
+    </script>
+</body>
+</html>

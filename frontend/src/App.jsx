@@ -25,6 +25,8 @@ const AccessRevoked = lazy(() => import('./pages/AccessRevoked'))
 const NotFound = lazy(() => import('./pages/NotFound'))
 const BookClub = lazy(() => import('./pages/BookClub'))
 const VVC = lazy(() => import('./pages/VVC'))
+const Study = lazy(() => import('./pages/Study'))
+const ResearchStudies = lazy(() => import('./pages/admin/ResearchStudies'))
 
 // Jared's public site components
 import PublicLayout from './components/public/layout/PublicLayout'
@@ -124,6 +126,9 @@ function App() {
             <Route path="/apply" element={<Apply />} />
             <Route path="/access-revoked" element={<AccessRevoked />} />
 
+            {/* Public participant-facing research study (effort-justification games) */}
+            <Route path="/study" element={<Study />} />
+
             {/* Protected Routes - Joe's app */}
             <Route
               path="/dashboard"
@@ -143,6 +148,7 @@ function App() {
               <Route path="book-club" element={<BookClub />} />
               <Route path="vvc" element={<VVC />} />
               <Route path="admin" element={<AdminRoute><Admin /></AdminRoute>} />
+              <Route path="admin/research-studies" element={<AdminRoute><ResearchStudies /></AdminRoute>} />
             </Route>
 
             {/* Redirect old root to dashboard for logged-in users - optional fallback */}
