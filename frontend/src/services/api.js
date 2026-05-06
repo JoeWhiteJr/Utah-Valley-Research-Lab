@@ -525,4 +525,17 @@ export const resourcesApi = {
   deleteFile: (filename) => api.delete(`/lab-dashboard/resources/file/${filename}`),
 }
 
+// Research study (effort-justification games at /study)
+export const studyApi = {
+  start: () => api.post('/study/start'),
+  consent: (participant_code, demographics) =>
+    api.post('/study/consent', { participant_code, demographics }),
+  save: (participant_code, payload) =>
+    api.post('/study/save', { participant_code, payload }),
+  snapshot: (participant_code, payload) =>
+    api.post('/study/snapshot', { participant_code, payload }),
+  stats: () => api.get('/study/stats'),
+  exportUrl: (experiment) => `${API_URL}/study/export/${experiment}`,
+}
+
 export default api

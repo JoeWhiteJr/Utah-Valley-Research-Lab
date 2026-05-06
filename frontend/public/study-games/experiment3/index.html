@@ -1,0 +1,913 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pattern Memory Challenge</title>
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            margin: 0; padding: 0;
+            background: #1a1a2e;
+            color: #eaeaea;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+            font-size: 16px;
+            line-height: 1.6;
+        }
+        #app {
+            max-width: 720px;
+            margin: 30px auto;
+            background: #16213e;
+            border-radius: 10px;
+            padding: 30px 40px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+            min-height: 480px;
+        }
+        h1, h2 { color: #f1c40f; margin-top: 0; }
+        h1 { font-size: 28px; }
+        h2 { font-size: 22px; }
+        button {
+            background: #27ae60;
+            color: white;
+            border: none;
+            padding: 14px 28px;
+            font-size: 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            margin-top: 12px;
+            transition: background 0.15s;
+        }
+        button:hover:not(:disabled) { background: #229954; }
+        button:disabled { background: #555; cursor: not-allowed; }
+        button.bet-blank { background: #7f8c8d; }
+        button.bet-blank:hover:not(:disabled) { background: #95a5a6; }
+        button.bet-ace { background: #e74c3c; }
+        button.bet-ace:hover:not(:disabled) { background: #c0392b; }
+        button.bet-skip { background: #34495e; }
+        button.bet-skip:hover:not(:disabled) { background: #4d6275; }
+
+        .card {
+            display: inline-block;
+            width: 160px;
+            height: 220px;
+            border-radius: 12px;
+            background: white;
+            margin: 30px auto;
+            text-align: center;
+            font-weight: 700;
+            box-shadow: 0 6px 16px rgba(0,0,0,0.4);
+            position: relative;
+        }
+        .card.ace { border: 4px solid #e74c3c; color: #e74c3c; }
+        .card.blank {
+            background: #7f8c8d;
+            color: white;
+            border: 4px solid #5d6d7e;
+        }
+        .card .label {
+            font-size: 28px;
+            margin-top: 30px;
+            letter-spacing: 2px;
+        }
+        .card .heart {
+            font-size: 80px;
+            color: #e74c3c;
+            margin-top: 12px;
+        }
+        .card.blank .label { margin-top: 90px; }
+        .card-area {
+            text-align: center;
+            min-height: 280px;
+        }
+        .counter {
+            text-align: center;
+            color: #95a5a6;
+            margin-top: 20px;
+            font-size: 14px;
+        }
+        .points-display {
+            text-align: right;
+            color: #f1c40f;
+            font-size: 18px;
+            font-weight: 600;
+        }
+        .trial-display {
+            color: #95a5a6;
+            font-size: 14px;
+        }
+        .game-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        .bet-buttons {
+            display: flex;
+            gap: 12px;
+            justify-content: center;
+            margin-top: 20px;
+        }
+        .bet-buttons button { flex: 1; max-width: 180px; }
+        .feedback {
+            text-align: center;
+            font-size: 24px;
+            font-weight: 700;
+            margin-top: 16px;
+            min-height: 36px;
+        }
+        .feedback.win { color: #27ae60; }
+        .feedback.loss { color: #e74c3c; }
+        .feedback.skip { color: #95a5a6; }
+        textarea, input[type="text"], input[type="number"] {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid #7f8c8d;
+            border-radius: 4px;
+            background: #eaeaea;
+            color: #1a1a2e;
+            font-size: 16px;
+            font-family: inherit;
+        }
+        textarea { min-height: 100px; resize: vertical; }
+        .timer-big {
+            text-align: center;
+            font-size: 40px;
+            font-weight: 700;
+            color: #f1c40f;
+            margin: 12px 0;
+        }
+        .digit-display {
+            font-size: 60px;
+            text-align: center;
+            font-family: ui-monospace, monospace;
+            letter-spacing: 14px;
+            color: #f1c40f;
+            margin: 60px 0;
+            font-weight: 700;
+        }
+        .question {
+            margin: 20px 0;
+            padding: 16px;
+            background: #0f1626;
+            border-radius: 6px;
+        }
+        .question label.q-text {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 12px;
+        }
+        .likert {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        .likert .scale-label {
+            flex: 1 1 100px;
+            font-size: 13px;
+            color: #95a5a6;
+        }
+        .likert .scale-label.right { text-align: right; }
+        .likert .options { display: flex; gap: 8px; }
+        .likert .options label {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            cursor: pointer;
+            font-size: 14px;
+            color: #bdc3c7;
+        }
+        .likert input[type="radio"] {
+            margin: 0 0 4px;
+            transform: scale(1.3);
+            cursor: pointer;
+        }
+        .radio-list label {
+            display: block;
+            padding: 10px 14px;
+            margin: 6px 0;
+            background: #34495e;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .radio-list label:hover { background: #3d566e; }
+        .radio-list input[type="radio"] { margin-right: 10px; transform: scale(1.2); }
+        .slider-row {
+            display: flex; justify-content: space-between;
+            font-size: 13px; color: #95a5a6;
+        }
+        input[type="range"] { width: 100%; accent-color: #3498db; }
+        .slider-value {
+            text-align: center; font-size: 22px;
+            color: #3498db; font-weight: 600;
+            margin-top: 4px;
+        }
+        .progress {
+            background: #0f1626;
+            border-radius: 4px;
+            height: 8px;
+            overflow: hidden;
+            margin-bottom: 20px;
+        }
+        .progress-bar {
+            height: 100%;
+            background: #3498db;
+            transition: width 0.3s;
+        }
+    </style>
+</head>
+<body>
+    <div id="app"></div>
+
+    <!-- UVRL study integration shim: only active when ?pid=... is in the URL -->
+    <script>
+    (function () {
+      var params = new URLSearchParams(window.location.search);
+      window.UVRL_STUDY = {
+        pid: params.get('pid') || null,
+        cond: params.get('cond') || null,
+        completed: false
+      };
+      if (!window.UVRL_STUDY.pid) return;
+
+      // pattern_memory reads ?condition=... from URL. Mirror cond -> condition.
+      if (window.UVRL_STUDY.cond && !params.get('condition')) {
+        var newUrl = new URL(window.location.href);
+        newUrl.searchParams.set('condition', window.UVRL_STUDY.cond);
+        window.history.replaceState({}, '', newUrl.toString());
+      }
+
+      var origFetch = window.fetch.bind(window);
+      window.fetch = function (input, init) {
+        var url = typeof input === 'string' ? input : (input && input.url) || '';
+        if (url === '/api/save' && init && init.body) {
+          try {
+            var data = JSON.parse(init.body);
+            var isSnapshot = !!data.last_snapshot;
+            var routedUrl = isSnapshot ? '/api/study/snapshot' : '/api/study/save';
+            var routedBody = JSON.stringify({
+              participant_code: window.UVRL_STUDY.pid,
+              payload: data
+            });
+            var promise = origFetch(routedUrl, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: routedBody
+            });
+            if (!isSnapshot) {
+              promise.then(function (r) {
+                if (r && r.ok && !window.UVRL_STUDY.completed) {
+                  window.UVRL_STUDY.completed = true;
+                  try {
+                    window.parent.postMessage({
+                      type: 'study_complete',
+                      participant_code: window.UVRL_STUDY.pid
+                    }, '*');
+                  } catch (e) { /* ignore */ }
+                }
+              }).catch(function () { /* original handler reports errors */ });
+            }
+            return promise;
+          } catch (e) {
+            console.warn('UVRL study shim: failed to rewrap save', e);
+          }
+        }
+        return origFetch(input, init);
+      };
+    })();
+    </script>
+
+    <script>
+    // =============================================================================
+    // PATTERN MEMORY CHALLENGE — web port of pattern_memory.py
+    // =============================================================================
+
+    const CONFIG = {
+        n_encoding_cards: 20,
+        n_aces: 10,
+        card_display_ms: 2000,
+        ici_ms: 500,
+        distractor_ms: 30000,
+        n_betting_trials: 10,
+        starting_points: 100,
+        bet_amount: 10,
+    };
+
+    function shuffle(arr) {
+        const out = arr.slice();
+        for (let i = out.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [out[i], out[j]] = [out[j], out[i]];
+        }
+        return out;
+    }
+
+    function rid(prefix) {
+        return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+    }
+
+    function generateNRSequence(n) {
+        return Array.from({ length: n }, (_, i) => i % 2 === 0 ? 'BLANK' : 'ACE');
+    }
+
+    function generateRandomSequence(n, nAces) {
+        const arr = Array(nAces).fill('ACE').concat(Array(n - nAces).fill('BLANK'));
+        return shuffle(arr);
+    }
+
+    function getSequenceForCondition(cond) {
+        return cond === 'NR_PATTERN'
+            ? generateNRSequence(CONFIG.n_encoding_cards)
+            : generateRandomSequence(CONFIG.n_encoding_cards, CONFIG.n_aces);
+    }
+
+    // Condition assignment: URL override or random.
+    const params = new URLSearchParams(window.location.search);
+    const CONDITIONS = ['NR_PATTERN', 'RANDOM'];
+    let condition = params.get('condition');
+    if (!CONDITIONS.includes(condition)) {
+        condition = CONDITIONS[Math.floor(Math.random() * CONDITIONS.length)];
+    }
+
+    const cardSequence = getSequenceForCondition(condition);
+
+    const state = {
+        experiment: 'pattern_memory',
+        participant_id: rid('PA'),
+        condition: condition,
+        start_time: new Date().toISOString(),
+        card_sequence: cardSequence,
+        encoding: {},
+        distractor: {},
+        memory_test: {},
+        expectation: {},
+        betting: {},
+        mechanism: {},
+        working_memory: {},
+        attention_checks: {},
+    };
+
+    function saveSnapshot(label) {
+        try {
+            fetch('/api/save', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    ...state,
+                    last_snapshot: label,
+                    last_snapshot_time: new Date().toISOString(),
+                }),
+            }).catch(e => console.warn('snapshot failed', e));
+        } catch (e) { console.warn('snapshot threw', e); }
+    }
+
+    // =============================================================================
+    // RENDER
+    // =============================================================================
+
+    const app = document.getElementById('app');
+
+    function render(html, totalSteps, currentStep) {
+        const progress = totalSteps != null
+            ? `<div class="progress"><div class="progress-bar" style="width:${Math.round(currentStep / totalSteps * 100)}%"></div></div>`
+            : '';
+        app.innerHTML = progress + html;
+        window.scrollTo({ top: 0, behavior: 'instant' });
+    }
+
+    function cardHTML(type) {
+        if (type === 'ACE') {
+            return `<div class="card ace"><div class="label">ACE</div><div class="heart">♥</div></div>`;
+        }
+        return `<div class="card blank"><div class="label">BLANK</div></div>`;
+    }
+
+    function likertHTML(name, lo, hi, n = 7) {
+        let opts = '';
+        for (let i = 1; i <= n; i++) {
+            opts += `<label><input type="radio" name="${name}" value="${i}" required>${i}</label>`;
+        }
+        return `<div class="likert">
+            <div class="scale-label">${lo}</div>
+            <div class="options">${opts}</div>
+            <div class="scale-label right">${hi}</div>
+        </div>`;
+    }
+
+    function radioListHTML(name, options) {
+        return `<div class="radio-list">${
+            options.map(o => `<label><input type="radio" name="${name}" value="${o.value}" required>${o.label}</label>`).join('')
+        }</div>`;
+    }
+
+    function readForm(form) {
+        const fd = new FormData(form);
+        const data = {};
+        for (const [k, v] of fd.entries()) data[k] = v;
+        return data;
+    }
+
+    // =============================================================================
+    // PHASES
+    // =============================================================================
+
+    const TOTAL_PHASES = 10;
+    let phaseIdx = 0;
+
+    function phaseStep() { phaseIdx++; }
+
+    function showWelcome() {
+        render(`
+            <h1>Pattern Memory Challenge</h1>
+            <p>This study has several short phases:</p>
+            <ol>
+                <li>Watch a sequence of cards (40 seconds)</li>
+                <li>Complete a quick distraction task (30 seconds)</li>
+                <li>Answer memory questions</li>
+                <li>Make predictions and place bets</li>
+                <li>Brief follow-up questions</li>
+            </ol>
+            <p style="color:#95a5a6;">Total time: about 10 minutes.</p>
+            <button id="btn-start">Begin</button>
+        `, TOTAL_PHASES, 0);
+        document.getElementById('btn-start').addEventListener('click', runEncoding);
+    }
+
+    function runEncoding() {
+        phaseStep();
+        render(`
+            <h2>Card Sequence</h2>
+            <p>You will see <strong>${CONFIG.n_encoding_cards} cards</strong>, one at a time.
+            Each card shows for 2 seconds. Try to remember the sequence.</p>
+            <p>Pay close attention!</p>
+            <button id="btn-go">I'm ready — start</button>
+        `, TOTAL_PHASES, phaseIdx);
+        document.getElementById('btn-go').addEventListener('click', () => playSequence(0, []));
+    }
+
+    function playSequence(i, log) {
+        if (i >= cardSequence.length) {
+            state.encoding = { sequence: cardSequence, trial_data: log };
+            saveSnapshot('encoding');
+            return runDistractor();
+        }
+        const cardType = cardSequence[i];
+        const tStart = performance.now();
+        render(`
+            <div class="card-area">${cardHTML(cardType)}</div>
+            <div class="counter">Card ${i + 1} / ${cardSequence.length}</div>
+        `, TOTAL_PHASES, phaseIdx);
+        setTimeout(() => {
+            log.push({
+                position: i + 1,
+                card_type: cardType,
+                display_time_ms: Math.round(performance.now() - tStart),
+            });
+            // Inter-card interval: blank screen
+            render(`<div class="card-area"></div><div class="counter">Card ${i + 1} / ${cardSequence.length}</div>`, TOTAL_PHASES, phaseIdx);
+            setTimeout(() => playSequence(i + 1, log), CONFIG.ici_ms);
+        }, CONFIG.card_display_ms);
+    }
+
+    function runDistractor() {
+        phaseStep();
+        render(`
+            <h2>Quick Task</h2>
+            <p>Type as many <strong>animals</strong> as you can in 30 seconds.
+            Separate them with commas.</p>
+            <p style="color:#95a5a6;">Examples: cat, dog, elephant...</p>
+            <button id="btn-go">Start</button>
+        `, TOTAL_PHASES, phaseIdx);
+        document.getElementById('btn-go').addEventListener('click', () => {
+            const start = performance.now();
+            render(`
+                <h2>Quick Task</h2>
+                <div class="timer-big" id="timer">30</div>
+                <textarea id="animals" placeholder="cat, dog, elephant, ..." autofocus></textarea>
+            `, TOTAL_PHASES, phaseIdx);
+            const ta = document.getElementById('animals');
+            ta.focus();
+            const tEl = document.getElementById('timer');
+            const tick = setInterval(() => {
+                const elapsed = performance.now() - start;
+                const remaining = Math.max(0, Math.ceil((CONFIG.distractor_ms - elapsed) / 1000));
+                tEl.textContent = remaining;
+                if (elapsed >= CONFIG.distractor_ms) {
+                    clearInterval(tick);
+                    finishDistractor(ta.value, performance.now() - start);
+                }
+            }, 100);
+        });
+    }
+
+    function finishDistractor(text, durationMs) {
+        const list = text.split(',').map(s => s.trim()).filter(Boolean);
+        state.distractor = {
+            raw_text: text,
+            animals_list: list,
+            n_animals: list.length,
+            duration_ms: Math.round(durationMs),
+        };
+        saveSnapshot('distractor');
+        runRecognition();
+    }
+
+    function runRecognition() {
+        phaseStep();
+        const correct = condition === 'NR_PATTERN' ? 'A' : 'B';
+        const options = [
+            { value: 'A', label: 'A) ❌✓❌✓❌✓❌✓ — alternating Blank/Ace' },
+            { value: 'B', label: 'B) ✓❌❌✓✓❌✓❌ — random mix' },
+            { value: 'C', label: 'C) ❌❌❌❌✓✓✓✓ — blanks first, then aces' },
+            { value: 'D', label: 'D) ✓✓✓✓❌❌❌❌ — aces first, then blanks' },
+        ];
+        render(`
+            <h2>Memory Test</h2>
+            <p>Which sequence did you see? Pick the one that looks most familiar.</p>
+            <form id="rec-form">${radioListHTML('recognition_choice', options)}</form>
+            <button id="btn-cont">Continue</button>
+        `, TOTAL_PHASES, phaseIdx);
+        document.getElementById('btn-cont').addEventListener('click', (e) => {
+            e.preventDefault();
+            const form = document.getElementById('rec-form');
+            if (!form.reportValidity()) return;
+            const data = readForm(form);
+            state.memory_test.recognition_choice = data.recognition_choice;
+            state.memory_test.recognition_correct = data.recognition_choice === correct;
+            runPatternDetection();
+        });
+    }
+
+    function runPatternDetection() {
+        const correctPattern = condition === 'NR_PATTERN' ? 'alternating' : 'none';
+        render(`
+            <h2>Pattern Question</h2>
+            <p>Was there a pattern in the card sequence?</p>
+            <form id="pat-form">${radioListHTML('pattern_choice', [
+                { value: 'none', label: 'No pattern — totally random' },
+                { value: 'alternating', label: 'Yes — cards alternated (Blank, Ace, Blank, Ace)' },
+                { value: 'blanks_first', label: 'Yes — Blanks came first, then Aces' },
+                { value: 'aces_first', label: 'Yes — Aces came first, then Blanks' },
+                { value: 'unsure', label: "I'm not sure / didn't notice" },
+            ])}</form>
+            <button id="btn-cont">Continue</button>
+        `, TOTAL_PHASES, phaseIdx);
+        document.getElementById('btn-cont').addEventListener('click', (e) => {
+            e.preventDefault();
+            const form = document.getElementById('pat-form');
+            if (!form.reportValidity()) return;
+            const data = readForm(form);
+            state.memory_test.pattern_choice = data.pattern_choice;
+            state.memory_test.pattern_detected = data.pattern_choice === 'alternating';
+            state.memory_test.pattern_correct = data.pattern_choice === correctPattern;
+            saveSnapshot('memory_test');
+            runExpectation();
+        });
+    }
+
+    function runExpectation() {
+        phaseStep();
+        const tStart = performance.now();
+        render(`
+            <h2>Prediction</h2>
+            <p>Imagine you just saw this card. What do you think comes <strong>next</strong>?</p>
+            <div class="card-area">${cardHTML('BLANK')}</div>
+            <form id="exp-form">
+                <div class="question">
+                    <label class="q-text">The next card is most likely to be:</label>
+                    <input type="range" name="rating" id="rating-slider" min="1" max="7" step="1" value="4"
+                           oninput="document.getElementById('rating-v').textContent=this.value">
+                    <div class="slider-row">
+                        <span>1 — Definitely BLANK</span>
+                        <span>7 — Definitely ACE</span>
+                    </div>
+                    <div class="slider-value" id="rating-v">4</div>
+                </div>
+            </form>
+            <button id="btn-cont">Continue</button>
+        `, TOTAL_PHASES, phaseIdx);
+        document.getElementById('btn-cont').addEventListener('click', (e) => {
+            e.preventDefault();
+            const rating = parseInt(document.getElementById('rating-slider').value, 10);
+            state.expectation = {
+                rating,
+                rating_time_ms: Math.round(performance.now() - tStart),
+            };
+            saveSnapshot('expectation');
+            runBettingIntro();
+        });
+    }
+
+    // =============================================================================
+    // BETTING GAME
+    // =============================================================================
+
+    function buildBettingSequence() {
+        const out = [];
+        for (let i = 0; i < CONFIG.n_betting_trials; i++) {
+            let current, next;
+            if (i < 5 && condition === 'NR_PATTERN') {
+                current = i % 2 === 0 ? 'BLANK' : 'ACE';
+                next = current === 'BLANK' ? 'ACE' : 'BLANK';
+            } else {
+                current = Math.random() < 0.5 ? 'BLANK' : 'ACE';
+                next = Math.random() < 0.5 ? 'BLANK' : 'ACE';
+            }
+            out.push({ current, next });
+        }
+        return out;
+    }
+
+    function runBettingIntro() {
+        phaseStep();
+        render(`
+            <h2>Betting Game</h2>
+            <p>You'll play <strong>${CONFIG.n_betting_trials} rounds</strong>. Each round:</p>
+            <ol>
+                <li>You see a card (BLANK or ACE).</li>
+                <li>Bet <strong>${CONFIG.bet_amount} points</strong> on what comes next, or skip.</li>
+                <li>Earn ${CONFIG.bet_amount} if right, lose ${CONFIG.bet_amount} if wrong.</li>
+            </ol>
+            <p>Starting points: <strong>${CONFIG.starting_points}</strong>. Try to maximize your points.</p>
+            <button id="btn-go">Start Game</button>
+        `, TOTAL_PHASES, phaseIdx);
+        const seq = buildBettingSequence();
+        document.getElementById('btn-go').addEventListener('click', () => runBettingTrial(0, seq, CONFIG.starting_points, []));
+    }
+
+    function runBettingTrial(i, seq, points, trials) {
+        if (i >= seq.length) {
+            state.betting = {
+                trials,
+                summary: bettingSummary(trials, points),
+                sequence: seq,
+            };
+            saveSnapshot('betting');
+            return runMechanism();
+        }
+        const { current, next } = seq[i];
+        const tStart = performance.now();
+        render(`
+            <div class="game-header">
+                <div class="trial-display">Round ${i + 1} / ${seq.length}</div>
+                <div class="points-display">Points: ${points}</div>
+            </div>
+            <p style="text-align:center; font-size:18px;">What comes <strong>NEXT</strong>?</p>
+            <div class="card-area">${cardHTML(current)}</div>
+            <div class="bet-buttons">
+                <button class="bet-blank" id="bet-BLANK">Bet BLANK</button>
+                <button class="bet-ace" id="bet-ACE">Bet ACE</button>
+                <button class="bet-skip" id="bet-SKIP">SKIP</button>
+            </div>
+            <div class="feedback" id="feedback"></div>
+        `, TOTAL_PHASES, phaseIdx);
+
+        const handleChoice = (choice) => {
+            ['BLANK', 'ACE', 'SKIP'].forEach(c => {
+                const b = document.getElementById('bet-' + c);
+                if (b) b.disabled = true;
+            });
+            const rt = (performance.now() - tStart) / 1000;
+            let pointsChange = 0;
+            let wasCorrect = null;
+            const fb = document.getElementById('feedback');
+            if (choice === 'SKIP') {
+                fb.className = 'feedback skip';
+                fb.textContent = 'Skipped — no change';
+            } else {
+                wasCorrect = (choice === next);
+                pointsChange = wasCorrect ? CONFIG.bet_amount : -CONFIG.bet_amount;
+                fb.className = 'feedback ' + (wasCorrect ? 'win' : 'loss');
+                fb.textContent = wasCorrect ? `+${pointsChange} points!` : `${pointsChange} points`;
+            }
+            const newPoints = points + pointsChange;
+            trials.push({
+                trial_num: i + 1,
+                current_card: current,
+                bet_choice: choice,
+                actual_next: next,
+                points_change: pointsChange,
+                response_time: rt,
+                was_correct: wasCorrect,
+            });
+            setTimeout(() => runBettingTrial(i + 1, seq, newPoints, trials), 1000);
+        };
+
+        document.getElementById('bet-BLANK').addEventListener('click', () => handleChoice('BLANK'));
+        document.getElementById('bet-ACE').addEventListener('click', () => handleChoice('ACE'));
+        document.getElementById('bet-SKIP').addEventListener('click', () => handleChoice('SKIP'));
+    }
+
+    function bettingSummary(trials, finalPoints) {
+        const blanks = trials.filter(t => t.current_card === 'BLANK');
+        const nonSkip = blanks.filter(t => t.bet_choice !== 'SKIP');
+        const aces = blanks.filter(t => t.bet_choice === 'ACE');
+        const blanksAfterBlank = blanks.filter(t => t.bet_choice === 'BLANK');
+        const skips = blanks.filter(t => t.bet_choice === 'SKIP');
+        return {
+            n_blank_trials: blanks.length,
+            n_bet_ace_after_blank: aces.length,
+            n_bet_blank_after_blank: blanksAfterBlank.length,
+            n_skip_after_blank: skips.length,
+            pct_bet_ace_after_blank: nonSkip.length > 0 ? (aces.length / nonSkip.length) * 100 : null,
+            final_points: finalPoints,
+        };
+    }
+
+    // =============================================================================
+    // MECHANISM, WORKING MEMORY, ATTENTION CHECKS, DEBRIEF
+    // =============================================================================
+
+    function runMechanism() {
+        phaseStep();
+        const items = [
+            ['confidence',         'How confident are you in your memory of the sequence?'],
+            ['predictability',     'How predictable were the cards?'],
+            ['could_predict',      '"I could predict what card would come next"'],
+            ['expect_after_blank', '"After seeing a BLANK card, I expected an ACE next"'],
+            ['pattern_clear',      '"The cards followed a clear pattern"'],
+            ['used_pattern',       '"In the betting game, I used the pattern I noticed earlier"'],
+            ['task_difficult',     '"Remembering the cards was difficult"'],
+            ['worked_hard',        '"I had to work hard to remember the sequence"'],
+            ['frustrating',        '"The memory task was frustrating"'],
+        ];
+        render(`
+            <h2>Your Thoughts</h2>
+            <p>Rate your agreement with each statement.</p>
+            <form id="mech-form">
+                ${items.map(([id, t]) => `
+                    <div class="question">
+                        <label class="q-text">${t}</label>
+                        ${likertHTML(id, 'Strongly Disagree', 'Strongly Agree')}
+                    </div>
+                `).join('')}
+            </form>
+            <button id="btn-cont">Continue</button>
+        `, TOTAL_PHASES, phaseIdx);
+        document.getElementById('btn-cont').addEventListener('click', (e) => {
+            e.preventDefault();
+            const form = document.getElementById('mech-form');
+            if (!form.reportValidity()) return;
+            state.mechanism = readForm(form);
+            saveSnapshot('mechanism');
+            runWorkingMemory();
+        });
+    }
+
+    function runWorkingMemory() {
+        phaseStep();
+        render(`
+            <h2>Memory Test</h2>
+            <p>You'll see 5 digits for 3 seconds. Type them <strong>BACKWARDS</strong>.</p>
+            <p style="color:#95a5a6;">Example: if you see <code>1 — 2 — 3</code>, type <code>321</code>.</p>
+            <button id="btn-go">Show digits</button>
+        `, TOTAL_PHASES, phaseIdx);
+        document.getElementById('btn-go').addEventListener('click', () => {
+            const digits = Array.from({ length: 5 }, () => 1 + Math.floor(Math.random() * 9));
+            render(`
+                <div class="digit-display">${digits.join(' — ')}</div>
+                <div class="counter" id="cd">3</div>
+            `, TOTAL_PHASES, phaseIdx);
+            let n = 3;
+            const tick = setInterval(() => {
+                n -= 1;
+                if (n <= 0) {
+                    clearInterval(tick);
+                    runWorkingMemoryRecall(digits);
+                } else {
+                    document.getElementById('cd').textContent = n;
+                }
+            }, 1000);
+        });
+    }
+
+    function runWorkingMemoryRecall(digits) {
+        render(`
+            <h2>Memory Test</h2>
+            <p>Type the digits in <strong>reverse</strong> order (numbers only):</p>
+            <form id="wm-form">
+                <input type="text" name="response" pattern="[0-9]+" inputmode="numeric" autofocus required>
+            </form>
+            <button id="btn-cont">Continue</button>
+        `, TOTAL_PHASES, phaseIdx);
+        document.getElementById('btn-cont').addEventListener('click', (e) => {
+            e.preventDefault();
+            const form = document.getElementById('wm-form');
+            if (!form.reportValidity()) return;
+            const resp = (readForm(form).response || '').replace(/\D/g, '');
+            const correctBackward = digits.slice().reverse().join('');
+            let score = 0;
+            for (let i = 0; i < correctBackward.length; i++) {
+                if (resp[i] === correctBackward[i]) score++;
+            }
+            state.working_memory = {
+                sequence: digits,
+                correct_answer: correctBackward,
+                response: resp,
+                score,
+                max_score: digits.length,
+            };
+            saveSnapshot('working_memory');
+            runAttentionChecks();
+        });
+    }
+
+    function runAttentionChecks() {
+        phaseStep();
+        render(`
+            <h2>Quick Comprehension</h2>
+            <form id="ac-form">
+                <div class="question">
+                    <label class="q-text">How many total cards did you see in the memory task?</label>
+                    ${radioListHTML('n_cards', [
+                        { value: '10 cards', label: '10 cards' },
+                        { value: '15 cards', label: '15 cards' },
+                        { value: '20 cards', label: '20 cards' },
+                        { value: '25 cards', label: '25 cards' },
+                    ])}
+                </div>
+                <div class="question">
+                    <label class="q-text">What were the two types of cards?</label>
+                    ${radioListHTML('card_types', [
+                        { value: 'Red and Black', label: 'Red and Black' },
+                        { value: 'Hearts and Spades', label: 'Hearts and Spades' },
+                        { value: 'Ace and Blank', label: 'Ace and Blank' },
+                        { value: 'King and Queen', label: 'King and Queen' },
+                    ])}
+                </div>
+                <div class="question">
+                    <label class="q-text">In the betting game, what happened when you bet correctly?</label>
+                    ${radioListHTML('betting_outcome', [
+                        { value: 'Lost points', label: 'Lost points' },
+                        { value: 'Gained points', label: 'Gained points' },
+                        { value: 'Stayed the same', label: 'Stayed the same' },
+                        { value: 'There was no betting game', label: 'There was no betting game' },
+                    ])}
+                </div>
+            </form>
+            <button id="btn-cont">Continue</button>
+        `, TOTAL_PHASES, phaseIdx);
+        document.getElementById('btn-cont').addEventListener('click', (e) => {
+            e.preventDefault();
+            const form = document.getElementById('ac-form');
+            if (!form.reportValidity()) return;
+            const data = readForm(form);
+            state.attention_checks = {
+                ...data,
+                n_cards_correct: data.n_cards === '20 cards',
+                card_types_correct: data.card_types === 'Ace and Blank',
+                betting_correct: data.betting_outcome === 'Gained points',
+            };
+            saveSnapshot('attention_checks');
+            runDebrief();
+        });
+    }
+
+    async function sha1Hex(str) {
+        const buf = new TextEncoder().encode(str);
+        const hash = await crypto.subtle.digest('SHA-1', buf);
+        return Array.from(new Uint8Array(hash)).map(b => b.toString(16).padStart(2, '0')).join('');
+    }
+
+    async function runDebrief() {
+        phaseStep();
+        const code = (await sha1Hex(state.participant_id + new Date().toISOString())).slice(0, 8).toUpperCase();
+        state.completion_code = code;
+        state.end_time = new Date().toISOString();
+
+        render(`
+            <h2>Study Complete!</h2>
+            <p>Thank you for participating.</p>
+            <p><strong>About this study:</strong> we tested whether learning card sequences creates expectations.</p>
+            <p>You saw a ${condition === 'NR_PATTERN' ? '<strong>patterned (BLANK→ACE→BLANK→ACE)</strong>' : '<strong>random</strong>'} sequence.</p>
+            <p>According to Capaldi's Sequential Theory (1967), learning patterns like
+            "BLANK → ACE" creates expectations that persist even when the pattern stops.
+            Your data helps us test this theory.</p>
+            <p>Your completion code: <code style="background:#0f1626;padding:4px 8px;border-radius:4px;color:#f1c40f;">${code}</code></p>
+            <div id="save-status" style="color:#95a5a6;margin-top:20px;">Saving final data...</div>
+        `, TOTAL_PHASES, TOTAL_PHASES);
+
+        try {
+            const r = await fetch('/api/save', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(state),
+            });
+            if (!r.ok) throw new Error('HTTP ' + r.status);
+            document.getElementById('save-status').textContent = 'Data saved. Thank you!';
+        } catch (err) {
+            document.getElementById('save-status').textContent = 'Save failed — downloading backup.';
+            const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = `${state.participant_id}.json`;
+            a.click();
+        }
+    }
+
+    // Kick off
+    showWelcome();
+    </script>
+</body>
+</html>

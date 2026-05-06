@@ -1,0 +1,847 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Career Choice Study</title>
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            margin: 0; padding: 0;
+            background: #2c3e50;
+            color: #ecf0f1;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+            font-size: 16px;
+            line-height: 1.6;
+        }
+        #app {
+            max-width: 760px;
+            margin: 30px auto;
+            background: #34495e;
+            border-radius: 10px;
+            padding: 30px 40px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+        }
+        h1, h2, h3 { color: #f1c40f; margin-top: 0; }
+        h1 { font-size: 28px; }
+        h2 { font-size: 22px; }
+        .scenario-block {
+            background: #2c3e50;
+            border-left: 4px solid #3498db;
+            padding: 18px 24px;
+            margin: 20px 0;
+            border-radius: 4px;
+            white-space: pre-wrap;
+            font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+        .question {
+            margin: 24px 0;
+            padding: 16px;
+            background: #2c3e50;
+            border-radius: 6px;
+        }
+        .question label.q-text {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 12px;
+            color: #ecf0f1;
+            white-space: pre-wrap;
+        }
+        .likert {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        .likert .scale-label {
+            flex: 1 1 100px;
+            font-size: 13px;
+            color: #95a5a6;
+        }
+        .likert .scale-label.right { text-align: right; }
+        .likert .options {
+            display: flex;
+            gap: 8px;
+            flex: 0 0 auto;
+        }
+        .likert .options label {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            cursor: pointer;
+            font-size: 14px;
+            color: #bdc3c7;
+        }
+        .likert .options input[type="radio"] {
+            margin: 0 0 4px;
+            cursor: pointer;
+            transform: scale(1.3);
+        }
+        input[type="range"] {
+            width: 100%;
+            margin: 8px 0;
+            accent-color: #3498db;
+        }
+        .slider-row {
+            display: flex;
+            justify-content: space-between;
+            font-size: 13px;
+            color: #95a5a6;
+        }
+        .slider-value {
+            text-align: center;
+            font-size: 18px;
+            color: #3498db;
+            font-weight: 600;
+            margin-top: 4px;
+        }
+        input[type="text"], input[type="number"] {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid #7f8c8d;
+            border-radius: 4px;
+            background: #ecf0f1;
+            color: #2c3e50;
+            font-size: 16px;
+        }
+        .radio-list label {
+            display: block;
+            padding: 10px 14px;
+            margin: 6px 0;
+            background: #34495e;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background 0.15s;
+        }
+        .radio-list label:hover { background: #3d566e; }
+        .radio-list input[type="radio"] {
+            margin-right: 10px;
+            transform: scale(1.2);
+        }
+        button {
+            background: #27ae60;
+            color: white;
+            border: none;
+            padding: 14px 28px;
+            font-size: 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: background 0.15s;
+            margin-top: 12px;
+        }
+        button:hover { background: #229954; }
+        button:disabled {
+            background: #7f8c8d;
+            cursor: not-allowed;
+        }
+        .progress {
+            background: #2c3e50;
+            border-radius: 4px;
+            height: 8px;
+            overflow: hidden;
+            margin-bottom: 20px;
+        }
+        .progress-bar {
+            height: 100%;
+            background: #3498db;
+            transition: width 0.3s;
+        }
+        .ranking-list { list-style: none; padding: 0; }
+        .ranking-list li {
+            padding: 12px 16px;
+            margin: 6px 0;
+            background: #34495e;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .ranking-list select {
+            padding: 6px 10px;
+            border-radius: 4px;
+            border: 1px solid #7f8c8d;
+            background: #ecf0f1;
+            color: #2c3e50;
+            font-size: 14px;
+        }
+        .digit-display {
+            font-size: 60px;
+            text-align: center;
+            font-family: ui-monospace, monospace;
+            letter-spacing: 14px;
+            color: #f1c40f;
+            margin: 60px 0;
+            font-weight: 700;
+        }
+        .countdown {
+            text-align: center;
+            font-size: 18px;
+            color: #95a5a6;
+        }
+        .err {
+            color: #e74c3c;
+            font-size: 14px;
+            margin-top: 8px;
+        }
+    </style>
+</head>
+<body>
+    <div id="app"></div>
+
+    <!-- UVRL study integration shim: only active when ?pid=... is in the URL -->
+    <script>
+    (function () {
+      var params = new URLSearchParams(window.location.search);
+      window.UVRL_STUDY = {
+        pid: params.get('pid') || null,
+        cond: params.get('cond') || null,
+        completed: false
+      };
+      if (!window.UVRL_STUDY.pid) return;
+
+      var origFetch = window.fetch.bind(window);
+      window.fetch = function (input, init) {
+        var url = typeof input === 'string' ? input : (input && input.url) || '';
+        if (url === '/api/save' && init && init.body) {
+          try {
+            var data = JSON.parse(init.body);
+            var isSnapshot = !!data.last_snapshot;
+            var routedUrl = isSnapshot ? '/api/study/snapshot' : '/api/study/save';
+            var routedBody = JSON.stringify({
+              participant_code: window.UVRL_STUDY.pid,
+              payload: data
+            });
+            var promise = origFetch(routedUrl, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: routedBody
+            });
+            if (!isSnapshot) {
+              promise.then(function (r) {
+                if (r && r.ok && !window.UVRL_STUDY.completed) {
+                  window.UVRL_STUDY.completed = true;
+                  try {
+                    window.parent.postMessage({
+                      type: 'study_complete',
+                      participant_code: window.UVRL_STUDY.pid
+                    }, '*');
+                  } catch (e) { /* ignore */ }
+                }
+              }).catch(function () { /* original handler reports errors */ });
+            }
+            return promise;
+          } catch (e) {
+            console.warn('UVRL study shim: failed to rewrap save', e);
+          }
+        }
+        return origFetch(input, init);
+      };
+    })();
+    </script>
+
+    <script>
+    // =============================================================================
+    // CAREER CHOICE STUDY — web port of career_survey.py
+    // =============================================================================
+
+    const COMPANIES = {
+        A: {
+            id: 'A', name: 'TechFlow', recognition_type: 'CONSISTENT',
+            description: `COMPANY A: TechFlow
+
+SALARY: $70,000/year
+
+RECOGNITION PROGRAM: "Monthly Spotlight"
+- Given EVERY MONTH (12 times per year)
+- You receive a spotlight at the monthly all-hands meeting
+- Your work is highlighted to the whole company
+- No extra work required
+
+PATTERN:
+Month 1: ⭐ Spotlight
+Month 2: ⭐ Spotlight
+Month 3: ⭐ Spotlight
+Month 4: ⭐ Spotlight
+...continues every month...
+
+After 1 year, the recognition program is discontinued (budget cuts).
+Everything else about the job stays the same.`
+        },
+        B: {
+            id: 'B', name: 'InnovateX', recognition_type: 'EARNED',
+            description: `COMPANY B: InnovateX
+
+SALARY: $70,000/year
+
+RECOGNITION PROGRAM: "Spotlight Award"
+- Given EVERY MONTH (12 times per year)
+- To earn each spotlight, you must complete a "Sprint Portfolio":
+  → Write summary of your work
+  → Present to your team
+  → Get 2 peer reviews
+- Takes about 4 hours of work per spotlight
+- You consistently earn the spotlight (you put in the work!)
+
+PATTERN:
+Month 1: [4 hours work] → ⭐ Spotlight earned
+Month 2: [4 hours work] → ⭐ Spotlight earned
+Month 3: [4 hours work] → ⭐ Spotlight earned
+...continues every month...
+
+After 1 year, the recognition program is discontinued (budget cuts).
+Everything else about the job stays the same.`
+        },
+        C: {
+            id: 'C', name: 'BuildCorp', recognition_type: 'PATTERNED',
+            description: `COMPANY C: BuildCorp
+
+SALARY: $70,000/year
+
+RECOGNITION PROGRAM: "Spotlight Award"
+- Given 12 times per year (same as A and B)
+- No extra work required (given to everyone on schedule)
+
+PATTERN:
+The spotlights follow a specific pattern—they come in an alternating schedule,
+with quiet months in between:
+
+Month 1: — (no spotlight)
+Month 2: ⭐ Spotlight
+Month 3: — (no spotlight)
+Month 4: ⭐ Spotlight
+Month 5: — (no spotlight)
+Month 6: ⭐ Spotlight
+...continues alternating...
+
+So: After a QUIET MONTH, you always get a SPOTLIGHT.
+After a SPOTLIGHT, you always get a QUIET MONTH.
+
+After 1 year, the recognition program is discontinued (budget cuts).
+Everything else about the job stays the same.`
+        },
+    };
+
+    const SALARY_OPTIONS = [0, 2500, 5000, 7500, 10000, 12500, 15000, 20000];
+
+    function shuffle(arr) {
+        const out = arr.slice();
+        for (let i = out.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [out[i], out[j]] = [out[j], out[i]];
+        }
+        return out;
+    }
+
+    function rid(prefix) {
+        return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+    }
+
+    // =============================================================================
+    // STATE
+    // =============================================================================
+
+    const state = {
+        experiment: 'career_choice',
+        participant_id: rid('CA'),
+        condition: 'WITHIN_SUBJECTS',
+        start_time: new Date().toISOString(),
+        scenario_order: shuffle(['A', 'B', 'C']),
+        scenario_responses: { A: {}, B: {}, C: {} },
+        comparative_responses: {},
+        manipulation_checks: {},
+        mechanism_responses: {},
+        individual_differences: {},
+        demographics: {},
+        working_memory: {},
+    };
+
+    // =============================================================================
+    // INCREMENTAL SAVE
+    // =============================================================================
+
+    function saveSnapshot(label) {
+        try {
+            fetch('/api/save', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    ...state,
+                    last_snapshot: label,
+                    last_snapshot_time: new Date().toISOString(),
+                }),
+            }).catch(e => console.warn('snapshot failed', e));
+        } catch (e) { console.warn('snapshot threw', e); }
+    }
+
+    // =============================================================================
+    // RENDER HELPERS
+    // =============================================================================
+
+    const app = document.getElementById('app');
+
+    function render(html, totalSteps, currentStep) {
+        const progress = totalSteps != null
+            ? `<div class="progress"><div class="progress-bar" style="width:${Math.round(currentStep / totalSteps * 100)}%"></div></div>`
+            : '';
+        app.innerHTML = progress + html;
+        window.scrollTo({ top: 0, behavior: 'instant' });
+    }
+
+    function likertHTML(name, lo_label, hi_label, n = 7) {
+        let opts = '';
+        for (let i = 1; i <= n; i++) {
+            opts += `<label><input type="radio" name="${name}" value="${i}" required>${i}</label>`;
+        }
+        return `<div class="likert">
+            <div class="scale-label">${lo_label}</div>
+            <div class="options">${opts}</div>
+            <div class="scale-label right">${hi_label}</div>
+        </div>`;
+    }
+
+    function sliderHTML(name, min, max, step, lo_label, hi_label, unit = '') {
+        const start = Math.round((min + max) / 2);
+        return `<input type="range" name="${name}" min="${min}" max="${max}" step="${step}" value="${start}" oninput="document.getElementById('${name}_v').textContent=this.value+'${unit}'">
+            <div class="slider-row"><span>${lo_label}</span><span>${hi_label}</span></div>
+            <div class="slider-value" id="${name}_v">${start}${unit}</div>`;
+    }
+
+    function radioListHTML(name, options) {
+        // options: [{value, label}]
+        return `<div class="radio-list">${
+            options.map(o => `<label><input type="radio" name="${name}" value="${o.value}" required>${o.label}</label>`).join('')
+        }</div>`;
+    }
+
+    function textHTML(name, type = 'text') {
+        return `<input type="${type}" name="${name}" required>`;
+    }
+
+    function readForm(form) {
+        const data = {};
+        const fd = new FormData(form);
+        for (const [k, v] of fd.entries()) {
+            data[k] = v;
+        }
+        return data;
+    }
+
+    function attachContinue(buttonId, formId, onSubmit) {
+        const btn = document.getElementById(buttonId);
+        const form = document.getElementById(formId);
+        btn.addEventListener('click', (e) => {
+            e.preventDefault();
+            if (form && !form.reportValidity()) return;
+            const data = form ? readForm(form) : {};
+            onSubmit(data);
+        });
+    }
+
+    // =============================================================================
+    // FLOW — each phase calls the next
+    // =============================================================================
+
+    // A flat ordered list of phase fns is convenient for progress display.
+    const phases = [];
+
+    function showWelcome() {
+        render(`
+            <h1>Career Choice Study</h1>
+            <p>Imagine you're graduating and comparing job offers.</p>
+            <p>You'll see 3 startup companies. They are identical except for their <strong>employee recognition program</strong>.</p>
+            <p>For each company, you'll answer questions about:</p>
+            <ul>
+                <li>How attractive is this job?</li>
+                <li>How long would you stay?</li>
+                <li>How much would you value the recognition?</li>
+            </ul>
+            <p>Take your time. There are no right answers — we want your honest preferences.</p>
+            <p style="color:#95a5a6;">This should take about 12 minutes.</p>
+            <button id="btn-start">Begin Survey</button>
+        `, phases.length, 0);
+        document.getElementById('btn-start').addEventListener('click', () => phases[1]());
+    }
+    phases.push(showWelcome);
+
+    // Build a scenario phase for each of the (randomized) scenarios.
+    state.scenario_order.forEach((sid, idx) => {
+        phases.push(() => showScenario(sid, idx));
+    });
+
+    function showScenario(sid, idx) {
+        const c = COMPANIES[sid];
+        const condQ = (sid === 'B')
+            ? `<div class="question">
+                <label class="q-text">How much work did this recognition require?</label>
+                ${likertHTML('work_required_B', 'No work', 'A lot of work')}
+              </div>`
+            : `<div class="question">
+                <label class="q-text">How predictable was the recognition?</label>
+                ${likertHTML('predictability_' + sid, 'Completely unpredictable', 'Completely predictable')}
+              </div>`;
+
+        const salaryOpts = SALARY_OPTIONS.map(v => ({
+            value: v,
+            label: v === 0 ? '$0 — recognition is more important than money' : `$${v.toLocaleString()} extra per year`
+        }));
+
+        render(`
+            <h2>Scenario ${idx + 1} of 3: ${c.name}</h2>
+            <div class="scenario-block">${c.description}</div>
+            <form id="scenario-form">
+                <div class="question">
+                    <label class="q-text">How attractive is this job offer overall?</label>
+                    ${likertHTML('attractiveness', 'Not at all attractive', 'Extremely attractive')}
+                </div>
+                <div class="question">
+                    <label class="q-text">How valuable is this recognition program to you?</label>
+                    ${sliderHTML('value', 0, 100, 1, 'Not at all valuable', 'Extremely valuable')}
+                </div>
+                <div class="question">
+                    <label class="q-text">After the recognition program ends, how many MORE months would you likely stay at this company before looking for other jobs?</label>
+                    ${sliderHTML('tenure', 0, 24, 1, '0 months', '24+ months', ' months')}
+                </div>
+                <div class="question">
+                    <label class="q-text">How much EXTRA salary would you need (per year) to give up this recognition program?</label>
+                    ${radioListHTML('salary_equivalent', salaryOpts)}
+                </div>
+                ${condQ}
+            </form>
+            <button id="btn-cont">Continue</button>
+        `, phases.length, 1 + idx);
+        attachContinue('btn-cont', 'scenario-form', (data) => {
+            state.scenario_responses[sid] = data;
+            saveSnapshot(`scenario_${sid}`);
+            phases[2 + idx]();
+        });
+    }
+
+    function showComparative() {
+        const opts = ['A', 'B', 'C'].map(id => `${id} (${COMPANIES[id].name})`);
+        render(`
+            <h2>Comparative Judgments</h2>
+            <form id="comp-form">
+                <div class="question">
+                    <label class="q-text">Rank the companies from most to least attractive overall.</label>
+                    <ul class="ranking-list">
+                        <li>1st choice
+                            <select name="rank_1" required>
+                                <option value="">Select...</option>
+                                ${opts.map(o => `<option value="${o}">${o}</option>`).join('')}
+                            </select>
+                        </li>
+                        <li>2nd choice
+                            <select name="rank_2" required>
+                                <option value="">Select...</option>
+                                ${opts.map(o => `<option value="${o}">${o}</option>`).join('')}
+                            </select>
+                        </li>
+                        <li>3rd choice
+                            <select name="rank_3" required>
+                                <option value="">Select...</option>
+                                ${opts.map(o => `<option value="${o}">${o}</option>`).join('')}
+                            </select>
+                        </li>
+                    </ul>
+                    <div id="rank-err" class="err"></div>
+                </div>
+                <div class="question">
+                    <label class="q-text">If you HAD to choose one job right now, which would you pick?</label>
+                    ${radioListHTML('forced_choice', opts.map(o => ({ value: o, label: o })))}
+                </div>
+            </form>
+            <button id="btn-cont">Continue</button>
+        `, phases.length, phases.indexOf(showComparative));
+        document.getElementById('btn-cont').addEventListener('click', (e) => {
+            e.preventDefault();
+            const form = document.getElementById('comp-form');
+            if (!form.reportValidity()) return;
+            const data = readForm(form);
+            const ranks = [data.rank_1, data.rank_2, data.rank_3];
+            const errEl = document.getElementById('rank-err');
+            if (new Set(ranks).size !== 3) {
+                errEl.textContent = 'Each company must appear exactly once in the ranking.';
+                return;
+            }
+            errEl.textContent = '';
+            state.comparative_responses = {
+                ranking: ranks,
+                forced_choice: data.forced_choice,
+            };
+            saveSnapshot('comparative');
+            nextPhaseAfter(showComparative);
+        });
+    }
+    phases.push(showComparative);
+
+    function showManipulationChecks() {
+        render(`
+            <h2>Comprehension Questions</h2>
+            <p style="color:#95a5a6;">Please answer based on what you read.</p>
+            <form id="mc-form">
+                <div class="question">
+                    <label class="q-text">How many total spotlights did Company A give per year?</label>
+                    <input type="number" name="check_spotlights_A" min="0" max="100" required>
+                </div>
+                <div class="question">
+                    <label class="q-text">How many total spotlights did Company B give per year?</label>
+                    <input type="number" name="check_spotlights_B" min="0" max="100" required>
+                </div>
+                <div class="question">
+                    <label class="q-text">How many total spotlights did Company C give per year?</label>
+                    <input type="number" name="check_spotlights_C" min="0" max="100" required>
+                </div>
+                <div class="question">
+                    <label class="q-text">Which company required extra WORK to earn the recognition?</label>
+                    ${radioListHTML('check_work', [
+                        { value: 'Company A', label: 'Company A' },
+                        { value: 'Company B', label: 'Company B' },
+                        { value: 'Company C', label: 'Company C' },
+                        { value: 'None of them', label: 'None of them' },
+                    ])}
+                </div>
+                <div class="question">
+                    <label class="q-text">Company C's spotlights followed this pattern:</label>
+                    ${radioListHTML('check_pattern', [
+                        { value: 'Random (no pattern)', label: 'Random (no pattern)' },
+                        { value: 'Every month (predictable)', label: 'Every month (predictable)' },
+                        { value: 'Alternating: Quiet month, then spotlight', label: 'Alternating: Quiet month, then spotlight' },
+                        { value: "I don't remember", label: "I don't remember" },
+                    ])}
+                </div>
+            </form>
+            <button id="btn-cont">Continue</button>
+        `, phases.length, phases.indexOf(showManipulationChecks));
+        attachContinue('btn-cont', 'mc-form', (data) => {
+            state.manipulation_checks = data;
+            saveSnapshot('manipulation_checks');
+            nextPhaseAfter(showManipulationChecks);
+        });
+    }
+    phases.push(showManipulationChecks);
+
+    function showMechanism() {
+        const items = [
+            { id: 'effort_value',    text: '"I would value Company B\'s recognition MORE because I had to work for it"' },
+            { id: 'effort_meaning',  text: '"Recognition that requires effort is more meaningful than recognition that\'s automatically given"' },
+            { id: 'effort_tenure',   text: '"After Company B\'s recognition ended, I\'d stay longer because the recognition meant so much to me"' },
+            { id: 'pattern_expect',  text: '"At Company C, after a QUIET MONTH, I would EXPECT a spotlight next"' },
+            { id: 'pattern_value',   text: '"I\'d value Company C\'s recognition more because I could predict when it would come"' },
+            { id: 'pattern_persist', text: '"After Company C\'s recognition ended, I\'d keep expecting the pattern to continue"' },
+        ];
+        render(`
+            <h2>Your Thoughts</h2>
+            <p style="color:#95a5a6;">Rate how much you agree or disagree with each statement.</p>
+            <form id="mech-form">
+                ${items.map(q => `
+                    <div class="question">
+                        <label class="q-text">${q.text}</label>
+                        ${likertHTML(q.id, 'Strongly Disagree', 'Strongly Agree')}
+                    </div>
+                `).join('')}
+            </form>
+            <button id="btn-cont">Continue</button>
+        `, phases.length, phases.indexOf(showMechanism));
+        attachContinue('btn-cont', 'mech-form', (data) => {
+            state.mechanism_responses = data;
+            saveSnapshot('mechanism');
+            nextPhaseAfter(showMechanism);
+        });
+    }
+    phases.push(showMechanism);
+
+    function showWorkingMemory() {
+        // Generate a 7-digit sequence and display for 3s, then ask for recall.
+        const seq = Array.from({ length: 7 }, () => 1 + Math.floor(Math.random() * 9));
+        state.working_memory.sequence = seq;
+        render(`
+            <h2>Memory Test</h2>
+            <p>You'll see 7 digits for 3 seconds. After they disappear, type them back in the same order.</p>
+            <p style="color:#95a5a6;">Get ready...</p>
+        `, phases.length, phases.indexOf(showWorkingMemory));
+        setTimeout(() => {
+            render(`
+                <h2>Memory Test</h2>
+                <div class="digit-display">${seq.join(' — ')}</div>
+                <div class="countdown" id="countdown">3</div>
+            `, phases.length, phases.indexOf(showWorkingMemory));
+            let n = 3;
+            const tick = setInterval(() => {
+                n -= 1;
+                if (n <= 0) {
+                    clearInterval(tick);
+                    showWorkingMemoryRecall(seq);
+                } else {
+                    document.getElementById('countdown').textContent = n;
+                }
+            }, 1000);
+        }, 1500);
+    }
+    phases.push(showWorkingMemory);
+
+    function showWorkingMemoryRecall(seq) {
+        render(`
+            <h2>Memory Test</h2>
+            <form id="wm-form">
+                <div class="question">
+                    <label class="q-text">What were the digits, in order? (numbers only, no spaces)</label>
+                    <input type="text" name="response" pattern="[0-9]+" inputmode="numeric" autofocus required>
+                </div>
+            </form>
+            <button id="btn-cont">Continue</button>
+        `, phases.length, phases.indexOf(showWorkingMemory));
+        attachContinue('btn-cont', 'wm-form', (data) => {
+            const resp = (data.response || '').replace(/\D/g, '');
+            const correctStr = seq.join('');
+            let score = 0;
+            for (let i = 0; i < seq.length; i++) {
+                if (resp[i] === correctStr[i]) score++;
+            }
+            state.working_memory = {
+                sequence: seq,
+                response: resp,
+                score: score,
+                max_score: seq.length,
+            };
+            saveSnapshot('working_memory');
+            nextPhaseAfter(showWorkingMemory);
+        });
+    }
+
+    function showIndividualDiffs() {
+        const items = [
+            { id: 'nfs_1', text: '"I prefer things to be predictable and consistent"', type: 'likert' },
+            { id: 'nfs_2', text: '"Inconsistency and unpredictability bother me"', type: 'likert' },
+            { id: 'nfs_3', text: '"I like knowing what to expect"', type: 'likert' },
+            { id: 'recognition_importance', text: 'How important is recognition/praise to you at work?', type: 'likert', lo: 'Not at all important', hi: 'Extremely important' },
+        ];
+        render(`
+            <h2>About You</h2>
+            <form id="id-form">
+                ${items.map(q => `
+                    <div class="question">
+                        <label class="q-text">${q.text}</label>
+                        ${likertHTML(q.id, q.lo || 'Strongly Disagree', q.hi || 'Strongly Agree')}
+                    </div>
+                `).join('')}
+                <div class="question">
+                    <label class="q-text">Have you ever had a full-time job (more than 6 months)?</label>
+                    ${radioListHTML('work_experience', [
+                        { value: 'Yes', label: 'Yes' },
+                        { value: 'No', label: 'No' },
+                    ])}
+                </div>
+            </form>
+            <button id="btn-cont">Continue</button>
+        `, phases.length, phases.indexOf(showIndividualDiffs));
+        attachContinue('btn-cont', 'id-form', (data) => {
+            state.individual_differences = data;
+            saveSnapshot('individual_differences');
+            nextPhaseAfter(showIndividualDiffs);
+        });
+    }
+    phases.push(showIndividualDiffs);
+
+    function showDemographics() {
+        render(`
+            <h2>Demographics</h2>
+            <form id="demo-form">
+                <div class="question">
+                    <label class="q-text">Age</label>
+                    <input type="number" name="age" min="13" max="120" required>
+                </div>
+                <div class="question">
+                    <label class="q-text">Gender</label>
+                    ${radioListHTML('gender', [
+                        { value: 'Male', label: 'Male' },
+                        { value: 'Female', label: 'Female' },
+                        { value: 'Non-binary', label: 'Non-binary' },
+                        { value: 'Prefer not to say', label: 'Prefer not to say' },
+                    ])}
+                </div>
+                <div class="question">
+                    <label class="q-text">Major (or field of study/work)</label>
+                    <input type="text" name="major" required>
+                </div>
+            </form>
+            <button id="btn-cont">Continue</button>
+        `, phases.length, phases.indexOf(showDemographics));
+        attachContinue('btn-cont', 'demo-form', (data) => {
+            state.demographics = data;
+            saveSnapshot('demographics');
+            nextPhaseAfter(showDemographics);
+        });
+    }
+    phases.push(showDemographics);
+
+    function scoreManipulationChecks() {
+        const m = state.manipulation_checks;
+        const r = {};
+        for (const c of ['A', 'B', 'C']) {
+            const k = `check_spotlights_${c}`;
+            r[k] = parseInt(m[k], 10) === 12;
+        }
+        r.check_work = m.check_work === 'Company B';
+        r.check_pattern = (m.check_pattern || '').includes('Alternating');
+        return r;
+    }
+
+    function showFinish() {
+        const checks = scoreManipulationChecks();
+        const reasons = [];
+        for (const c of ['A', 'B', 'C']) {
+            if (!checks[`check_spotlights_${c}`]) reasons.push(`Spotlight count for Company ${c}`);
+        }
+        if (!checks.check_work) reasons.push('Identifying which company required work');
+        if (!checks.check_pattern) reasons.push("Identifying Company C's alternating pattern");
+
+        state.manipulation_check_results = checks;
+        state.should_exclude = reasons.length > 0;
+        state.exclusion_reasons = reasons;
+        state.end_time = new Date().toISOString();
+
+        render(`
+            <h2>Thank You!</h2>
+            <p>Your responses have been recorded.</p>
+            <p><strong>About this study:</strong></p>
+            <p>We compared two theories about why people value workplace recognition.</p>
+            <ul>
+                <li><em>Festinger (1957):</em> Working for recognition makes it more valuable.</li>
+                <li><em>Capaldi (1967):</em> Patterned recognition creates expectations that persist.</li>
+            </ul>
+            <p>Your responses help us test which theory better predicts how people evaluate jobs.</p>
+            <p style="color:#95a5a6;">You may close this tab.</p>
+            <div id="save-status" style="color:#95a5a6;">Saving final data...</div>
+        `, phases.length, phases.length);
+
+        fetch('/api/save', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(state),
+        }).then(r => {
+            if (!r.ok) throw new Error(`HTTP ${r.status}`);
+            document.getElementById('save-status').textContent = 'Data saved. Thank you!';
+        }).catch(err => {
+            document.getElementById('save-status').textContent = 'Save failed — downloading backup.';
+            const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = `${state.participant_id}.json`;
+            a.click();
+        });
+    }
+    phases.push(showFinish);
+
+    function nextPhaseAfter(currentFn) {
+        const i = phases.indexOf(currentFn);
+        if (i >= 0 && i + 1 < phases.length) phases[i + 1]();
+    }
+
+    // Kick off
+    phases[0]();
+    </script>
+</body>
+</html>

@@ -1,0 +1,79 @@
+import { create } from 'zustand'
+import { persist, createJSONStorage } from 'zustand/middleware'
+import { studyApi } from '../services/api'
+
+// Steps the participant moves through. `step` is the source of truth for routing.
+// landing → consent → demographics → game → debrief → done
+const initialState = {
+  step: 'landing',
+  participant_code: null,
+  experiment: null,
+  condition: null,
+  loading: false,
+  error: null,
+}
+
+export const useStudyStore = create(
+  persist(
+    (set, get) => ({
+      ...initialState,
+
+      setStep: (step) => set({ step }),
+
+      start: async () => {
+        set({ loading: true, error: null })
+        try {
+          const { data } = await studyApi.start()
+          set({
+            participant_code: data.participant_code,
+            experiment: data.experiment,
+            condition: data.condition,
+            step: 'consent',
+            loading: false,
+          })
+        } catch (err) {
+          set({
+            loading: false,
+            error: err.response?.data?.error?.message || 'Failed to start study',
+          })
+        }
+      },
+
+      submitConsent: async (demographics) => {
+        const { participant_code } = get()
+        if (!participant_code) {
+          set({ error: 'No active session. Please refresh and try again.' })
+          return false
+        }
+        set({ loading: true, error: null })
+        try {
+          await studyApi.consent(participant_code, demographics)
+          set({ step: 'game', loading: false })
+          return true
+        } catch (err) {
+          set({
+            loading: false,
+            error: err.response?.data?.error?.message || 'Failed to record consent',
+          })
+          return false
+        }
+      },
+
+      markComplete: () => set({ step: 'debrief' }),
+
+      finish: () => set({ step: 'done' }),
+
+      reset: () => set({ ...initialState }),
+    }),
+    {
+      name: 'uvrl-study-session',
+      storage: createJSONStorage(() => sessionStorage),
+      partialize: (state) => ({
+        step: state.step,
+        participant_code: state.participant_code,
+        experiment: state.experiment,
+        condition: state.condition,
+      }),
+    }
+  )
+)
