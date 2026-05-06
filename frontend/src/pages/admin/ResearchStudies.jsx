@@ -1,7 +1,8 @@
 import { useEffect, useState, useCallback } from 'react'
+import { Link } from 'react-router-dom'
 import { studyApi } from '../../services/api'
 import Button from '../../components/Button'
-import { Download, RefreshCw } from 'lucide-react'
+import { Download, RefreshCw, ChevronRight } from 'lucide-react'
 
 const EXPERIMENT_LABELS = {
   treasure_hunt: 'Treasure Hunt',
@@ -88,6 +89,119 @@ export default function ResearchStudies() {
             />
           ))}
         </div>
+      )}
+
+      <RecentParticipants />
+    </div>
+  )
+}
+
+function RecentParticipants() {
+  const [rows, setRows] = useState([])
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState(null)
+  const [experimentFilter, setExperimentFilter] = useState('')
+  const [completedFilter, setCompletedFilter] = useState('all')
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      const params = { limit: 50 }
+      if (experimentFilter) params.experiment = experimentFilter
+      if (completedFilter !== 'all') params.completed = completedFilter
+      const { data } = await studyApi.listParticipants(params)
+      setRows(data.participants)
+    } catch (err) {
+      setError(err.response?.data?.error?.message || 'Failed to load participants')
+    } finally {
+      setLoading(false)
+    }
+  }, [experimentFilter, completedFilter])
+
+  useEffect(() => {
+    load()
+  }, [load])
+
+  return (
+    <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-5 shadow-sm mt-6">
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+        <h2 className="font-display font-semibold text-lg text-text-primary dark:text-gray-100">
+          Recent participants
+        </h2>
+        <div className="flex flex-wrap items-center gap-2">
+          <select
+            value={experimentFilter}
+            onChange={(e) => setExperimentFilter(e.target.value)}
+            className="text-sm rounded-organic border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-text-primary dark:text-gray-100 px-2 py-1"
+          >
+            <option value="">All experiments</option>
+            <option value="treasure_hunt">Treasure Hunt</option>
+            <option value="career_choice">Career Choice</option>
+            <option value="pattern_memory">Pattern Memory</option>
+          </select>
+          <select
+            value={completedFilter}
+            onChange={(e) => setCompletedFilter(e.target.value)}
+            className="text-sm rounded-organic border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-text-primary dark:text-gray-100 px-2 py-1"
+          >
+            <option value="all">All</option>
+            <option value="true">Completed only</option>
+            <option value="false">In progress</option>
+          </select>
+          <Button variant="outline" size="sm" onClick={load} loading={loading}>
+            <RefreshCw size={14} />
+          </Button>
+        </div>
+      </div>
+
+      {error && (
+        <div className="mb-3 p-2 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-700 rounded text-red-700 dark:text-red-400 text-sm">
+          {error}
+        </div>
+      )}
+
+      {rows.length === 0 && !loading ? (
+        <p className="text-sm text-text-secondary dark:text-gray-500">No participants match.</p>
+      ) : (
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="text-left text-text-secondary dark:text-gray-400 border-b border-gray-200 dark:border-gray-700">
+              <th className="pb-2 font-medium">Code</th>
+              <th className="pb-2 font-medium">Experiment</th>
+              <th className="pb-2 font-medium">Condition</th>
+              <th className="pb-2 font-medium">Started</th>
+              <th className="pb-2 font-medium">Completed</th>
+              <th className="pb-2 font-medium" />
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row) => (
+              <tr key={row.participant_code} className="border-b border-gray-100 dark:border-gray-700/50 last:border-0">
+                <td className="py-2 font-mono text-xs text-text-primary dark:text-gray-200">
+                  {row.participant_code}
+                </td>
+                <td className="py-2 font-mono text-xs text-text-primary dark:text-gray-200">{row.experiment}</td>
+                <td className="py-2 font-mono text-xs text-text-primary dark:text-gray-200">{row.condition}</td>
+                <td className="py-2 text-xs text-text-secondary dark:text-gray-400">
+                  {new Date(row.created_at).toLocaleString()}
+                </td>
+                <td className="py-2 text-xs text-text-secondary dark:text-gray-400">
+                  {row.completed_at ? new Date(row.completed_at).toLocaleString() : '—'}
+                </td>
+                <td className="py-2 text-right">
+                  <Link
+                    to={`/dashboard/admin/research-studies/${row.participant_code}`}
+                    className="inline-flex items-center text-primary-600 dark:text-primary-400 hover:underline text-xs"
+                  >
+                    View
+                    <ChevronRight size={14} />
+                  </Link>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       )}
     </div>
   )

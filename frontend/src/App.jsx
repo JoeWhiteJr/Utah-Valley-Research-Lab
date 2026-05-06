@@ -27,6 +27,7 @@ const BookClub = lazy(() => import('./pages/BookClub'))
 const VVC = lazy(() => import('./pages/VVC'))
 const Study = lazy(() => import('./pages/Study'))
 const ResearchStudies = lazy(() => import('./pages/admin/ResearchStudies'))
+const ResearchStudyParticipant = lazy(() => import('./pages/admin/ResearchStudyParticipant'))
 
 // Jared's public site components
 import PublicLayout from './components/public/layout/PublicLayout'
@@ -149,6 +150,7 @@ function App() {
               <Route path="vvc" element={<VVC />} />
               <Route path="admin" element={<AdminRoute><Admin /></AdminRoute>} />
               <Route path="admin/research-studies" element={<AdminRoute><ResearchStudies /></AdminRoute>} />
+              <Route path="admin/research-studies/:participantCode" element={<AdminRoute><ResearchStudyParticipant /></AdminRoute>} />
             </Route>
 
             {/* Redirect old root to dashboard for logged-in users - optional fallback */}
