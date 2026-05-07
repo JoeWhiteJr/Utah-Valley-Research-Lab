@@ -3,14 +3,24 @@ import { useNavigate } from 'react-router-dom'
 import { searchApi } from '../services/api'
 import { Search, FolderKanban, CheckSquare, MessageCircle } from 'lucide-react'
 
+const FOCUSABLE = 'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'
+
 export default function SearchModal({ isOpen, onClose }) {
   const [query, setQuery] = useState('')
   const [results, setResults] = useState([])
   const [isSearching, setIsSearching] = useState(false)
   const [selectedIndex, setSelectedIndex] = useState(0)
   const inputRef = useRef(null)
+  const dialogRef = useRef(null)
+  const previousFocusRef = useRef(null)
+  const onCloseRef = useRef(onClose)
   const navigate = useNavigate()
   const debounceRef = useRef(null)
+
+  // Keep onClose ref fresh without re-binding the document listener
+  useEffect(() => {
+    onCloseRef.current = onClose
+  })
 
   useEffect(() => {
     if (isOpen) {
@@ -49,7 +59,8 @@ export default function SearchModal({ isOpen, onClose }) {
     navigate(result.url)
   }
 
-  const handleKeyDown = (e) => {
+  // Input-scoped keys (ArrowUp/Down/Enter) — Escape and Tab are handled at document level below
+  const handleInputKeyDown = (e) => {
     if (e.key === 'ArrowDown') {
       e.preventDefault()
       setSelectedIndex(prev => Math.min(prev + 1, results.length - 1))
@@ -58,10 +69,65 @@ export default function SearchModal({ isOpen, onClose }) {
       setSelectedIndex(prev => Math.max(prev - 1, 0))
     } else if (e.key === 'Enter' && results[selectedIndex]) {
       handleSelect(results[selectedIndex])
-    } else if (e.key === 'Escape') {
-      onClose()
     }
   }
+
+  // Document-level Escape + focus trap (works regardless of focused element inside the modal)
+  const handleDocumentKeyDown = useCallback((e) => {
+    if (e.key === 'Escape') {
+      e.preventDefault()
+      onCloseRef.current()
+      return
+    }
+    if (e.key !== 'Tab' || !dialogRef.current) return
+
+    const focusable = dialogRef.current.querySelectorAll(FOCUSABLE)
+    if (focusable.length === 0) return
+
+    const first = focusable[0]
+    const last = focusable[focusable.length - 1]
+
+    if (e.shiftKey) {
+      if (document.activeElement === first || !dialogRef.current.contains(document.activeElement)) {
+        e.preventDefault()
+        last.focus()
+      }
+    } else {
+      if (document.activeElement === last || !dialogRef.current.contains(document.activeElement)) {
+        e.preventDefault()
+        first.focus()
+      }
+    }
+  }, [])
+
+  // Wire/unwire document listener + return-focus-on-close
+  useEffect(() => {
+    if (!isOpen) return
+    previousFocusRef.current = document.activeElement
+    document.addEventListener('keydown', handleDocumentKeyDown)
+
+    return () => {
+      document.removeEventListener('keydown', handleDocumentKeyDown)
+      if (previousFocusRef.current && typeof previousFocusRef.current.focus === 'function') {
+        previousFocusRef.current.focus()
+      }
+    }
+  }, [isOpen, handleDocumentKeyDown])
+
+  // Body scroll lock while open
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = 'hidden'
+    } else {
+      document.body.style.overflow = 'unset'
+    }
+    return () => {
+      const otherModals = document.querySelectorAll('[data-modal]')
+      if (otherModals.length <= 1) {
+        document.body.style.overflow = 'unset'
+      }
+    }
+  }, [isOpen])
 
   const getIcon = (type) => {
     switch (type) {
@@ -84,12 +150,17 @@ export default function SearchModal({ isOpen, onClose }) {
   if (!isOpen) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center pt-[15vh]" onClick={onClose}>
+    <div data-modal className="fixed inset-0 z-50 flex items-start justify-center pt-[15vh]" onClick={onClose}>
       <div className="fixed inset-0 bg-black/50" />
       <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="search-modal-title"
         className="relative w-full max-w-lg bg-white dark:bg-gray-800 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 overflow-hidden"
         onClick={e => e.stopPropagation()}
       >
+        <h2 id="search-modal-title" className="sr-only">Global search</h2>
         <div className="flex items-center gap-3 px-4 py-3 border-b border-gray-200 dark:border-gray-700">
           <Search size={20} className="text-text-secondary dark:text-gray-400" />
           <input
@@ -97,8 +168,9 @@ export default function SearchModal({ isOpen, onClose }) {
             type="text"
             value={query}
             onChange={handleInputChange}
-            onKeyDown={handleKeyDown}
+            onKeyDown={handleInputKeyDown}
             placeholder="Search projects, tasks, messages..."
+            aria-label="Search projects, tasks, and messages"
             className="flex-1 text-sm outline-none bg-transparent text-text-primary dark:text-gray-100 placeholder-text-secondary dark:placeholder-gray-500"
           />
           <kbd className="hidden sm:inline-flex items-center px-2 py-0.5 text-xs text-text-secondary dark:text-gray-400 bg-gray-100 dark:bg-gray-700 rounded border border-gray-200 dark:border-gray-600">
