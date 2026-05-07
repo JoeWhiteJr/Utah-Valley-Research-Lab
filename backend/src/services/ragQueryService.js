@@ -3,6 +3,63 @@ const db = require('../config/database');
 const TOP_K = parseInt(process.env.RAG_TOP_K) || 8;
 const ANTHROPIC_MODEL = process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-20250514';
 
+/**
+ * SQL subquery that returns the set of project IDs a non-admin user can access.
+ *
+ * Access is granted when the user is:
+ *   - the project's creator (and the project is not soft-deleted), OR
+ *   - a row in project_members for the project, OR
+ *   - assigned (directly or via action_item_assignees) to an action item on the project.
+ *
+ * The subquery references a single bind parameter for the user id, supplied by
+ * the caller (e.g. `$2`). Wrap usages with `dc.project_id IN (${ACCESSIBLE_PROJECTS_SUBQUERY('$2')})`.
+ *
+ * @param {string} userParam - The bind parameter placeholder for the user id (e.g. '$2').
+ * @returns {string} SQL fragment.
+ */
+function accessibleProjectsSubquery(userParam) {
+  return `
+    SELECT id FROM projects WHERE created_by = ${userParam} AND deleted_at IS NULL
+    UNION
+    SELECT project_id FROM project_members WHERE user_id = ${userParam}
+    UNION
+    SELECT DISTINCT ai2.project_id FROM action_items ai2
+    LEFT JOIN action_item_assignees aia ON ai2.id = aia.action_item_id
+    WHERE ai2.deleted_at IS NULL AND (ai2.assigned_to = ${userParam} OR aia.user_id = ${userParam})
+  `;
+}
+
+/**
+ * Verify a user has access to a project.
+ *
+ * Admins always have access (provided the project exists and is not soft-deleted).
+ * Non-admins must match the same access rules as `accessibleProjectsSubquery`.
+ *
+ * @param {string} userId - The requesting user's id.
+ * @param {string} userRole - The requesting user's role.
+ * @param {string} projectId - The project id to check.
+ * @returns {Promise<boolean>} true if the user can access the project.
+ */
+async function userHasProjectAccess(userId, userRole, projectId) {
+  if (!projectId) return false;
+
+  if (userRole === 'admin') {
+    const result = await db.query(
+      'SELECT 1 FROM projects WHERE id = $1 AND deleted_at IS NULL',
+      [projectId]
+    );
+    return result.rows.length > 0;
+  }
+
+  const result = await db.query(
+    `SELECT 1 FROM projects p
+     WHERE p.id = $1 AND p.deleted_at IS NULL
+       AND p.id IN (${accessibleProjectsSubquery('$2')})`,
+    [projectId, userId]
+  );
+  return result.rows.length > 0;
+}
+
 let Anthropic = null;
 let anthropicClient = null;
 
@@ -107,15 +164,7 @@ async function searchChunks(question, userId, userRole, projectId = null) {
     }
   } else {
     // Non-admin: only search accessible projects
-    const accessSubquery = `
-      SELECT id FROM projects WHERE created_by = $2 AND deleted_at IS NULL
-      UNION
-      SELECT project_id FROM project_members WHERE user_id = $2
-      UNION
-      SELECT DISTINCT ai2.project_id FROM action_items ai2
-      LEFT JOIN action_item_assignees aia ON ai2.id = aia.action_item_id
-      WHERE ai2.deleted_at IS NULL AND (ai2.assigned_to = $2 OR aia.user_id = $2)
-    `;
+    const accessSubquery = accessibleProjectsSubquery('$2');
 
     if (projectId) {
       if (useFallback) {
@@ -278,4 +327,9 @@ async function query(question, conversationHistory, userId, userRole, projectId 
   };
 }
 
-module.exports = { query, getClient };
+module.exports = {
+  query,
+  getClient,
+  userHasProjectAccess,
+  accessibleProjectsSubquery
+};

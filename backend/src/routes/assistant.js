@@ -43,6 +43,21 @@ router.post('/conversations', async (req, res, next) => {
   try {
     const { projectId, title } = req.body;
 
+    // If a project is supplied, verify the user can access it. Without this
+    // guard a user could create a conversation row pointing at any project,
+    // and the conversation listing endpoint would then leak that project's
+    // title via its LEFT JOIN on `projects`.
+    if (projectId) {
+      const hasAccess = await ragQueryService.userHasProjectAccess(
+        req.user.id,
+        req.user.role,
+        projectId
+      );
+      if (!hasAccess) {
+        return res.status(403).json({ error: { message: 'You do not have access to this project' } });
+      }
+    }
+
     const result = await db.query(
       `INSERT INTO ai_conversations (user_id, project_id, title)
        VALUES ($1, $2, $3) RETURNING *`,
