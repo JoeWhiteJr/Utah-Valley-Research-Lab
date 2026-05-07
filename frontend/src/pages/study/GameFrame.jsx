@@ -24,6 +24,10 @@ export default function StudyGameFrame() {
 
   useEffect(() => {
     const handler = (event) => {
+      // The iframe is served from the same Vite origin as the parent. Reject
+      // anything else so a malicious tab can't postMessage us into completion.
+      if (event.origin !== window.location.origin) return
+      if (event.source !== iframeRef.current?.contentWindow) return
       const data = event.data
       if (data && data.type === 'study_complete' && data.participant_code === participant_code) {
         markComplete()

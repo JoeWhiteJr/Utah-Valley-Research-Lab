@@ -104,8 +104,12 @@ router.post('/start', startLimiter, async (req, res, next) => {
     const userAgent = req.get('User-Agent') || null;
     const ipHash = hashIp(req.ip);
 
-    // Dedup: same IP completed a session within the last 24h. Done outside the
-    // lock since it's a read-only check and doesn't need to serialize.
+    await client.query('BEGIN');
+    // Serialize concurrent assignment picks so balance counts remain consistent.
+    // The dedup check runs INSIDE the lock so two simultaneous /start calls from
+    // the same IP can't both pass the check before either completes the insert.
+    await client.query(`SELECT pg_advisory_xact_lock(hashtext($1))`, [BALANCE_LOCK_KEY]);
+
     if (ipHash) {
       const recent = await client.query(
         `SELECT 1 FROM study_participants
@@ -116,15 +120,12 @@ router.post('/start', startLimiter, async (req, res, next) => {
         [ipHash]
       );
       if (recent.rows.length > 0) {
+        await client.query('ROLLBACK');
         return res.status(409).json({
           error: { message: 'You have already completed this study recently. Thank you for your interest.' }
         });
       }
     }
-
-    await client.query('BEGIN');
-    // Serialize concurrent assignment picks so balance counts remain consistent.
-    await client.query(`SELECT pg_advisory_xact_lock(hashtext($1))`, [BALANCE_LOCK_KEY]);
 
     const experiment = await pickBalancedExperimentTx(client);
     const condition = await pickBalancedConditionTx(client, experiment);
@@ -256,9 +257,14 @@ router.post('/save', saveLimiter, [
 
     const { assignment_id, participant_id } = assignment.rows[0];
 
+    // Idempotent: a partial unique index on (assignment_id) WHERE is_snapshot = false
+    // allows ON CONFLICT to merge retries / double-submits into a single final row
+    // instead of inflating the export.
     await client.query(
       `INSERT INTO study_responses (assignment_id, payload, is_snapshot)
-       VALUES ($1, $2, false)`,
+       VALUES ($1, $2, false)
+       ON CONFLICT (assignment_id) WHERE is_snapshot = false
+       DO UPDATE SET payload = EXCLUDED.payload, submitted_at = CURRENT_TIMESTAMP`,
       [assignment_id, payload]
     );
 
@@ -316,10 +322,19 @@ router.get('/stats', authenticate, requireRole('admin'), async (req, res, next) 
   }
 });
 
+// Defends against CSV formula injection (OWASP). Participant payload is
+// fully attacker-controlled (jsPsych fetch body), and admins open these CSVs
+// in Excel/Sheets/Numbers — values starting with =, +, -, @ would otherwise
+// execute as formulas. Prefix a single quote and force-quote so the prefix
+// survives a round-trip.
 function csvField(value) {
   if (value === null || value === undefined) return '';
-  const s = typeof value === 'object' ? JSON.stringify(value) : String(value);
-  if (/[",\r\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
+  let s = typeof value === 'object' ? JSON.stringify(value) : String(value);
+  const needsFormulaEscape = /^[=+\-@\t\r]/.test(s);
+  if (needsFormulaEscape) s = "'" + s;
+  if (needsFormulaEscape || /[",\r\n]/.test(s)) {
+    return `"${s.replace(/"/g, '""')}"`;
+  }
   return s;
 }
 function csvRow(values) {
@@ -384,6 +399,11 @@ router.get('/export/:experiment', authenticate, requireRole('admin'), [
     res.write(csvRow(columns.map(c => c[0])));
 
     client = await db.getClient();
+    // REPEATABLE READ snapshot pins the result set so all paged queries see the
+    // same data — without it, /save calls landing mid-export can shift the
+    // ORDER BY position of in-progress assignments and skip or duplicate rows.
+    await client.query('BEGIN');
+    await client.query('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ');
     let offset = 0;
     let more = true;
     while (more) {
@@ -403,6 +423,7 @@ router.get('/export/:experiment', authenticate, requireRole('admin'), [
       more = result.rows.length === PAGE_SIZE;
       offset += PAGE_SIZE;
     }
+    await client.query('COMMIT');
     res.end();
   } catch (error) {
     logger.error({ err: error }, 'Failed to export study responses');
@@ -414,10 +435,9 @@ router.get('/export/:experiment', authenticate, requireRole('admin'), [
 });
 
 // Admin: list recent participants. Supports filtering by experiment and completion state,
-// plus pagination.
-router.get('/participants', authenticate, requireRole('admin'), [
-  body('experiment').not().exists().withMessage('use query string')
-], async (req, res, next) => {
+// plus pagination. Validation is done manually below against the EXPERIMENTS whitelist —
+// no express-validator middleware needed.
+router.get('/participants', authenticate, requireRole('admin'), async (req, res, next) => {
   try {
     const limit = Math.min(parseInt(req.query.limit, 10) || 50, 200);
     const offset = Math.max(parseInt(req.query.offset, 10) || 0, 0);
