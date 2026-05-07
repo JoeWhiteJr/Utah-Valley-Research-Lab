@@ -21,8 +21,11 @@ const MeetingCard = memo(function MeetingCard({ meeting, onView, onDelete }) {
           </div>
           <div>
             <h4
-              className="font-medium text-text-primary dark:text-gray-100 cursor-pointer hover:text-primary-600 dark:hover:text-primary-400"
+              role="button"
+              tabIndex={0}
+              className="font-medium text-text-primary dark:text-gray-100 cursor-pointer hover:text-primary-600 dark:hover:text-primary-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 rounded"
               onClick={() => onView?.(meeting)}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onView?.(meeting) } }}
             >
               {meeting.title}
             </h4>
@@ -40,7 +43,7 @@ const MeetingCard = memo(function MeetingCard({ meeting, onView, onDelete }) {
         <div className="flex items-center gap-1">
           <button
             onClick={() => onDelete(meeting.id)}
-            className="p-1.5 rounded text-text-secondary dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 opacity-0 group-hover:opacity-100 transition-opacity"
+            className="p-1.5 rounded text-text-secondary dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus:opacity-100 transition-opacity"
             aria-label="Delete meeting"
           >
             <Trash2 size={16} />
