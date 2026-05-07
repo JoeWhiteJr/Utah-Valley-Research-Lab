@@ -285,16 +285,21 @@ router.put('/:id', authenticate, requireRole('admin', 'project_lead'), [
 
     const { title, description, header_image, status, progress, important_info, subheader } = req.body;
 
+    const existing = await db.query('SELECT id, lead_id FROM projects WHERE id = $1 AND deleted_at IS NULL', [req.params.id]);
+    if (existing.rows.length === 0) {
+      return res.status(404).json({ error: { message: 'Project not found' } });
+    }
+
+    // Authorization: admins can edit any project; project_leads can only edit projects they lead
+    if (req.user.role !== 'admin' && existing.rows[0].lead_id !== req.user.id) {
+      return res.status(403).json({ error: { message: 'You can only edit projects you lead' } });
+    }
+
     // Only admins can update title, status, and progress
     if (req.user.role !== 'admin') {
       if (title !== undefined || status !== undefined || progress !== undefined) {
         return res.status(403).json({ error: { message: 'Only admins can edit title, status, and progress' } });
       }
-    }
-
-    const existing = await db.query('SELECT id FROM projects WHERE id = $1 AND deleted_at IS NULL', [req.params.id]);
-    if (existing.rows.length === 0) {
-      return res.status(404).json({ error: { message: 'Project not found' } });
     }
 
     const updates = [];
@@ -332,9 +337,14 @@ router.post('/:id/cover', authenticate, requireRole('admin', 'project_lead'), co
       return res.status(400).json({ error: { message: 'No image file provided' } });
     }
 
-    const existing = await db.query('SELECT id FROM projects WHERE id = $1 AND deleted_at IS NULL', [req.params.id]);
+    const existing = await db.query('SELECT id, lead_id FROM projects WHERE id = $1 AND deleted_at IS NULL', [req.params.id]);
     if (existing.rows.length === 0) {
       return res.status(404).json({ error: { message: 'Project not found' } });
+    }
+
+    // Authorization: admins can edit any project; project_leads can only edit projects they lead
+    if (req.user.role !== 'admin' && existing.rows[0].lead_id !== req.user.id) {
+      return res.status(403).json({ error: { message: 'You can only edit projects you lead' } });
     }
 
     const imageUrl = `/uploads/covers/${req.file.filename}`;
