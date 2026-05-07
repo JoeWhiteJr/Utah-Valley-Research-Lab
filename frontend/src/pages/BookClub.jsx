@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useId, useState, useEffect, useCallback } from 'react'
 import { useAuthStore } from '../store/authStore'
 import { useBookClubStore } from '../store/bookClubStore'
 import { bookClubApi } from '../services/api'
@@ -13,6 +13,7 @@ export default function BookClub() {
   // Auth store
   const { user } = useAuthStore()
   const isAdmin = user?.role === 'admin'
+  const bookDescriptionId = useId()
 
   // Book club store
   const {
@@ -330,8 +331,9 @@ export default function BookClub() {
           <Input label="Title" value={bookForm.title} onChange={(e) => setBookForm({ ...bookForm, title: e.target.value })} required autoFocus />
           <Input label="Author" value={bookForm.author} onChange={(e) => setBookForm({ ...bookForm, author: e.target.value })} required />
           <div>
-            <label className="block text-sm font-medium text-text-primary dark:text-gray-200 mb-1">Description</label>
+            <label htmlFor={bookDescriptionId} className="block text-sm font-medium text-text-primary dark:text-gray-200 mb-1">Description</label>
             <textarea
+              id={bookDescriptionId}
               value={bookForm.description}
               onChange={(e) => setBookForm({ ...bookForm, description: e.target.value })}
               rows={3}

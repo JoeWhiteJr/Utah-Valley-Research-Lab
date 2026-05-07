@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useId, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../store/authStore'
 import { useProjectStore } from '../store/projectStore'
@@ -53,6 +53,8 @@ export default function Projects() {
   const navigate = useNavigate()
   const { user } = useAuthStore()
   const { projects, fetchProjects, createProject, togglePin, isLoading } = useProjectStore()
+  const descriptionId = useId()
+  const leadId = useId()
   const [search, setSearch] = useState('')
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [showInactive, setShowInactive] = useState(false)
@@ -324,10 +326,11 @@ export default function Projects() {
             placeholder="Short tagline for this project..."
           />
           <div>
-            <label className="block text-sm font-medium text-text-primary dark:text-gray-100 mb-1.5">
+            <label htmlFor={descriptionId} className="block text-sm font-medium text-text-primary dark:text-gray-100 mb-1.5">
               Description
             </label>
             <textarea
+              id={descriptionId}
               value={newProject.description}
               onChange={(e) => setNewProject({ ...newProject, description: e.target.value })}
               placeholder="Brief overview of the project..."
@@ -337,10 +340,11 @@ export default function Projects() {
           </div>
           {teamMembers.length > 0 && (
             <div>
-              <label className="block text-sm font-medium text-text-primary dark:text-gray-100 mb-1.5">
+              <label htmlFor={leadId} className="block text-sm font-medium text-text-primary dark:text-gray-100 mb-1.5">
                 Project Lead (optional)
               </label>
               <select
+                id={leadId}
                 value={newProject.lead_id}
                 onChange={(e) => setNewProject({ ...newProject, lead_id: e.target.value })}
                 className="w-full px-4 py-2.5 rounded-organic border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-text-primary dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-primary-300 focus:border-primary-400"

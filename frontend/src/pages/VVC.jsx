@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useId, useState, useEffect, useCallback } from 'react'
 import { useAuthStore } from '../store/authStore'
 import { useVvcStore } from '../store/vvcStore'
 import { vvcApi } from '../services/api'
@@ -12,6 +12,9 @@ import { Code, Plus, Trash2, Edit3, Calendar, Upload, FileText, Sparkles, Video,
 export default function VVC() {
   const { user } = useAuthStore()
   const isAdmin = user?.role === 'admin'
+  const sessionDescriptionId = useId()
+  const resourceContentId = useId()
+  const projectDescriptionId = useId()
 
   const {
     sessions, resources, projects, isLoading,
@@ -461,8 +464,9 @@ export default function VVC() {
           <Input label="Title" value={sessionForm.title} onChange={(e) => setSessionForm({ ...sessionForm, title: e.target.value })} required autoFocus />
           <Input label="Session Date" type="date" value={sessionForm.session_date} onChange={(e) => setSessionForm({ ...sessionForm, session_date: e.target.value })} />
           <div>
-            <label className="block text-sm font-medium text-text-primary dark:text-gray-200 mb-1">Description</label>
+            <label htmlFor={sessionDescriptionId} className="block text-sm font-medium text-text-primary dark:text-gray-200 mb-1">Description</label>
             <textarea
+              id={sessionDescriptionId}
               value={sessionForm.description}
               onChange={(e) => setSessionForm({ ...sessionForm, description: e.target.value })}
               rows={3}
@@ -684,8 +688,9 @@ export default function VVC() {
       <Modal isOpen={!!editingResource} onClose={() => setEditingResource(null)} title={`Edit ${editingResource === 'setup_guide' ? 'Setup Guide' : 'Best Practices'}`} size="lg">
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-text-primary dark:text-gray-200 mb-1">Content (Markdown)</label>
+            <label htmlFor={resourceContentId} className="block text-sm font-medium text-text-primary dark:text-gray-200 mb-1">Content (Markdown)</label>
             <textarea
+              id={resourceContentId}
               value={resourceValue}
               onChange={(e) => setResourceValue(e.target.value)}
               rows={16}
@@ -705,8 +710,9 @@ export default function VVC() {
         <form onSubmit={(e) => { e.preventDefault(); handleSaveProject() }} className="space-y-4">
           <Input label="Project Title" value={projectForm.title} onChange={(e) => setProjectForm({ ...projectForm, title: e.target.value })} required autoFocus />
           <div>
-            <label className="block text-sm font-medium text-text-primary dark:text-gray-200 mb-1">Description</label>
+            <label htmlFor={projectDescriptionId} className="block text-sm font-medium text-text-primary dark:text-gray-200 mb-1">Description</label>
             <textarea
+              id={projectDescriptionId}
               value={projectForm.description}
               onChange={(e) => setProjectForm({ ...projectForm, description: e.target.value })}
               rows={3}

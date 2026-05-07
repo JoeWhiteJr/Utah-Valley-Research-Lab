@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useRef } from 'react'
+import { useEffect, useId, useState, useCallback, useRef } from 'react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core'
 import { SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy, arrayMove } from '@dnd-kit/sortable'
@@ -45,6 +45,15 @@ export default function ProjectDetail() {
   const navigate = useNavigate()
   const location = useLocation()
   const { user } = useAuthStore()
+  const editDescriptionId = useId()
+  const editStatusId = useId()
+  const newActionDescriptionId = useId()
+  const newActionPriorityId = useId()
+  const newActionCategoryId = useId()
+  const editActionDescriptionId = useId()
+  const editActionDueDateId = useId()
+  const editActionCategoryId = useId()
+  const editActionPriorityId = useId()
   const {
     currentProject, fetchProject, updateProject, deleteProject,
     actions, fetchActions, createAction, updateAction, deleteAction, reorderActions,
@@ -1259,14 +1268,14 @@ export default function ProjectDetail() {
           )}
           <Input label="Subheader (optional)" value={editData.subheader} onChange={(e) => setEditData({ ...editData, subheader: e.target.value })} placeholder="Short tagline for this project..." maxLength={200} />
           <div>
-            <label className="block text-sm font-medium text-text-primary dark:text-gray-100 mb-1.5">Description</label>
-            <textarea value={editData.description} onChange={(e) => setEditData({ ...editData, description: e.target.value })} rows={4}
+            <label htmlFor={editDescriptionId} className="block text-sm font-medium text-text-primary dark:text-gray-100 mb-1.5">Description</label>
+            <textarea id={editDescriptionId} value={editData.description} onChange={(e) => setEditData({ ...editData, description: e.target.value })} rows={4}
               className="w-full px-4 py-2.5 rounded-organic border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-text-primary dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-primary-300 focus:border-primary-400 resize-none" />
           </div>
           {canEditMeta && (
             <div>
-              <label className="block text-sm font-medium text-text-primary dark:text-gray-100 mb-1.5">Status</label>
-              <select value={editData.status} onChange={(e) => setEditData({ ...editData, status: e.target.value })}
+              <label htmlFor={editStatusId} className="block text-sm font-medium text-text-primary dark:text-gray-100 mb-1.5">Status</label>
+              <select id={editStatusId} value={editData.status} onChange={(e) => setEditData({ ...editData, status: e.target.value })}
                 className="w-full px-4 py-2.5 rounded-organic border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-text-primary dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-primary-300">
                 <option value="active">Active</option>
                 <option value="completed">Completed</option>
@@ -1302,15 +1311,15 @@ export default function ProjectDetail() {
         <form onSubmit={handleAddAction} className="space-y-5">
           <Input label="Task" value={newAction.title} onChange={(e) => setNewAction({ ...newAction, title: e.target.value })} placeholder="What needs to be done?" required />
           <div>
-            <label className="block text-sm font-medium text-text-primary dark:text-gray-100 mb-1.5">Description (optional)</label>
-            <textarea value={newAction.description} onChange={(e) => setNewAction({ ...newAction, description: e.target.value })} rows={3} placeholder="Add more details..."
+            <label htmlFor={newActionDescriptionId} className="block text-sm font-medium text-text-primary dark:text-gray-100 mb-1.5">Description (optional)</label>
+            <textarea id={newActionDescriptionId} value={newAction.description} onChange={(e) => setNewAction({ ...newAction, description: e.target.value })} rows={3} placeholder="Add more details..."
               className="w-full px-4 py-2.5 rounded-organic border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-text-primary dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-primary-300 focus:border-primary-400 resize-none" />
           </div>
           <div className="grid grid-cols-2 gap-4">
             <Input label="Due date (optional)" type="date" value={newAction.due_date} onChange={(e) => setNewAction({ ...newAction, due_date: e.target.value })} />
             <div>
-              <label className="block text-sm font-medium text-text-primary dark:text-gray-100 mb-1.5">Priority (optional)</label>
-              <select value={newAction.priority} onChange={(e) => setNewAction({ ...newAction, priority: e.target.value })}
+              <label htmlFor={newActionPriorityId} className="block text-sm font-medium text-text-primary dark:text-gray-100 mb-1.5">Priority (optional)</label>
+              <select id={newActionPriorityId} value={newAction.priority} onChange={(e) => setNewAction({ ...newAction, priority: e.target.value })}
                 className="w-full px-4 py-2.5 rounded-organic border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-text-primary dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-primary-300">
                 <option value="">No priority</option>
                 <option value="low">Low</option>
@@ -1340,8 +1349,8 @@ export default function ProjectDetail() {
           </div>
           {categories.length > 0 && (
             <div>
-              <label className="block text-sm font-medium text-text-primary dark:text-gray-100 mb-1.5">Category (optional)</label>
-              <select value={newAction.category_id} onChange={(e) => setNewAction({ ...newAction, category_id: e.target.value })}
+              <label htmlFor={newActionCategoryId} className="block text-sm font-medium text-text-primary dark:text-gray-100 mb-1.5">Category (optional)</label>
+              <select id={newActionCategoryId} value={newAction.category_id} onChange={(e) => setNewAction({ ...newAction, category_id: e.target.value })}
                 className="w-full px-4 py-2.5 rounded-organic border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-text-primary dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-primary-300">
                 <option value="">No category</option>
                 {categories.map((cat) => <option key={cat.id} value={cat.id}>{cat.name}</option>)}
@@ -1360,14 +1369,14 @@ export default function ProjectDetail() {
         <form onSubmit={handleSaveEdit} className="space-y-4">
           <Input label="Title" value={editForm.title} onChange={(e) => setEditForm({...editForm, title: e.target.value})} required />
           <div>
-            <label className="block text-sm font-medium text-text-primary dark:text-gray-100 mb-1.5">Description (optional)</label>
-            <textarea value={editForm.description} onChange={(e) => setEditForm({...editForm, description: e.target.value})} rows={3} placeholder="Add more details..."
+            <label htmlFor={editActionDescriptionId} className="block text-sm font-medium text-text-primary dark:text-gray-100 mb-1.5">Description (optional)</label>
+            <textarea id={editActionDescriptionId} value={editForm.description} onChange={(e) => setEditForm({...editForm, description: e.target.value})} rows={3} placeholder="Add more details..."
               className="w-full px-4 py-2.5 rounded-organic border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-text-primary dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-primary-300 focus:border-primary-400 resize-none" />
           </div>
           <div>
-            <label className="block text-sm font-medium text-text-primary dark:text-gray-100 mb-1.5">Due Date (optional)</label>
+            <label htmlFor={editActionDueDateId} className="block text-sm font-medium text-text-primary dark:text-gray-100 mb-1.5">Due Date (optional)</label>
             <div className="flex gap-2">
-              <input type="date" value={editForm.due_date} onChange={(e) => setEditForm({...editForm, due_date: e.target.value})}
+              <input id={editActionDueDateId} type="date" value={editForm.due_date} onChange={(e) => setEditForm({...editForm, due_date: e.target.value})}
                 className="flex-1 px-4 py-2.5 rounded-organic border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-text-primary dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-primary-300" />
               {editForm.due_date && <button type="button" onClick={() => setEditForm({...editForm, due_date: ''})}
                 className="px-3 py-2 text-xs font-medium text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/30 rounded-organic hover:bg-red-100 dark:hover:bg-red-900/50 transition-colors">Clear</button>}
@@ -1375,8 +1384,8 @@ export default function ProjectDetail() {
           </div>
           {categories.length > 0 && (
             <div>
-              <label className="block text-sm font-medium text-text-primary dark:text-gray-100 mb-1.5">Category (optional)</label>
-              <select value={editForm.category_id} onChange={(e) => setEditForm({...editForm, category_id: e.target.value})}
+              <label htmlFor={editActionCategoryId} className="block text-sm font-medium text-text-primary dark:text-gray-100 mb-1.5">Category (optional)</label>
+              <select id={editActionCategoryId} value={editForm.category_id} onChange={(e) => setEditForm({...editForm, category_id: e.target.value})}
                 className="w-full px-4 py-2.5 rounded-organic border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-text-primary dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-primary-300">
                 <option value="">No category</option>
                 {categories.map(cat => <option key={cat.id} value={cat.id}>{cat.name}</option>)}
@@ -1384,8 +1393,8 @@ export default function ProjectDetail() {
             </div>
           )}
           <div>
-            <label className="block text-sm font-medium text-text-primary dark:text-gray-100 mb-1.5">Priority (optional)</label>
-            <select value={editForm.priority} onChange={(e) => setEditForm({...editForm, priority: e.target.value})}
+            <label htmlFor={editActionPriorityId} className="block text-sm font-medium text-text-primary dark:text-gray-100 mb-1.5">Priority (optional)</label>
+            <select id={editActionPriorityId} value={editForm.priority} onChange={(e) => setEditForm({...editForm, priority: e.target.value})}
               className="w-full px-4 py-2.5 rounded-organic border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-text-primary dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-primary-300">
               <option value="">No priority</option>
               <option value="low">Low</option>

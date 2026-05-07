@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useMemo } from 'react'
+import { useEffect, useId, useState, useCallback, useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuthStore } from '../store/authStore'
 import { useProjectStore } from '../store/projectStore'
@@ -25,6 +25,12 @@ export default function MyDashboard() {
   const { user } = useAuthStore()
   const { projects, fetchProjects, isLoading } = useProjectStore()
   const { markRead } = useNotificationStore()
+  const taskFilterProjectId = useId()
+  const taskFilterPriorityId = useId()
+  const taskFilterStatusId = useId()
+  const taskFilterDueAfterId = useId()
+  const taskFilterDueBeforeId = useId()
+  const noteTitleId = useId()
   const {
     plan, steps: planSteps, checkin, weeklyReview, showCheckin, isGenerating,
     fetchToday, generatePlan, toggleStep, respondToCheckin, dismissCheckin,
@@ -404,8 +410,9 @@ export default function MyDashboard() {
                     </div>
                     <div className="grid grid-cols-2 gap-2">
                       <div>
-                        <label className="block text-xs font-medium text-text-secondary dark:text-gray-400 mb-1">Project</label>
+                        <label htmlFor={taskFilterProjectId} className="block text-xs font-medium text-text-secondary dark:text-gray-400 mb-1">Project</label>
                         <select
+                          id={taskFilterProjectId}
                           value={taskFilters.project_id}
                           onChange={(e) => setTaskFilters({ ...taskFilters, project_id: e.target.value })}
                           className="w-full px-2 py-1 text-xs rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-text-primary dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-primary-300"
@@ -417,8 +424,9 @@ export default function MyDashboard() {
                         </select>
                       </div>
                       <div>
-                        <label className="block text-xs font-medium text-text-secondary dark:text-gray-400 mb-1">Priority</label>
+                        <label htmlFor={taskFilterPriorityId} className="block text-xs font-medium text-text-secondary dark:text-gray-400 mb-1">Priority</label>
                         <select
+                          id={taskFilterPriorityId}
                           value={taskFilters.priority}
                           onChange={(e) => setTaskFilters({ ...taskFilters, priority: e.target.value })}
                           className="w-full px-2 py-1 text-xs rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-text-primary dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-primary-300"
@@ -431,8 +439,9 @@ export default function MyDashboard() {
                         </select>
                       </div>
                       <div>
-                        <label className="block text-xs font-medium text-text-secondary dark:text-gray-400 mb-1">Status</label>
+                        <label htmlFor={taskFilterStatusId} className="block text-xs font-medium text-text-secondary dark:text-gray-400 mb-1">Status</label>
                         <select
+                          id={taskFilterStatusId}
                           value={taskFilters.status}
                           onChange={(e) => setTaskFilters({ ...taskFilters, status: e.target.value })}
                           className="w-full px-2 py-1 text-xs rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-text-primary dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-primary-300"
@@ -443,8 +452,9 @@ export default function MyDashboard() {
                         </select>
                       </div>
                       <div>
-                        <label className="block text-xs font-medium text-text-secondary dark:text-gray-400 mb-1">Due after</label>
+                        <label htmlFor={taskFilterDueAfterId} className="block text-xs font-medium text-text-secondary dark:text-gray-400 mb-1">Due after</label>
                         <input
+                          id={taskFilterDueAfterId}
                           type="date"
                           value={taskFilters.due_after}
                           onChange={(e) => setTaskFilters({ ...taskFilters, due_after: e.target.value })}
@@ -452,8 +462,9 @@ export default function MyDashboard() {
                         />
                       </div>
                       <div className="col-span-2">
-                        <label className="block text-xs font-medium text-text-secondary dark:text-gray-400 mb-1">Due before</label>
+                        <label htmlFor={taskFilterDueBeforeId} className="block text-xs font-medium text-text-secondary dark:text-gray-400 mb-1">Due before</label>
                         <input
+                          id={taskFilterDueBeforeId}
                           type="date"
                           value={taskFilters.due_before}
                           onChange={(e) => setTaskFilters({ ...taskFilters, due_before: e.target.value })}
@@ -770,8 +781,9 @@ export default function MyDashboard() {
       >
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-text-primary dark:text-gray-200 mb-1">Title</label>
+            <label htmlFor={noteTitleId} className="block text-sm font-medium text-text-primary dark:text-gray-200 mb-1">Title</label>
             <input
+              id={noteTitleId}
               type="text"
               value={noteData.title}
               onChange={(e) => setNoteData(prev => ({ ...prev, title: e.target.value }))}

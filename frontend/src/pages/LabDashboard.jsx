@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useId, useState } from 'react'
 import { useAuthStore } from '../store/authStore'
 import { useProjectStore } from '../store/projectStore'
 import { aiApi, usersApi, labDashboardApi, resourcesApi } from '../services/api'
@@ -131,6 +131,8 @@ function ResourceListEditor({ items, onSave, saving }) {
 export default function LabDashboard() {
   const { user } = useAuthStore()
   const { projects, fetchProjects } = useProjectStore()
+  const newsTitleId = useId()
+  const newsBodyId = useId()
   const [activeTab, setActiveTab] = useState('overview')
   const isAdmin = user?.role === 'admin'
 
@@ -707,12 +709,12 @@ export default function LabDashboard() {
       <Modal isOpen={showNewsModal} onClose={() => setShowNewsModal(false)} title={editingNews ? 'Edit News' : 'Post News'}>
         <form onSubmit={handleSaveNews} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-text-primary dark:text-gray-100 mb-1.5">Title</label>
-            <input type="text" value={newsForm.title} onChange={(e) => setNewsForm(f => ({ ...f, title: e.target.value }))} placeholder="News title..." required className="w-full px-4 py-2.5 rounded-organic border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-text-primary dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-primary-300 focus:border-primary-400" />
+            <label htmlFor={newsTitleId} className="block text-sm font-medium text-text-primary dark:text-gray-100 mb-1.5">Title</label>
+            <input id={newsTitleId} type="text" value={newsForm.title} onChange={(e) => setNewsForm(f => ({ ...f, title: e.target.value }))} placeholder="News title..." required className="w-full px-4 py-2.5 rounded-organic border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-text-primary dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-primary-300 focus:border-primary-400" />
           </div>
           <div>
-            <label className="block text-sm font-medium text-text-primary dark:text-gray-100 mb-1.5">Body <span className="text-text-secondary dark:text-gray-400 font-normal">(optional)</span></label>
-            <textarea value={newsForm.body} onChange={(e) => setNewsForm(f => ({ ...f, body: e.target.value }))} placeholder="Add details (optional)..." rows={4} className="w-full px-4 py-2.5 rounded-organic border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-text-primary dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-primary-300 focus:border-primary-400 resize-none" />
+            <label htmlFor={newsBodyId} className="block text-sm font-medium text-text-primary dark:text-gray-100 mb-1.5">Body <span className="text-text-secondary dark:text-gray-400 font-normal">(optional)</span></label>
+            <textarea id={newsBodyId} value={newsForm.body} onChange={(e) => setNewsForm(f => ({ ...f, body: e.target.value }))} placeholder="Add details (optional)..." rows={4} className="w-full px-4 py-2.5 rounded-organic border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-text-primary dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-primary-300 focus:border-primary-400 resize-none" />
           </div>
           <div className="flex justify-end gap-3 pt-2">
             <Button type="button" variant="secondary" onClick={() => setShowNewsModal(false)}>Cancel</Button>

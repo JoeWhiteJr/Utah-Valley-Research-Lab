@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import { Lightbulb, Send } from 'lucide-react'
 import { useAuthStore } from '../store/authStore'
 import { recommendationsApi } from '../services/api'
@@ -6,6 +6,8 @@ import { toast } from '../store/toastStore'
 import Modal from './Modal'
 
 export default function RecommendationButton() {
+  const nameId = useId()
+  const messageId = useId()
   const [isOpen, setIsOpen] = useState(false)
   const [message, setMessage] = useState('')
   const [name, setName] = useState('')
@@ -57,10 +59,11 @@ export default function RecommendationButton() {
             </p>
           ) : (
             <div className="mb-4">
-              <label className="block text-sm font-medium text-text-primary dark:text-gray-100 mb-1">
+              <label htmlFor={nameId} className="block text-sm font-medium text-text-primary dark:text-gray-100 mb-1">
                 Your name <span className="text-text-secondary dark:text-gray-400 font-normal">(optional)</span>
               </label>
               <input
+                id={nameId}
                 type="text"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
@@ -72,10 +75,11 @@ export default function RecommendationButton() {
           )}
 
           <div className="mb-4">
-            <label className="block text-sm font-medium text-text-primary dark:text-gray-100 mb-1">
+            <label htmlFor={messageId} className="block text-sm font-medium text-text-primary dark:text-gray-100 mb-1">
               Your suggestion
             </label>
             <textarea
+              id={messageId}
               value={message}
               onChange={(e) => setMessage(e.target.value)}
               placeholder="What would you like to see improved or added?"

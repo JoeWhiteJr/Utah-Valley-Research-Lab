@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useId, useState, useEffect, useRef, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useChatStore } from '../store/chatStore'
 import { useAuthStore } from '../store/authStore'
@@ -72,6 +72,8 @@ function AuthenticatedAudio({ audioUrl }) {
 export default function Chat() {
   const { roomId } = useParams()
   const navigate = useNavigate()
+  const memberSearchId = useId()
+  const linkProjectId = useId()
   const {
     rooms, archivedRooms, currentRoom, messages, readReceipts, hasMore, isLoading,
     fetchRooms, fetchRoom, fetchMessages, sendMessage, deleteMessage, markRead,
@@ -1148,8 +1150,9 @@ export default function Chat() {
       <Modal isOpen={showCreateModal} onClose={() => setShowCreateModal(false)} title="New Chat">
         <form onSubmit={handleCreateChat} className="space-y-5">
           <div>
-            <label className="block text-sm font-medium text-text-primary dark:text-gray-100 mb-1.5">Members</label>
+            <label htmlFor={memberSearchId} className="block text-sm font-medium text-text-primary dark:text-gray-100 mb-1.5">Members</label>
             <input
+              id={memberSearchId}
               type="text"
               value={memberSearchQuery}
               onChange={(e) => setMemberSearchQuery(e.target.value)}
@@ -1215,8 +1218,9 @@ export default function Chat() {
               />
               {allProjects.length > 0 && (
                 <div>
-                  <label className="block text-sm font-medium text-text-primary dark:text-gray-100 mb-1.5">Link to Project (optional)</label>
+                  <label htmlFor={linkProjectId} className="block text-sm font-medium text-text-primary dark:text-gray-100 mb-1.5">Link to Project (optional)</label>
                   <select
+                    id={linkProjectId}
                     value={selectedProjectId}
                     onChange={(e) => setSelectedProjectId(e.target.value)}
                     className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-text-primary dark:text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-primary-300"

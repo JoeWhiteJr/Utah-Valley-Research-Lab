@@ -207,8 +207,9 @@ export default function RecommendationsTab() {
                 {/* Admin notes (expandable) */}
                 {isExpanded && (
                   <div className="px-4 pb-4 border-t border-gray-100 dark:border-gray-700 pt-3">
-                    <label className="block text-xs font-medium text-text-secondary dark:text-gray-400 mb-1">Admin Notes</label>
+                    <label htmlFor={`admin-notes-${rec.id}`} className="block text-xs font-medium text-text-secondary dark:text-gray-400 mb-1">Admin Notes</label>
                     <textarea
+                      id={`admin-notes-${rec.id}`}
                       value={editingNotes[rec.id] ?? rec.admin_notes ?? ''}
                       onChange={(e) => setEditingNotes(prev => ({ ...prev, [rec.id]: e.target.value }))}
                       onBlur={() => handleNotesBlur(rec.id)}

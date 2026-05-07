@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useId, useState, useEffect, useCallback } from 'react'
 import { useAdminStore } from '../store/adminStore'
 import { useApplicationStore } from '../store/applicationStore'
 import { useAuthStore } from '../store/authStore'
@@ -16,6 +16,10 @@ import TrashTab from '../components/admin/TrashTab'
 import RecommendationsTab from '../components/admin/RecommendationsTab'
 
 export default function Admin() {
+  const publishTitleId = useId()
+  const publishDescriptionId = useId()
+  const publishImageId = useId()
+  const publishStatusId = useId()
   const [activeTab, setActiveTab] = useState('dashboard')
   const { stats, fetchStats, aiSummary, aiSummaryLoading, aiSummaryError, fetchAiSummary, clearAiSummary } = useAdminStore()
   const { applications, fetchApplications, approveApplication, rejectApplication, requestAiReview, aiReview } = useApplicationStore()
@@ -648,8 +652,9 @@ export default function Admin() {
           {/* Form */}
           <div className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-text-primary dark:text-gray-100 mb-1">Title</label>
+              <label htmlFor={publishTitleId} className="block text-sm font-medium text-text-primary dark:text-gray-100 mb-1">Title</label>
               <input
+                id={publishTitleId}
                 type="text"
                 value={publishForm.title}
                 onChange={(e) => setPublishForm({ ...publishForm, title: e.target.value })}
@@ -657,8 +662,9 @@ export default function Admin() {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-text-primary dark:text-gray-100 mb-1">Description</label>
+              <label htmlFor={publishDescriptionId} className="block text-sm font-medium text-text-primary dark:text-gray-100 mb-1">Description</label>
               <textarea
+                id={publishDescriptionId}
                 value={publishForm.description}
                 onChange={(e) => setPublishForm({ ...publishForm, description: e.target.value })}
                 rows={5}
@@ -666,8 +672,9 @@ export default function Admin() {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-text-primary dark:text-gray-100 mb-1">Image URL</label>
+              <label htmlFor={publishImageId} className="block text-sm font-medium text-text-primary dark:text-gray-100 mb-1">Image URL</label>
               <input
+                id={publishImageId}
                 type="text"
                 value={publishForm.image}
                 onChange={(e) => setPublishForm({ ...publishForm, image: e.target.value })}
@@ -676,8 +683,9 @@ export default function Admin() {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-text-primary dark:text-gray-100 mb-1">Status</label>
+              <label htmlFor={publishStatusId} className="block text-sm font-medium text-text-primary dark:text-gray-100 mb-1">Status</label>
               <select
+                id={publishStatusId}
                 value={publishForm.status}
                 onChange={(e) => setPublishForm({ ...publishForm, status: e.target.value })}
                 className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-text-primary dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-primary-300"
