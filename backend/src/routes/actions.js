@@ -8,6 +8,7 @@ const { logActivity } = require('./users');
 const { createNotification } = require('./notifications');
 const socketService = require('../services/socketService');
 const { logAdminAction } = require('../middleware/auditLog');
+const { userHasProjectAccess } = require('../services/ragQueryService');
 
 const router = express.Router();
 
@@ -253,14 +254,8 @@ router.put('/reorder', authenticate, [
         [items.map(i => i.id)]
       );
       for (const row of itemCheck.rows) {
-        const projectAccess = await db.query(
-          `SELECT 1 FROM projects WHERE id = $1 AND (
-            created_by = $2 OR
-            EXISTS (SELECT 1 FROM action_items a LEFT JOIN action_item_assignees aia ON a.id = aia.action_item_id WHERE a.project_id = $1 AND (a.assigned_to = $2 OR aia.user_id = $2))
-          )`,
-          [row.project_id, req.user.id]
-        );
-        if (projectAccess.rows.length === 0 && req.user.role !== 'admin') {
+        const hasAccess = await userHasProjectAccess(req.user.id, req.user.role, row.project_id);
+        if (!hasAccess) {
           return res.status(403).json({ error: { message: 'Access denied' } });
         }
       }
@@ -316,15 +311,9 @@ router.put('/:id', authenticate, sanitizeBody('title'), [
       return res.status(404).json({ error: { message: 'Action item not found' } });
     }
 
-    // Verify project access
-    const projectAccess = await db.query(
-      `SELECT id FROM projects WHERE id = $1 AND (
-        created_by = $2 OR
-        EXISTS (SELECT 1 FROM action_items ai JOIN action_item_assignees aia ON aia.action_item_id = ai.id WHERE ai.project_id = $1 AND aia.user_id = $2)
-      )`,
-      [existing.rows[0].project_id, req.user.id]
-    );
-    if (projectAccess.rows.length === 0 && req.user.role !== 'admin') {
+    // Verify project access (admin, creator, project_member, or assignee)
+    const hasAccess = await userHasProjectAccess(req.user.id, req.user.role, existing.rows[0].project_id);
+    if (!hasAccess) {
       return res.status(403).json({ error: { message: 'Access denied' } });
     }
 
@@ -429,15 +418,9 @@ router.delete('/:id', authenticate, async (req, res, next) => {
       return res.status(404).json({ error: { message: 'Action item not found' } });
     }
 
-    // Verify project access
-    const projectAccess = await db.query(
-      `SELECT id FROM projects WHERE id = $1 AND (
-        created_by = $2 OR
-        EXISTS (SELECT 1 FROM action_items ai JOIN action_item_assignees aia ON aia.action_item_id = ai.id WHERE ai.project_id = $1 AND aia.user_id = $2)
-      )`,
-      [existing.rows[0].project_id, req.user.id]
-    );
-    if (projectAccess.rows.length === 0 && req.user.role !== 'admin') {
+    // Verify project access (admin, creator, project_member, or assignee)
+    const hasAccess = await userHasProjectAccess(req.user.id, req.user.role, existing.rows[0].project_id);
+    if (!hasAccess) {
       return res.status(403).json({ error: { message: 'Access denied' } });
     }
 
