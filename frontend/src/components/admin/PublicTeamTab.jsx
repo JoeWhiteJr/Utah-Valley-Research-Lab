@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useId, useState, useEffect } from 'react'
 import { adminApi } from '../../services/api'
 import Button from '../Button'
 import Modal from '../Modal'
@@ -32,6 +32,14 @@ const emptyForm = {
 }
 
 export default function PublicTeamTab() {
+  const nameId = useId()
+  const roleId = useId()
+  const categoryId = useId()
+  const bioId = useId()
+  const emailId = useId()
+  const linkedinId = useId()
+  const photoId = useId()
+  const displayOrderId = useId()
   const [members, setMembers] = useState([])
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
@@ -236,8 +244,9 @@ export default function PublicTeamTab() {
       >
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-text-primary dark:text-gray-100 mb-1">Name *</label>
+            <label htmlFor={nameId} className="block text-sm font-medium text-text-primary dark:text-gray-100 mb-1">Name *</label>
             <input
+              id={nameId}
               type="text"
               value={form.name}
               onChange={(e) => setForm({ ...form, name: e.target.value })}
@@ -246,8 +255,9 @@ export default function PublicTeamTab() {
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-text-primary dark:text-gray-100 mb-1">Role</label>
+              <label htmlFor={roleId} className="block text-sm font-medium text-text-primary dark:text-gray-100 mb-1">Role</label>
               <input
+                id={roleId}
                 type="text"
                 value={form.role}
                 onChange={(e) => setForm({ ...form, role: e.target.value })}
@@ -256,8 +266,9 @@ export default function PublicTeamTab() {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-text-primary dark:text-gray-100 mb-1">Category *</label>
+              <label htmlFor={categoryId} className="block text-sm font-medium text-text-primary dark:text-gray-100 mb-1">Category *</label>
               <select
+                id={categoryId}
                 value={form.category}
                 onChange={(e) => setForm({ ...form, category: e.target.value })}
                 className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-text-primary dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-primary-300"
@@ -269,8 +280,9 @@ export default function PublicTeamTab() {
             </div>
           </div>
           <div>
-            <label className="block text-sm font-medium text-text-primary dark:text-gray-100 mb-1">Bio</label>
+            <label htmlFor={bioId} className="block text-sm font-medium text-text-primary dark:text-gray-100 mb-1">Bio</label>
             <textarea
+              id={bioId}
               value={form.bio}
               onChange={(e) => setForm({ ...form, bio: e.target.value })}
               rows={3}
@@ -279,8 +291,9 @@ export default function PublicTeamTab() {
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-text-primary dark:text-gray-100 mb-1">Email</label>
+              <label htmlFor={emailId} className="block text-sm font-medium text-text-primary dark:text-gray-100 mb-1">Email</label>
               <input
+                id={emailId}
                 type="email"
                 value={form.email}
                 onChange={(e) => setForm({ ...form, email: e.target.value })}
@@ -288,8 +301,9 @@ export default function PublicTeamTab() {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-text-primary dark:text-gray-100 mb-1">LinkedIn URL</label>
+              <label htmlFor={linkedinId} className="block text-sm font-medium text-text-primary dark:text-gray-100 mb-1">LinkedIn URL</label>
               <input
+                id={linkedinId}
                 type="text"
                 value={form.linkedin_url}
                 onChange={(e) => setForm({ ...form, linkedin_url: e.target.value })}
@@ -299,8 +313,9 @@ export default function PublicTeamTab() {
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-text-primary dark:text-gray-100 mb-1">Photo URL</label>
+              <label htmlFor={photoId} className="block text-sm font-medium text-text-primary dark:text-gray-100 mb-1">Photo URL</label>
               <input
+                id={photoId}
                 type="text"
                 value={form.photo_url}
                 onChange={(e) => setForm({ ...form, photo_url: e.target.value })}
@@ -309,8 +324,9 @@ export default function PublicTeamTab() {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-text-primary dark:text-gray-100 mb-1">Display Order</label>
+              <label htmlFor={displayOrderId} className="block text-sm font-medium text-text-primary dark:text-gray-100 mb-1">Display Order</label>
               <input
+                id={displayOrderId}
                 type="number"
                 value={form.display_order}
                 onChange={(e) => setForm({ ...form, display_order: parseInt(e.target.value) || 0 })}

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useId, useState, useEffect } from 'react'
 import { adminApi } from '../../services/api'
 import Button from '../Button'
 import { ChevronDown, ChevronUp, Save, Loader2 } from 'lucide-react'
@@ -14,10 +14,12 @@ const SECTION_LABELS = {
 }
 
 function JsonField({ label, value, onChange }) {
+  const fieldId = useId()
   return (
     <div>
-      <label className="block text-sm font-medium text-text-primary dark:text-gray-100 mb-1">{label}</label>
+      <label htmlFor={fieldId} className="block text-sm font-medium text-text-primary dark:text-gray-100 mb-1">{label}</label>
       <input
+        id={fieldId}
         type="text"
         value={typeof value === 'string' ? value : ''}
         onChange={(e) => onChange(e.target.value)}
@@ -28,10 +30,12 @@ function JsonField({ label, value, onChange }) {
 }
 
 function JsonTextarea({ label, value, onChange, rows = 3 }) {
+  const fieldId = useId()
   return (
     <div>
-      <label className="block text-sm font-medium text-text-primary dark:text-gray-100 mb-1">{label}</label>
+      <label htmlFor={fieldId} className="block text-sm font-medium text-text-primary dark:text-gray-100 mb-1">{label}</label>
       <textarea
+        id={fieldId}
         value={typeof value === 'string' ? value : ''}
         onChange={(e) => onChange(e.target.value)}
         rows={rows}

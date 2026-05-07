@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import { useStudyStore } from '../../store/studyStore'
 import Button from '../../components/Button'
 import Input from '../../components/Input'
@@ -107,12 +107,14 @@ export default function StudyDemographics() {
 }
 
 function SelectField({ label, value, onChange, options }) {
+  const fieldId = useId()
   return (
     <div>
-      <label className="block text-sm font-medium text-text-primary dark:text-gray-200 mb-1.5">
+      <label htmlFor={fieldId} className="block text-sm font-medium text-text-primary dark:text-gray-200 mb-1.5">
         {label}
       </label>
       <select
+        id={fieldId}
         value={value}
         onChange={onChange}
         required

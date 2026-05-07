@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useId } from 'react'
 import { Link } from 'react-router-dom'
 import { applicationsApi } from '../services/api'
 import Button from '../components/Button'
@@ -6,6 +6,7 @@ import Input from '../components/Input'
 import { CheckCircle, ArrowLeft } from 'lucide-react'
 
 export default function Apply() {
+  const messageId = useId()
   const [formData, setFormData] = useState({ firstName: '', lastName: '', email: '', password: '', confirmPassword: '', message: '' })
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState(null)
@@ -112,8 +113,9 @@ export default function Apply() {
             required
           />
           <div>
-            <label className="block text-sm font-medium text-text-primary dark:text-gray-200 mb-1.5">Why do you want to join?</label>
+            <label htmlFor={messageId} className="block text-sm font-medium text-text-primary dark:text-gray-200 mb-1.5">Why do you want to join?</label>
             <textarea
+              id={messageId}
               name="message"
               value={formData.message}
               onChange={handleChange}
