@@ -102,6 +102,8 @@ export function EventBlock({ event, hourHeight, onEdit, onResize, readOnly }: Ev
     cursor: readOnly ? 'pointer' : isResizing ? 's-resize' : 'grab',
   };
 
+  const ariaLabel = `${event.title} from ${formatTime(start)} to ${formatTime(end)}`;
+
   return (
     <div
       ref={setNodeRef}
@@ -109,8 +111,18 @@ export function EventBlock({ event, hourHeight, onEdit, onResize, readOnly }: Ev
       {...listeners}
       style={style}
       data-event-block
+      role="button"
+      tabIndex={0}
+      aria-label={ariaLabel}
       onClick={(e) => { e.stopPropagation(); onEdit(event); }}
-      className="rounded-lg px-2 py-1 overflow-hidden hover:shadow-md transition-shadow group"
+      onKeyDown={(e: React.KeyboardEvent<HTMLDivElement>) => {
+        if (e.target !== e.currentTarget) return;
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onEdit(event);
+        }
+      }}
+      className="rounded-lg px-2 py-1 overflow-hidden hover:shadow-md transition-shadow group focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2"
     >
       <div className={`font-medium text-gray-900 dark:text-gray-100 truncate ${isCompact ? 'text-[0.6rem]' : 'text-xs'}`}>
         {event.title}
