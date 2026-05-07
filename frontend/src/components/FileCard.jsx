@@ -56,10 +56,20 @@ export default function FileCard({ file, onDownload, onDelete, onPreview }) {
     if (onPreview) onPreview(file)
   }
 
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault()
+      if (onPreview) onPreview(file)
+    }
+  }
+
   return (
     <div
-      className="group bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden hover:border-primary-300 dark:hover:border-primary-600 hover:shadow-sm transition-all cursor-pointer"
+      role="button"
+      tabIndex={0}
       onClick={handleClick}
+      onKeyDown={handleKeyDown}
+      className="group bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden hover:border-primary-300 dark:hover:border-primary-600 hover:shadow-sm transition-all cursor-pointer"
     >
       {/* Preview area */}
       <div className="h-32 bg-gray-50 dark:bg-gray-900 flex items-center justify-center relative">
@@ -74,7 +84,7 @@ export default function FileCard({ file, onDownload, onDelete, onPreview }) {
         )}
 
         {/* Hover actions */}
-        <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+        <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity flex items-center justify-center gap-2">
           {onPreview && (
             <button
               onClick={(e) => { e.stopPropagation(); onPreview(file); }}

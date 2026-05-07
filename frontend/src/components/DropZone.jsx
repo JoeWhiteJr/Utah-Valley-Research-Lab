@@ -67,10 +67,13 @@ export default function DropZone({
 
   return (
     <div
+      role="button"
+      tabIndex={0}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
       onClick={() => inputRef.current?.click()}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); inputRef.current?.click() } }}
       className={`
         relative rounded-xl border-2 border-dashed cursor-pointer transition-colors
         ${
