@@ -8,6 +8,7 @@ const logger = require('../config/logger');
 const { authenticate, requireProjectAccess } = require('../middleware/auth');
 const { logAdminAction } = require('../middleware/auditLog');
 const { indexFile } = require('../services/ragIndexingService');
+const { userHasProjectAccess } = require('../services/ragQueryService');
 
 const router = express.Router();
 
@@ -214,12 +215,44 @@ router.put('/:id/move', authenticate, async (req, res, next) => {
     if (existing.rows.length === 0) {
       return res.status(404).json({ error: { message: 'File not found' } });
     }
+    const file = existing.rows[0];
 
-    // If folder_id provided, verify folder exists
+    // If folder_id provided, verify folder exists and load its project_id
+    let folder = null;
     if (folder_id) {
-      const folder = await db.query('SELECT id FROM folders WHERE id = $1 AND deleted_at IS NULL', [folder_id]);
-      if (folder.rows.length === 0) {
+      const folderRes = await db.query(
+        'SELECT id, project_id FROM folders WHERE id = $1 AND deleted_at IS NULL',
+        [folder_id]
+      );
+      if (folderRes.rows.length === 0) {
         return res.status(404).json({ error: { message: 'Folder not found' } });
+      }
+      folder = folderRes.rows[0];
+    }
+
+    // Authorization: caller must have access to the file's project. Without
+    // this check, any authenticated user could move (and re-parent) any file
+    // they cannot otherwise read — corrupting other projects' organization
+    // and leaking file existence by enumeration.
+    const fileProjectAccess = await userHasProjectAccess(req.user.id, req.user.role, file.project_id);
+    if (!fileProjectAccess) {
+      return res.status(403).json({ error: { message: 'Access denied' } });
+    }
+
+    if (folder) {
+      // Caller must also have access to the destination folder's project.
+      // Admins satisfy both checks automatically; for project_lead/members the
+      // dual check matters.
+      const folderProjectAccess = await userHasProjectAccess(req.user.id, req.user.role, folder.project_id);
+      if (!folderProjectAccess) {
+        return res.status(403).json({ error: { message: 'Access denied' } });
+      }
+
+      // The move endpoint is for reorganizing files WITHIN a project. Cross-
+      // project moves should go through copy-and-delete or a dedicated
+      // endpoint with explicit semantics — reject them here as 400.
+      if (file.project_id !== folder.project_id) {
+        return res.status(400).json({ error: { message: 'Cannot move files between projects' } });
       }
     }
 
