@@ -83,6 +83,13 @@ export default function Layout() {
 
   return (
     <div className="min-h-screen bg-background dark:bg-gray-900">
+      {/* Skip-to-content link (a11y): first focusable element, visible only on focus */}
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-[60] bg-primary-600 text-white px-4 py-2 rounded shadow focus:outline-none focus:ring-2 focus:ring-primary-300"
+      >
+        Skip to main content
+      </a>
       {/* Unified header */}
       <div className="fixed top-0 left-0 right-0 h-16 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between px-4 lg:px-6 z-50">
         {/* Left: hamburger + branding + user */}
@@ -238,7 +245,11 @@ export default function Layout() {
       )}
 
       {/* Main content */}
-      <main className={`pt-16 min-h-screen transition-[margin] ${assistantIsOpen ? 'lg:mr-96' : ''} ${socketStatus === 'reconnecting' ? 'mt-8' : ''}`}>
+      <main
+        id="main-content"
+        tabIndex={-1}
+        className={`pt-16 min-h-screen transition-[margin] focus:outline-none ${assistantIsOpen ? 'lg:mr-96' : ''} ${socketStatus === 'reconnecting' ? 'mt-8' : ''}`}
+      >
         <div className="p-6 lg:p-8">
           <Breadcrumbs />
           <Outlet />
