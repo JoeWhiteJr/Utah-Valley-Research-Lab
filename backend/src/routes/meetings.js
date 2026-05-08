@@ -297,15 +297,21 @@ router.put('/:id/audio', authenticate, upload.single('audio'), async (req, res, 
       return res.status(404).json({ error: { message: 'Meeting not found' } });
     }
 
-    if (!req.file) {
-      return res.status(400).json({ error: { message: 'No audio file provided' } });
-    }
-
-    // Verify project access (admin, creator, project_member, or assignee)
+    // Verify project access BEFORE checking req.file presence so the response
+    // for an outsider is identical regardless of whether they sent a body.
+    // Otherwise the 400-vs-403 split lets unauthorized callers probe meeting
+    // state in other projects (same probe-leak class fixed in PR #89 for
+    // /transcribe). Multer has already written the upload to disk by the time
+    // this handler runs, so on access denial we must fs.unlink the orphaned
+    // file (same cleanup pattern as PR #83).
     const hasAccess = await userHasProjectAccess(req.user.id, req.user.role, existing.rows[0].project_id);
     if (!hasAccess) {
-      fs.unlink(req.file.path, () => {});
+      if (req.file) fs.unlink(req.file.path, () => {});
       return res.status(403).json({ error: { message: 'Access denied' } });
+    }
+
+    if (!req.file) {
+      return res.status(400).json({ error: { message: 'No audio file provided' } });
     }
 
     const result = await db.query(
