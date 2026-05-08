@@ -8,6 +8,7 @@ const db = require('../config/database');
 const logger = require('../config/logger');
 const { authenticate, requireProjectAccess } = require('../middleware/auth');
 const { sanitizeBody } = require('../middleware/sanitize');
+const { userHasProjectAccess } = require('../services/ragQueryService');
 
 const router = express.Router();
 
@@ -143,18 +144,10 @@ router.put('/:id', authenticate, sanitizeBody('notes'), [
       return res.status(404).json({ error: { message: 'Meeting not found' } });
     }
 
-    // Verify project access
-    if (req.user.role !== 'admin') {
-      const projectAccess = await db.query(
-        `SELECT id FROM projects WHERE id = $1 AND (
-          created_by = $2 OR
-          EXISTS (SELECT 1 FROM action_items ai JOIN action_item_assignees aia ON aia.action_item_id = ai.id WHERE ai.project_id = $1 AND aia.user_id = $2)
-        )`,
-        [existing.rows[0].project_id, req.user.id]
-      );
-      if (projectAccess.rows.length === 0) {
-        return res.status(403).json({ error: { message: 'Access denied' } });
-      }
+    // Verify project access (admin, creator, project_member, or assignee)
+    const hasAccess = await userHasProjectAccess(req.user.id, req.user.role, existing.rows[0].project_id);
+    if (!hasAccess) {
+      return res.status(403).json({ error: { message: 'Access denied' } });
     }
 
     const updates = [];
@@ -302,19 +295,11 @@ router.put('/:id/audio', authenticate, upload.single('audio'), async (req, res, 
       return res.status(400).json({ error: { message: 'No audio file provided' } });
     }
 
-    // Verify project access
-    if (req.user.role !== 'admin') {
-      const projectAccess = await db.query(
-        `SELECT id FROM projects WHERE id = $1 AND (
-          created_by = $2 OR
-          EXISTS (SELECT 1 FROM project_members WHERE project_id = $1 AND user_id = $2)
-        )`,
-        [existing.rows[0].project_id, req.user.id]
-      );
-      if (projectAccess.rows.length === 0) {
-        fs.unlink(req.file.path, () => {});
-        return res.status(403).json({ error: { message: 'Access denied' } });
-      }
+    // Verify project access (admin, creator, project_member, or assignee)
+    const hasAccess = await userHasProjectAccess(req.user.id, req.user.role, existing.rows[0].project_id);
+    if (!hasAccess) {
+      fs.unlink(req.file.path, () => {});
+      return res.status(403).json({ error: { message: 'Access denied' } });
     }
 
     const result = await db.query(
@@ -340,18 +325,10 @@ router.delete('/:id', authenticate, async (req, res, next) => {
 
     const meeting = result.rows[0];
 
-    // Verify project access
-    if (req.user.role !== 'admin') {
-      const projectAccess = await db.query(
-        `SELECT id FROM projects WHERE id = $1 AND (
-          created_by = $2 OR
-          EXISTS (SELECT 1 FROM action_items ai JOIN action_item_assignees aia ON aia.action_item_id = ai.id WHERE ai.project_id = $1 AND aia.user_id = $2)
-        )`,
-        [meeting.project_id, req.user.id]
-      );
-      if (projectAccess.rows.length === 0) {
-        return res.status(403).json({ error: { message: 'Access denied' } });
-      }
+    // Verify project access (admin, creator, project_member, or assignee)
+    const hasAccess = await userHasProjectAccess(req.user.id, req.user.role, meeting.project_id);
+    if (!hasAccess) {
+      return res.status(403).json({ error: { message: 'Access denied' } });
     }
 
     await db.query('UPDATE meetings SET deleted_at = NOW(), deleted_by = $1 WHERE id = $2', [req.user.id, req.params.id]);
