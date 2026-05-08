@@ -1,4 +1,5 @@
 const express = require('express');
+const { rateLimit, ipKeyGenerator } = require('express-rate-limit');
 const db = require('../config/database');
 const logger = require('../config/logger');
 const { authenticate, requireRole } = require('../middleware/auth');
@@ -6,6 +7,21 @@ const ragQueryService = require('../services/ragQueryService');
 const { indexFile } = require('../services/ragIndexingService');
 
 const router = express.Router();
+
+const isTestEnv = process.env.NODE_ENV === 'test';
+
+// Per-user rate limit on Claude messages — every send is a billable Anthropic
+// call, so a logged-in user (or a leaked token) can rack up cost quickly.
+const claudeMessageLimiter = isTestEnv
+  ? (req, res, next) => next()
+  : rateLimit({
+      windowMs: 5 * 60 * 1000, // 5 minutes
+      max: 30,
+      standardHeaders: true,
+      legacyHeaders: false,
+      message: { error: { message: 'Too many AI assistant messages. Please slow down and try again in a few minutes.' } },
+      keyGenerator: (req) => req.user?.id || ipKeyGenerator(req.ip)
+    });
 
 // All routes require authentication
 router.use(authenticate);
@@ -137,7 +153,7 @@ router.delete('/conversations/:id', async (req, res, next) => {
 });
 
 // POST /api/assistant/conversations/:id/messages — Send message → RAG → Claude → response
-router.post('/conversations/:id/messages', async (req, res, next) => {
+router.post('/conversations/:id/messages', claudeMessageLimiter, async (req, res, next) => {
   try {
     const { message } = req.body;
     if (!message || !message.trim()) {

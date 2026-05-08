@@ -1,5 +1,6 @@
 const express = require('express');
 const multer = require('multer');
+const { rateLimit, ipKeyGenerator } = require('express-rate-limit');
 const path = require('path');
 const fs = require('fs');
 const { v4: uuidv4 } = require('uuid');
@@ -11,6 +12,22 @@ const { indexFile } = require('../services/ragIndexingService');
 const { userHasProjectAccess } = require('../services/ragQueryService');
 
 const router = express.Router();
+
+const isTestEnv = process.env.NODE_ENV === 'test';
+
+// Per-user rate limit on uploads. Multer caps each file at 50MB but with no
+// frequency cap a user could push ~5GB/min of disk usage. Limit by user id so
+// shared NAT (e.g. campus WiFi) doesn't penalize legitimate users.
+const uploadLimiter = isTestEnv
+  ? (req, res, next) => next()
+  : rateLimit({
+      windowMs: 5 * 60 * 1000, // 5 minutes
+      max: 20,
+      standardHeaders: true,
+      legacyHeaders: false,
+      message: { error: { message: 'Too many uploads. Please wait a few minutes before uploading more files.' } },
+      keyGenerator: (req) => req.user?.id || ipKeyGenerator(req.ip)
+    });
 
 // Configure multer for file uploads
 const storage = multer.diskStorage({
@@ -104,7 +121,7 @@ router.get('/project/:projectId', authenticate, requireProjectAccess(), async (r
 });
 
 // Upload file
-router.post('/project/:projectId', authenticate, requireProjectAccess(), upload.single('file'), async (req, res, next) => {
+router.post('/project/:projectId', authenticate, uploadLimiter, requireProjectAccess(), upload.single('file'), async (req, res, next) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: { message: 'No file uploaded' } });

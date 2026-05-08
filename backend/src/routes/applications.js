@@ -1,6 +1,7 @@
 const express = require('express');
 const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
+const { rateLimit, ipKeyGenerator } = require('express-rate-limit');
 const { body, validationResult } = require('express-validator');
 const db = require('../config/database');
 const logger = require('../config/logger');
@@ -11,8 +12,25 @@ const socketService = require('../services/socketService');
 
 const router = express.Router();
 
+const isTestEnv = process.env.NODE_ENV === 'test';
+
+// Strict rate limit on public application submission. bcrypt cost 12 makes each
+// request ~250ms of CPU and the handler fans out admin notifications + can leak
+// account existence via 409 vs 201. Key by email so attackers can't rotate IPs
+// to amplify, but fall back to IP when no email is supplied.
+const submitApplicationLimiter = isTestEnv
+  ? (req, res, next) => next()
+  : rateLimit({
+      windowMs: 15 * 60 * 1000, // 15 minutes
+      max: 3,
+      standardHeaders: true,
+      legacyHeaders: false,
+      message: { error: { message: 'Too many application submissions. Please try again in 15 minutes.' } },
+      keyGenerator: (req) => req.body?.email?.toLowerCase() || ipKeyGenerator(req.ip)
+    });
+
 // Submit application (public - no auth required)
-router.post('/', [
+router.post('/', submitApplicationLimiter, [
   body('firstName').trim().notEmpty().withMessage('First name is required'),
   body('lastName').trim().notEmpty().withMessage('Last name is required'),
   body('email').isEmail().normalizeEmail().withMessage('Valid email is required'),
