@@ -56,6 +56,8 @@ export default function FilePreviewModal({ file, onClose, onDownload, onDelete }
           <img
             src={fileUrl}
             alt={file.original_filename}
+            loading="lazy"
+            decoding="async"
             className="max-w-full max-h-[70vh] object-contain rounded-lg"
           />
         )

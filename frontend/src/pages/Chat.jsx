@@ -903,6 +903,8 @@ export default function Chat() {
                           <img
                             src={getUploadUrl(msg.sender_avatar)}
                             alt={msg.sender_name}
+                            loading="lazy"
+                            decoding="async"
                             className="w-8 h-8 rounded-full object-cover"
                           />
                         ) : (
@@ -1188,7 +1190,7 @@ export default function Chat() {
                   />
                   <div className="flex items-center gap-2 flex-1 min-w-0">
                     {u.avatar_url ? (
-                      <img src={getUploadUrl(u.avatar_url)} alt="" className="w-6 h-6 rounded-full object-cover" />
+                      <img src={getUploadUrl(u.avatar_url)} alt="" loading="lazy" decoding="async" className="w-6 h-6 rounded-full object-cover" />
                     ) : (
                       <div className="w-6 h-6 rounded-full bg-gray-300 dark:bg-gray-600 flex items-center justify-center text-[10px] font-semibold text-white">
                         {u.name?.charAt(0)?.toUpperCase()}
@@ -1360,7 +1362,7 @@ export default function Chat() {
                     />
                     <div className="flex items-center gap-2 flex-1 min-w-0">
                       {u.avatar_url ? (
-                        <img src={getUploadUrl(u.avatar_url)} alt="" className="w-6 h-6 rounded-full object-cover" />
+                        <img src={getUploadUrl(u.avatar_url)} alt="" loading="lazy" decoding="async" className="w-6 h-6 rounded-full object-cover" />
                       ) : (
                         <div className="w-6 h-6 rounded-full bg-gray-300 dark:bg-gray-600 flex items-center justify-center text-[10px] font-semibold text-white">
                           {u.name?.charAt(0)?.toUpperCase()}
@@ -1392,7 +1394,7 @@ export default function Chat() {
               <div key={member.id} className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/50">
                 <div className="relative flex-shrink-0">
                   {member.avatar_url ? (
-                    <img src={getUploadUrl(member.avatar_url)} alt={member.name} className="w-8 h-8 rounded-full object-cover" />
+                    <img src={getUploadUrl(member.avatar_url)} alt={member.name} loading="lazy" decoding="async" className="w-8 h-8 rounded-full object-cover" />
                   ) : (
                     <div className="w-8 h-8 rounded-full bg-primary-100 dark:bg-primary-900/30 flex items-center justify-center text-xs font-semibold text-primary-700 dark:text-primary-300">
                       {initials}

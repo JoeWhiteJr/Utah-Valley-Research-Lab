@@ -186,7 +186,7 @@ export default function PublicTeamTab() {
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-full bg-primary-100 dark:bg-primary-900/30 flex items-center justify-center flex-shrink-0">
                       {member.photo_url ? (
-                        <img src={member.photo_url} alt="" className="w-full h-full rounded-full object-cover" />
+                        <img src={member.photo_url} alt="" loading="lazy" decoding="async" className="w-full h-full rounded-full object-cover" />
                       ) : (
                         <span className="text-primary-700 dark:text-primary-300 font-medium text-sm">
                           {member.name?.charAt(0)?.toUpperCase()}

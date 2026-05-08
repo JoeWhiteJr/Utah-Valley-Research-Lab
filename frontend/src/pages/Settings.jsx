@@ -149,7 +149,7 @@ export default function Settings() {
                 <div className="flex items-center gap-4 mb-6">
                   <div className="w-16 h-16 rounded-full bg-primary-100 dark:bg-primary-900/30 flex items-center justify-center overflow-hidden">
                     {user?.avatar_url ? (
-                      <img src={getUploadUrl(user.avatar_url)} alt="" className="w-full h-full object-cover" />
+                      <img src={getUploadUrl(user.avatar_url)} alt="" loading="lazy" decoding="async" className="w-full h-full object-cover" />
                     ) : (
                       <span className="text-primary-700 dark:text-primary-300 font-bold text-xl">
                         {user?.name?.charAt(0)?.toUpperCase() || 'U'}

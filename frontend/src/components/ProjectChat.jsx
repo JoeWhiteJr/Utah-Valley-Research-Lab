@@ -360,7 +360,7 @@ export default function ProjectChat({ projectId }) {
               {!isOwn && (
                 <div className="flex-shrink-0 mr-2 mt-5">
                   {msg.sender_avatar ? (
-                    <img src={getUploadUrl(msg.sender_avatar)} alt={msg.sender_name} className="w-8 h-8 rounded-full object-cover" />
+                    <img src={getUploadUrl(msg.sender_avatar)} alt={msg.sender_name} loading="lazy" decoding="async" className="w-8 h-8 rounded-full object-cover" />
                   ) : (
                     <div className="w-8 h-8 rounded-full bg-gray-300 dark:bg-gray-600 flex items-center justify-center text-xs font-semibold text-white">
                       {msg.sender_name?.charAt(0)?.toUpperCase() || '?'}

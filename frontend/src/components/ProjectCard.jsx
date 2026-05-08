@@ -31,6 +31,8 @@ const ProjectCard = memo(function ProjectCard({ project, onClick, pendingJoinReq
           <img
             src={getUploadUrl(project.header_image)}
             alt=""
+            loading="lazy"
+            decoding="async"
             className="w-full h-full object-cover"
           />
         ) : (

@@ -611,7 +611,7 @@ export default function LabDashboard() {
                       <div key={m.id} className="flex items-center gap-3 p-3 rounded-lg bg-gray-50 dark:bg-gray-700/50">
                         <div className="w-10 h-10 rounded-full bg-primary-100 dark:bg-primary-900/30 flex items-center justify-center overflow-hidden flex-shrink-0">
                           {m.avatar_url ? (
-                            <img src={getUploadUrl(m.avatar_url)} alt="" className="w-full h-full object-cover" />
+                            <img src={getUploadUrl(m.avatar_url)} alt="" loading="lazy" decoding="async" className="w-full h-full object-cover" />
                           ) : (
                             <span className="text-primary-700 dark:text-primary-300 font-medium text-sm">{m.name?.charAt(0)?.toUpperCase() || '?'}</span>
                           )}

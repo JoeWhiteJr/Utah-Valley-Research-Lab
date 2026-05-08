@@ -547,6 +547,8 @@ export default function ProjectDetail() {
             <img
               src={getUploadUrl(currentProject.header_image)}
               alt={currentProject.title}
+              loading="lazy"
+              decoding="async"
               className="w-full h-full object-cover"
             />
           ) : (
@@ -749,7 +751,7 @@ export default function ProjectDetail() {
                       {sortedMembers.map((member) => (
                         <div key={member.id} className="flex items-center gap-2 py-1.5 px-1 rounded hover:bg-gray-50 dark:hover:bg-gray-900 transition-colors">
                           {member.avatar_url ? (
-                            <img src={member.avatar_url} alt="" className="w-7 h-7 rounded-full object-cover" />
+                            <img src={member.avatar_url} alt="" loading="lazy" decoding="async" className="w-7 h-7 rounded-full object-cover" />
                           ) : (
                             <div className="w-7 h-7 rounded-full bg-primary-100 dark:bg-primary-900/30 flex items-center justify-center">
                               <span className="text-xs font-medium text-primary-600 dark:text-primary-300">{member.name?.charAt(0)?.toUpperCase() || '?'}</span>
