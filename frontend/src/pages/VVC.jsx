@@ -1,4 +1,5 @@
 import { useId, useState, useEffect, useCallback } from 'react'
+import DOMPurify from 'dompurify'
 import { useAuthStore } from '../store/authStore'
 import { useVvcStore } from '../store/vvcStore'
 import { vvcApi } from '../services/api'
@@ -615,7 +616,7 @@ export default function VVC() {
                         className="h-full flex flex-col [&>div]:flex-1 [&>div]:flex [&>div]:flex-col"
                       />
                     ) : (
-                      <div className="prose prose-sm dark:prose-invert max-w-none p-3 bg-gray-50 dark:bg-gray-900 rounded-lg flex-1 overflow-y-auto" dangerouslySetInnerHTML={{ __html: editNotes || '<p class="text-gray-400">No notes yet.</p>' }} />
+                      <div className="prose prose-sm dark:prose-invert max-w-none p-3 bg-gray-50 dark:bg-gray-900 rounded-lg flex-1 overflow-y-auto" dangerouslySetInnerHTML={{ __html: editNotes ? DOMPurify.sanitize(editNotes) : '<p class="text-gray-400">No notes yet.</p>' }} />
                     )}
                   </div>
                 </div>

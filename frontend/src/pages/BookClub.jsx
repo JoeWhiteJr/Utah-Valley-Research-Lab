@@ -1,4 +1,5 @@
 import { useId, useState, useEffect, useCallback } from 'react'
+import DOMPurify from 'dompurify'
 import { useAuthStore } from '../store/authStore'
 import { useBookClubStore } from '../store/bookClubStore'
 import { bookClubApi } from '../services/api'
@@ -296,7 +297,7 @@ export default function BookClub() {
                     <div className="ml-6 pl-2 border-l-2 border-gray-200 dark:border-gray-600 py-2">
                       {book.description && <p className="text-xs text-text-secondary dark:text-gray-400 mb-2">{book.description}</p>}
                       {book.notes && (
-                        <p className="text-xs text-text-secondary dark:text-gray-400 mb-2 line-clamp-3" dangerouslySetInnerHTML={{ __html: book.notes }} />
+                        <p className="text-xs text-text-secondary dark:text-gray-400 mb-2 line-clamp-3" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(book.notes) }} />
                       )}
                       <div className="flex items-center gap-3">
                         <button
@@ -413,7 +414,7 @@ export default function BookClub() {
                         className="h-full flex flex-col [&>div]:flex-1 [&>div]:flex [&>div]:flex-col"
                       />
                     ) : (
-                      <div className="prose prose-sm dark:prose-invert max-w-none p-3 bg-gray-50 dark:bg-gray-900 rounded-lg flex-1 overflow-y-auto" dangerouslySetInnerHTML={{ __html: meetingNotes || '<p class="text-gray-400">No notes yet.</p>' }} />
+                      <div className="prose prose-sm dark:prose-invert max-w-none p-3 bg-gray-50 dark:bg-gray-900 rounded-lg flex-1 overflow-y-auto" dangerouslySetInnerHTML={{ __html: meetingNotes ? DOMPurify.sanitize(meetingNotes) : '<p class="text-gray-400">No notes yet.</p>' }} />
                     )}
                   </div>
                 </div>
