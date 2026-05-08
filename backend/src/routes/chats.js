@@ -1160,12 +1160,16 @@ router.get('/uploads/:filename', authenticate, async (req, res, next) => {
 });
 
 // Edit a message (sender only)
-router.put('/:roomId/messages/:messageId', authenticate, async (req, res, next) => {
+router.put('/:roomId/messages/:messageId', authenticate, sanitizeBody('content'), [
+  body('content').trim().notEmpty().isLength({ max: 5000 })
+], async (req, res, next) => {
   try {
-    const { content } = req.body;
-    if (!content || !content.trim()) {
-      return res.status(400).json({ error: { message: 'Message content is required' } });
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ error: { message: 'Validation failed', details: errors.array() } });
     }
+
+    const { content } = req.body;
 
     const result = await db.query(
       'SELECT * FROM messages WHERE id = $1 AND room_id = $2',
