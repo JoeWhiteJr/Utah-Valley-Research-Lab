@@ -1,10 +1,28 @@
 const express = require('express');
+const { rateLimit, ipKeyGenerator } = require('express-rate-limit');
 const { body, validationResult } = require('express-validator');
 const db = require('../config/database');
 const logger = require('../config/logger');
 const { authenticate, requireRole } = require('../middleware/auth');
 
 const router = express.Router();
+
+const isTestEnv = process.env.NODE_ENV === 'test';
+
+// Shared per-user rate limit for every Gemini-backed endpoint in this file.
+// Each call hits the paid Gemini API, so a single user can amplify cost across
+// chat, summarize-*, admin-summary and review-application combined — keep the
+// budget shared rather than per-route.
+const llmLimiter = isTestEnv
+  ? (req, res, next) => next()
+  : rateLimit({
+      windowMs: 5 * 60 * 1000, // 5 minutes
+      max: 20,
+      standardHeaders: true,
+      legacyHeaders: false,
+      message: { error: { message: 'Too many AI requests. Please wait a few minutes before trying again.' } },
+      keyGenerator: (req) => req.user?.id || ipKeyGenerator(req.ip)
+    });
 
 // Lazy load Google Generative AI SDK
 let GoogleGenerativeAI = null;
@@ -40,7 +58,7 @@ router.get('/status', authenticate, (req, res) => {
 });
 
 // General AI chat
-router.post('/chat', authenticate, [
+router.post('/chat', authenticate, llmLimiter, [
   body('message').trim().notEmpty().withMessage('Message is required'),
   body('context').optional().trim()
 ], async (req, res, next) => {
@@ -86,7 +104,7 @@ router.post('/chat', authenticate, [
 });
 
 // AI-powered application review (admin only)
-router.post('/review-application', authenticate, requireRole('admin'), [
+router.post('/review-application', authenticate, requireRole('admin'), llmLimiter, [
   body('applicationId').isUUID().withMessage('Valid application ID is required')
 ], async (req, res, next) => {
   try {
@@ -162,7 +180,7 @@ Be objective and professional. Focus on the content provided.`
 });
 
 // Summarize chat conversation (for long threads)
-router.post('/summarize-chat', authenticate, [
+router.post('/summarize-chat', authenticate, llmLimiter, [
   body('roomId').isUUID().withMessage('Valid room ID is required'),
   body('messageCount').optional().isInt({ min: 10, max: 100 })
 ], async (req, res, next) => {
@@ -237,7 +255,7 @@ router.post('/summarize-chat', authenticate, [
 });
 
 // Summarize a single project
-router.post('/summarize-project', authenticate, [
+router.post('/summarize-project', authenticate, llmLimiter, [
   body('projectId').isUUID().withMessage('Valid project ID is required')
 ], async (req, res, next) => {
   try {
@@ -364,7 +382,7 @@ Be professional, concise, and use bullet points where helpful.`
 });
 
 // Summarize dashboard - weekly tasks/to-do overview
-router.post('/summarize-dashboard', authenticate, async (req, res, next) => {
+router.post('/summarize-dashboard', authenticate, llmLimiter, async (req, res, next) => {
   try {
     const model = getModel();
     if (!model) {
@@ -495,7 +513,7 @@ Be professional and concise. Use bullet points for clarity. Focus on actionable 
 });
 
 // Admin AI Summary - aggregated lab activity summary (admin only)
-router.post('/admin-summary', authenticate, requireRole('admin'), [
+router.post('/admin-summary', authenticate, requireRole('admin'), llmLimiter, [
   body('dateRange').optional().isIn(['week', 'month', 'all']).withMessage('dateRange must be week, month, or all')
 ], async (req, res, next) => {
   try {
