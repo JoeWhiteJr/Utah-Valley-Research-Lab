@@ -8,6 +8,7 @@ const db = require('../config/database');
 const logger = require('../config/logger');
 const { authenticate, requireProjectAccess } = require('../middleware/auth');
 const { logAdminAction } = require('../middleware/auditLog');
+const { processUpload } = require('../middleware/uploadProcessor');
 const { indexFile } = require('../services/ragIndexingService');
 const { userHasProjectAccess } = require('../services/ragQueryService');
 
@@ -121,15 +122,16 @@ router.get('/project/:projectId', authenticate, requireProjectAccess(), async (r
 });
 
 // Upload file
-router.post('/project/:projectId', authenticate, uploadLimiter, requireProjectAccess(), upload.single('file'), async (req, res, next) => {
+router.post('/project/:projectId', authenticate, uploadLimiter, requireProjectAccess(), upload.single('file'), processUpload({ category: 'files', generateThumbnail: true }), async (req, res, next) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: { message: 'No file uploaded' } });
     }
 
     const result = await db.query(
-      `INSERT INTO files (project_id, filename, original_filename, storage_path, file_type, file_size, uploaded_by)
-       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+      `INSERT INTO files (project_id, filename, original_filename, storage_path, file_type, file_size, uploaded_by,
+        checksum_sha256, detected_mime_type, s3_key, s3_bucket, storage_backend, thumbnail_path)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING *`,
       [
         req.params.projectId,
         req.file.filename,
@@ -137,7 +139,13 @@ router.post('/project/:projectId', authenticate, uploadLimiter, requireProjectAc
         req.file.path,
         req.file.mimetype,
         req.file.size,
-        req.user.id
+        req.user.id,
+        req.file.checksum || null,
+        req.file.detectedMimeType || null,
+        req.file.s3Key || null,
+        req.file.s3Bucket || null,
+        req.file.storageBackend || 'local',
+        req.file.thumbnailPath || null
       ]
     );
 
@@ -149,8 +157,9 @@ router.post('/project/:projectId', authenticate, uploadLimiter, requireProjectAc
 
     res.status(201).json({ file: result.rows[0] });
   } catch (error) {
-    // Clean up uploaded file on error
-    if (req.file) {
+    // Clean up uploaded file on error (only when stored locally — S3 uploads
+    // already removed the local file in processUpload).
+    if (req.file && req.file.storageBackend !== 's3') {
       fs.unlink(req.file.path, () => {});
     }
     next(error);

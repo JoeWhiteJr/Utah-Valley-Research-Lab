@@ -3,6 +3,7 @@ const bcrypt = require('bcryptjs');
 const { body, validationResult } = require('express-validator');
 const db = require('../config/database');
 const { authenticate, requireRole } = require('../middleware/auth');
+const { processUpload } = require('../middleware/uploadProcessor');
 
 const router = express.Router();
 
@@ -417,12 +418,12 @@ const avatarUpload = multer({
   }
 });
 
-router.post('/avatar', authenticate, avatarUpload.single('avatar'), async (req, res, next) => {
+router.post('/avatar', authenticate, avatarUpload.single('avatar'), processUpload({ category: 'avatars', generateThumbnail: true }), async (req, res, next) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: { message: 'No image uploaded' } });
     }
-    const avatarUrl = `/uploads/avatars/${req.file.filename}`;
+    const avatarUrl = req.file.storageBackend === 's3' ? req.file.s3Key : `/uploads/avatars/${req.file.filename}`;
     const result = await db.query(
       'UPDATE users SET avatar_url = $1 WHERE id = $2 RETURNING id, email, name, role, avatar_url',
       [avatarUrl, req.user.id]

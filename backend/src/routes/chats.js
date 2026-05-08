@@ -7,6 +7,7 @@ const { body, query, validationResult } = require('express-validator');
 const db = require('../config/database');
 const { authenticate } = require('../middleware/auth');
 const { sanitizeBody } = require('../middleware/sanitize');
+const { processUpload } = require('../middleware/uploadProcessor');
 const socketService = require('../services/socketService');
 const { createNotificationForUsers } = require('./notifications');
 
@@ -567,7 +568,7 @@ router.get('/:id/messages/:messageId/reactions', authenticate, async (req, res, 
 });
 
 // Upload audio message
-router.post('/:id/audio', authenticate, chatUpload.single('audio'), async (req, res, next) => {
+router.post('/:id/audio', authenticate, chatUpload.single('audio'), processUpload({ category: 'chat' }), async (req, res, next) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: { message: 'No audio file provided' } });
@@ -582,7 +583,7 @@ router.post('/:id/audio', authenticate, chatUpload.single('audio'), async (req, 
       return res.status(403).json({ error: { message: 'Not a member of this chat' } });
     }
 
-    const audioUrl = `/uploads/chat/${req.file.filename}`;
+    const audioUrl = req.file.storageBackend === 's3' ? req.file.s3Key : `/uploads/chat/${req.file.filename}`;
     const duration = parseInt(req.body.duration) || 0;
 
     const result = await db.query(
@@ -628,7 +629,7 @@ router.post('/:id/audio', authenticate, chatUpload.single('audio'), async (req, 
 });
 
 // Upload file in chat
-router.post('/:id/upload', authenticate, chatUpload.single('file'), async (req, res, next) => {
+router.post('/:id/upload', authenticate, chatUpload.single('file'), processUpload({ category: 'chat' }), async (req, res, next) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: { message: 'No file provided' } });
@@ -643,7 +644,7 @@ router.post('/:id/upload', authenticate, chatUpload.single('file'), async (req, 
       return res.status(403).json({ error: { message: 'Not a member of this chat' } });
     }
 
-    const fileUrl = `/uploads/chat/${req.file.filename}`;
+    const fileUrl = req.file.storageBackend === 's3' ? req.file.s3Key : `/uploads/chat/${req.file.filename}`;
     const fileName = req.file.originalname;
 
     const result = await db.query(
@@ -950,7 +951,7 @@ router.get('/:id/media', authenticate, async (req, res, next) => {
 });
 
 // Upload chat room image
-router.post('/:id/image', authenticate, chatUpload.single('image'), async (req, res, next) => {
+router.post('/:id/image', authenticate, chatUpload.single('image'), processUpload({ category: 'chat', generateThumbnail: true }), async (req, res, next) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: { message: 'No image provided' } });
@@ -965,7 +966,7 @@ router.post('/:id/image', authenticate, chatUpload.single('image'), async (req, 
       return res.status(403).json({ error: { message: 'Not a member of this chat' } });
     }
 
-    const imageUrl = `/uploads/chat/${req.file.filename}`;
+    const imageUrl = req.file.storageBackend === 's3' ? req.file.s3Key : `/uploads/chat/${req.file.filename}`;
     const result = await db.query(
       'UPDATE chat_rooms SET image_url = $1 WHERE id = $2 RETURNING *',
       [imageUrl, req.params.id]
