@@ -218,7 +218,7 @@ router.post('/conversations/:id/messages', async (req, res, next) => {
 router.get('/files/:fileId/status', async (req, res, next) => {
   try {
     const result = await db.query(
-      'SELECT id, indexing_status, indexing_error, indexed_at, chunk_count FROM files WHERE id = $1 AND deleted_at IS NULL',
+      'SELECT id, project_id, indexing_status, indexing_error, indexed_at, chunk_count FROM files WHERE id = $1 AND deleted_at IS NULL',
       [req.params.fileId]
     );
 
@@ -226,7 +226,30 @@ router.get('/files/:fileId/status', async (req, res, next) => {
       return res.status(404).json({ error: { message: 'File not found' } });
     }
 
-    res.json({ file: result.rows[0] });
+    const file = result.rows[0];
+
+    // Authorization: any logged-in user could previously read indexing
+    // metadata for any file UUID by guessing/scraping ids. Mirror the project
+    // access check used elsewhere in this router (see PR #78).
+    if (file.project_id) {
+      const hasAccess = await ragQueryService.userHasProjectAccess(
+        req.user.id,
+        req.user.role,
+        file.project_id
+      );
+      if (!hasAccess) {
+        return res.status(403).json({ error: { message: 'You do not have access to this file' } });
+      }
+    } else if (req.user.role !== 'admin') {
+      // Files not attached to a project (defense-in-depth: schema currently
+      // requires project_id, but historic rows or future migrations may not)
+      // are admin-only.
+      return res.status(403).json({ error: { message: 'You do not have access to this file' } });
+    }
+
+    // Strip project_id from the response to preserve the existing payload shape.
+    const { project_id: _projectId, ...payload } = file;
+    res.json({ file: payload });
   } catch (error) {
     next(error);
   }
