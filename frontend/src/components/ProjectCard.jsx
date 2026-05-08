@@ -13,7 +13,10 @@ const ProjectCard = memo(function ProjectCard({ project, onClick, pendingJoinReq
       role="button"
       tabIndex={0}
       onClick={onClick}
-      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick?.() } }}
+      onKeyDown={(e) => {
+        if (e.target !== e.currentTarget) return
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick?.() }
+      }}
       className={`block rounded-xl border transition-all overflow-hidden group cursor-pointer ${
         isMember ? 'border-l-4 border-l-primary-400 dark:border-l-primary-500' : ''
       } ${

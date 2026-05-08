@@ -15,7 +15,10 @@ const NoteCard = memo(function NoteCard({ note, onEdit, onDelete, onTogglePin, o
       role="button"
       tabIndex={0}
       onClick={() => onEdit(note)}
-      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onEdit(note) } }}
+      onKeyDown={(e) => {
+        if (e.target !== e.currentTarget) return
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onEdit(note) }
+      }}
       className={`group bg-white dark:bg-gray-800 rounded-lg border ${isPinned ? 'border-primary-300 dark:border-primary-600' : 'border-gray-200 dark:border-gray-700'} p-4 hover:border-primary-300 dark:hover:border-primary-500 hover:shadow-sm transition-all cursor-pointer`}
     >
       <div className="flex items-start justify-between gap-3">
