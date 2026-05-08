@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { X, Trash2, Calendar, Users, Link } from 'lucide-react';
 import { format } from 'date-fns';
 import { useCalendarStore } from '../../store/calendarStore';
@@ -10,6 +10,8 @@ import { RepeatPicker } from './RepeatPicker';
 import ConfirmDialog from '../ConfirmDialog';
 import type { CalendarScope, CalendarCategory, RepeatRule, CreateEventData } from './types';
 import { CATEGORY_COLORS } from './types';
+
+const FOCUSABLE = 'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
 interface EventModalProps {
   scope: CalendarScope;
@@ -55,6 +57,83 @@ export function EventModal({ scope, onClose }: EventModalProps) {
   const [showNewCategory, setShowNewCategory] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState('');
   const [newCategoryColor, setNewCategoryColor] = useState(CATEGORY_COLORS[0]);
+
+  // A11y refs: focus trap, return-focus-on-close, document-level Escape
+  const dialogRef = useRef<HTMLDivElement | null>(null);
+  const previousFocusRef = useRef<Element | null>(null);
+  const onCloseRef = useRef(onClose);
+  const showDeleteConfirmRef = useRef(showDeleteConfirm);
+
+  // Keep refs fresh without re-binding the document listener
+  useEffect(() => {
+    onCloseRef.current = onClose;
+    showDeleteConfirmRef.current = showDeleteConfirm;
+  });
+
+  // Document-level Escape + Tab focus trap (works regardless of focused element)
+  const handleDocumentKeyDown = useCallback((e: KeyboardEvent) => {
+    if (e.key === 'Escape') {
+      // Defer to nested ConfirmDialog when its Escape will close it instead
+      if (showDeleteConfirmRef.current) return;
+      e.preventDefault();
+      onCloseRef.current();
+      return;
+    }
+    if (e.key !== 'Tab' || !dialogRef.current) return;
+    // Defer Tab trapping to nested ConfirmDialog when it is open
+    if (showDeleteConfirmRef.current) return;
+
+    const focusable = dialogRef.current.querySelectorAll<HTMLElement>(FOCUSABLE);
+    if (focusable.length === 0) return;
+
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+
+    if (e.shiftKey) {
+      if (document.activeElement === first || !dialogRef.current.contains(document.activeElement)) {
+        e.preventDefault();
+        last.focus();
+      }
+    } else {
+      if (document.activeElement === last || !dialogRef.current.contains(document.activeElement)) {
+        e.preventDefault();
+        first.focus();
+      }
+    }
+  }, []);
+
+  // Wire/unwire document listener + return focus to opener on close
+  useEffect(() => {
+    previousFocusRef.current = document.activeElement;
+    document.addEventListener('keydown', handleDocumentKeyDown);
+
+    // Focus first focusable element after render (replaces input autoFocus)
+    requestAnimationFrame(() => {
+      if (dialogRef.current) {
+        const focusable = dialogRef.current.querySelectorAll<HTMLElement>(FOCUSABLE);
+        if (focusable.length > 0) focusable[0].focus();
+      }
+    });
+
+    return () => {
+      document.removeEventListener('keydown', handleDocumentKeyDown);
+      const prev = previousFocusRef.current;
+      if (prev && prev instanceof HTMLElement && typeof prev.focus === 'function') {
+        prev.focus();
+      }
+    };
+  }, [handleDocumentKeyDown]);
+
+  // Body scroll lock while open (data-modal counter composes with other modals)
+  useEffect(() => {
+    document.body.style.overflow = 'hidden';
+    return () => {
+      const otherModals = document.querySelectorAll('[data-modal]');
+      if (otherModals.length <= 1) {
+        document.body.style.overflow = 'unset';
+      }
+    };
+  }, []);
 
   // Load projects and team members
   useEffect(() => {
@@ -142,14 +221,18 @@ export function EventModal({ scope, onClose }: EventModalProps) {
 
   return (
     <>
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onClose}>
+    <div data-modal className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onClose}>
       <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="event-modal-title"
         className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
         <div className="flex items-center justify-between p-5 border-b border-gray-200 dark:border-gray-700">
-          <h2 className="font-semibold text-lg text-gray-900 dark:text-gray-100">
+          <h2 id="event-modal-title" className="font-semibold text-lg text-gray-900 dark:text-gray-100">
             {isEditing ? 'Edit Event' : 'New Event'}
           </h2>
           <div className="flex items-center gap-2">
@@ -176,7 +259,6 @@ export function EventModal({ scope, onClose }: EventModalProps) {
               placeholder="Event title"
               className="w-full px-4 py-2.5 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-300 dark:focus:ring-indigo-500 focus:border-indigo-400"
               required
-              autoFocus
             />
           </div>
 
