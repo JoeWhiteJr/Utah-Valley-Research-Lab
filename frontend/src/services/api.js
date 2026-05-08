@@ -1,4 +1,5 @@
 import axios from 'axios'
+import { toast } from '../store/toastStore'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api'
 // Base URL for static files (uploads)
@@ -49,7 +50,7 @@ api.interceptors.request.use((config) => {
   return config
 })
 
-// Handle auth errors
+// Handle auth errors and surface server / network failures as toasts
 api.interceptors.response.use(
   (response) => response,
   (error) => {
@@ -68,7 +69,29 @@ api.interceptors.response.use(
           useAuthStore.getState().logout()
         })
       }
+      return Promise.reject(error)
     }
+
+    // Surface 5xx and network failures as a global toast so users aren't
+    // staring at a UI that silently rejected their click. Callers that
+    // already render their own error UI can opt out by setting
+    // `_silent: true` in the request config.
+    const silent = error.config?._silent === true
+    if (!silent) {
+      const status = error.response?.status
+      if (status >= 500) {
+        const serverMessage = error.response?.data?.error?.message
+        toast.error(serverMessage || 'Something went wrong on our end. Please try again.')
+      } else if (!error.response) {
+        // No response object means the request never completed: network
+        // down, CORS failure, timeout, or request was cancelled (skip the
+        // last one — cancellations are not user-facing failures).
+        if (!axios.isCancel?.(error) && error.code !== 'ERR_CANCELED') {
+          toast.error('Network error. Check your connection and try again.')
+        }
+      }
+    }
+
     return Promise.reject(error)
   }
 )
