@@ -31,6 +31,8 @@ export default function ChatRoomAvatar({ room, currentUserId, size = 40 }) {
         <img
           src={getUploadUrl(otherMember.avatar_url)}
           alt={otherMember.name}
+          loading="lazy"
+          decoding="async"
           className="rounded-full object-cover"
           style={style}
         />
@@ -51,6 +53,8 @@ export default function ChatRoomAvatar({ room, currentUserId, size = 40 }) {
       <img
         src={getUploadUrl(room.image_url)}
         alt={room.name || 'Group'}
+        loading="lazy"
+        decoding="async"
         className="rounded-full object-cover"
         style={style}
       />

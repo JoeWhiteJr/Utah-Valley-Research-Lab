@@ -795,5 +795,5 @@ function AuthImage({ src, alt, className, onClick }) {
   if (error) return <div className={`bg-gray-200 dark:bg-gray-700 flex items-center justify-center ${className}`}><Image size={20} className="text-gray-400" /></div>
   if (!blobUrl) return <div className={`bg-gray-100 dark:bg-gray-800 animate-pulse ${className}`} />
 
-  return <img src={blobUrl} alt={alt} className={className} onClick={onClick} />
+  return <img src={blobUrl} alt={alt} loading="lazy" decoding="async" className={className} onClick={onClick} />
 }

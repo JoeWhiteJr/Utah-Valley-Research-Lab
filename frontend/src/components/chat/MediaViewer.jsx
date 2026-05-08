@@ -76,7 +76,7 @@ export default function MediaViewer({ roomId, isOpen, onClose }) {
                     <p className="text-[10px] text-gray-500 dark:text-gray-400">Audio</p>
                   </div>
                 ) : (
-                  <img src={url} alt={item.file_name || 'Media'} className="w-full h-full object-cover" />
+                  <img src={url} alt={item.file_name || 'Media'} loading="lazy" decoding="async" className="w-full h-full object-cover" />
                 )}
               </a>
             )

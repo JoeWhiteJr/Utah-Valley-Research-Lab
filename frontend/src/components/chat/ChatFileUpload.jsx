@@ -101,6 +101,8 @@ export function FileAttachment({ fileUrl, fileName, type }) {
         <img
           src={url}
           alt={fileName}
+          loading="lazy"
+          decoding="async"
           className="max-w-full max-h-60 rounded-lg cursor-pointer"
           onClick={() => window.open(url, '_blank')}
         />

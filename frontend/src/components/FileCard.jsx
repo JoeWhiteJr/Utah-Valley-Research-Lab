@@ -78,6 +78,8 @@ export default function FileCard({ file, onDownload, onDelete, onPreview }) {
           <img
             src={getUploadUrl(`/uploads/${file.filename}`)}
             alt={file.original_filename}
+            loading="lazy"
+            decoding="async"
             className="w-full h-full object-cover"
           />
         ) : (
