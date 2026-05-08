@@ -176,9 +176,15 @@ router.delete('/:id', authenticate, async (req, res, next) => {
 // Toggle personal pin
 router.post('/:id/pin', authenticate, async (req, res, next) => {
   try {
-    const noteCheck = await db.query('SELECT id FROM notes WHERE id = $1 AND deleted_at IS NULL', [req.params.id]);
+    const noteCheck = await db.query('SELECT id, project_id FROM notes WHERE id = $1 AND deleted_at IS NULL', [req.params.id]);
     if (noteCheck.rows.length === 0) {
       return res.status(404).json({ error: { message: 'Note not found' } });
+    }
+
+    // Verify project access (admin, creator, project_member, or assignee)
+    const hasAccess = await userHasProjectAccess(req.user.id, req.user.role, noteCheck.rows[0].project_id);
+    if (!hasAccess) {
+      return res.status(403).json({ error: { message: 'Access denied' } });
     }
 
     const existing = await db.query(

@@ -266,6 +266,12 @@ router.post('/:id/transcribe', authenticate, async (req, res, next) => {
 
     const meeting = result.rows[0];
 
+    // Verify project access (admin, creator, project_member, or assignee)
+    const hasAccess = await userHasProjectAccess(req.user.id, req.user.role, meeting.project_id);
+    if (!hasAccess) {
+      return res.status(403).json({ error: { message: 'Access denied' } });
+    }
+
     if (!meeting.audio_path) {
       return res.status(400).json({ error: { message: 'No audio file associated with this meeting' } });
     }
