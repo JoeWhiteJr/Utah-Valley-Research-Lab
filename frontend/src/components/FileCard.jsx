@@ -57,6 +57,7 @@ export default function FileCard({ file, onDownload, onDelete, onPreview }) {
   }
 
   const handleKeyDown = (e) => {
+    if (e.target !== e.currentTarget) return
     if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault()
       if (onPreview) onPreview(file)

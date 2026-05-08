@@ -73,7 +73,10 @@ export default function DropZone({
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
       onClick={() => inputRef.current?.click()}
-      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); inputRef.current?.click() } }}
+      onKeyDown={(e) => {
+        if (e.target !== e.currentTarget) return
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); inputRef.current?.click() }
+      }}
       className={`
         relative rounded-xl border-2 border-dashed cursor-pointer transition-colors
         ${
