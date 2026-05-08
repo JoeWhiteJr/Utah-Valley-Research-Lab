@@ -61,7 +61,7 @@ async function validateMagicBytes(filePath, declaredMime) {
   }
 
   try {
-    const { fileTypeFromFile } = require('file-type');
+    const { fileTypeFromFile } = await import('file-type');
     const result = await fileTypeFromFile(filePath);
 
     if (!result) {

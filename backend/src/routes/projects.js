@@ -8,6 +8,7 @@ const db = require('../config/database');
 const logger = require('../config/logger');
 const { authenticate, requireRole } = require('../middleware/auth');
 const { createNotification, createNotificationForUsers } = require('./notifications');
+const { processUpload } = require('../middleware/uploadProcessor');
 const socketService = require('../services/socketService');
 const { logAdminAction } = require('../middleware/auditLog');
 
@@ -331,7 +332,7 @@ router.put('/:id', authenticate, requireRole('admin', 'project_lead'), [
 });
 
 // Upload cover image
-router.post('/:id/cover', authenticate, requireRole('admin', 'project_lead'), coverUpload.single('cover'), async (req, res, next) => {
+router.post('/:id/cover', authenticate, requireRole('admin', 'project_lead'), coverUpload.single('cover'), processUpload({ category: 'covers' }), async (req, res, next) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: { message: 'No image file provided' } });
@@ -347,7 +348,7 @@ router.post('/:id/cover', authenticate, requireRole('admin', 'project_lead'), co
       return res.status(403).json({ error: { message: 'You can only edit projects you lead' } });
     }
 
-    const imageUrl = `/uploads/covers/${req.file.filename}`;
+    const imageUrl = req.file.storageBackend === 's3' ? req.file.s3Key : `/uploads/covers/${req.file.filename}`;
     await db.query(
       'UPDATE projects SET header_image = $1 WHERE id = $2',
       [imageUrl, req.params.id]

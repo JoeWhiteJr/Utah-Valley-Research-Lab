@@ -8,6 +8,7 @@ const db = require('../config/database');
 const logger = require('../config/logger');
 const { authenticate, requireProjectAccess } = require('../middleware/auth');
 const { sanitizeBody } = require('../middleware/sanitize');
+const { processUpload } = require('../middleware/uploadProcessor');
 const { userHasProjectAccess } = require('../services/ragQueryService');
 
 const router = express.Router();
@@ -90,7 +91,7 @@ router.get('/:id', authenticate, async (req, res, next) => {
 });
 
 // Upload meeting audio
-router.post('/project/:projectId', authenticate, requireProjectAccess(), upload.single('audio'), sanitizeBody('notes'), [
+router.post('/project/:projectId', authenticate, requireProjectAccess(), upload.single('audio'), processUpload({ category: 'audio' }), sanitizeBody('notes'), [
   body('title').trim().notEmpty(),
   body('recorded_at').optional().isISO8601(),
   body('notes').optional()
@@ -98,28 +99,34 @@ router.post('/project/:projectId', authenticate, requireProjectAccess(), upload.
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      if (req.file) fs.unlink(req.file.path, () => {});
+      if (req.file && req.file.storageBackend !== 's3') fs.unlink(req.file.path, () => {});
       return res.status(400).json({ error: { message: 'Validation failed', details: errors.array() } });
     }
 
     const { title, recorded_at, notes } = req.body;
 
     const result = await db.query(
-      `INSERT INTO meetings (project_id, title, audio_path, recorded_at, notes, created_by)
-       VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
+      `INSERT INTO meetings (project_id, title, audio_path, recorded_at, notes, created_by,
+        checksum_sha256, detected_mime_type, s3_key, s3_bucket, storage_backend)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *`,
       [
         req.params.projectId,
         title,
-        req.file ? req.file.path : null,
+        req.file ? (req.file.s3Key || req.file.path) : null,
         recorded_at || null,
         notes || null,
-        req.user.id
+        req.user.id,
+        req.file?.checksum || null,
+        req.file?.detectedMimeType || null,
+        req.file?.s3Key || null,
+        req.file?.s3Bucket || null,
+        req.file?.storageBackend || 'local'
       ]
     );
 
     res.status(201).json({ meeting: result.rows[0] });
   } catch (error) {
-    if (req.file) fs.unlink(req.file.path, () => {});
+    if (req.file && req.file.storageBackend !== 's3') fs.unlink(req.file.path, () => {});
     next(error);
   }
 });
@@ -289,6 +296,7 @@ router.post('/:id/transcribe', authenticate, async (req, res, next) => {
 });
 
 // Upload audio to existing meeting
+const audioProcessUpload = processUpload({ category: 'audio' });
 router.put('/:id/audio', authenticate, upload.single('audio'), async (req, res, next) => {
   try {
     const existing = await db.query('SELECT id, project_id FROM meetings WHERE id = $1 AND deleted_at IS NULL', [req.params.id]);
@@ -314,14 +322,35 @@ router.put('/:id/audio', authenticate, upload.single('audio'), async (req, res, 
       return res.status(400).json({ error: { message: 'No audio file provided' } });
     }
 
+    // Run uploadProcessor (checksum + magic bytes + optional S3) inline so it
+    // executes AFTER the 404/403/400 ladder above. Wrapping the middleware as
+    // a Promise keeps its early-return semantics: if magic-byte validation
+    // fails it sends its own 400 response and we bail without touching the DB.
+    const processed = await new Promise((resolve, reject) => {
+      audioProcessUpload(req, res, (err) => {
+        if (err) return reject(err);
+        resolve(!res.headersSent);
+      });
+    });
+    if (!processed) return; // processUpload already responded (e.g. magic-byte 400)
+
     const result = await db.query(
-      'UPDATE meetings SET audio_path = $1 WHERE id = $2 RETURNING *',
-      [req.file.path, req.params.id]
+      `UPDATE meetings SET audio_path = $1, checksum_sha256 = $2, detected_mime_type = $3,
+        s3_key = $4, s3_bucket = $5, storage_backend = $6 WHERE id = $7 RETURNING *`,
+      [
+        req.file.s3Key || req.file.path,
+        req.file.checksum || null,
+        req.file.detectedMimeType || null,
+        req.file.s3Key || null,
+        req.file.s3Bucket || null,
+        req.file.storageBackend || 'local',
+        req.params.id
+      ]
     );
 
     res.json({ meeting: result.rows[0] });
   } catch (error) {
-    if (req.file) fs.unlink(req.file.path, () => {});
+    if (req.file && req.file.storageBackend !== 's3') fs.unlink(req.file.path, () => {});
     next(error);
   }
 });
