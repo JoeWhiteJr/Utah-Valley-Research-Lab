@@ -1,47 +1,22 @@
 const express = require('express');
-const multer = require('multer');
-const path = require('path');
-const fs = require('fs');
-const { v4: uuidv4 } = require('uuid');
 const { body, validationResult } = require('express-validator');
 const db = require('../config/database');
 const logger = require('../config/logger');
 const { authenticate, requireRole } = require('../middleware/auth');
 const { createNotification, createNotificationForUsers } = require('./notifications');
 const { processUpload } = require('../middleware/uploadProcessor');
+const { createUploader } = require('../middleware/uploads');
 const socketService = require('../services/socketService');
 const { logAdminAction } = require('../middleware/auditLog');
 
 const router = express.Router();
 
-// Configure multer for cover image uploads
-const coverStorage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    const uploadDir = path.join(process.env.UPLOAD_DIR || path.join(__dirname, '../../uploads'), 'covers');
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir, { recursive: true });
-    }
-    cb(null, uploadDir);
-  },
-  filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname);
-    cb(null, `${uuidv4()}${ext}`);
-  }
-});
-
-const coverUpload = multer({
-  storage: coverStorage,
-  limits: { fileSize: 10 * 1024 * 1024 },
-  fileFilter: (req, file, cb) => {
-    const allowed = /^(jpeg|jpg|png|gif|webp)$/;
-    const ext = allowed.test(path.extname(file.originalname).toLowerCase().replace('.', ''));
-    const mime = allowed.test(file.mimetype.split('/')[1]);
-    if (ext && mime) {
-      cb(null, true);
-    } else {
-      cb(new Error('Only image files are allowed'));
-    }
-  }
+// Cover image uploads — 10MB, image-only.
+const coverUpload = createUploader({
+  subdir: 'covers',
+  maxBytes: 10 * 1024 * 1024,
+  allowedMimes: ['image/jpeg', 'image/png', 'image/gif', 'image/webp'],
+  allowedExts: ['.jpg', '.jpeg', '.png', '.gif', '.webp']
 });
 
 // Get all projects

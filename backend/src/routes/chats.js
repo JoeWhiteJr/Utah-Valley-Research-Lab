@@ -1,13 +1,10 @@
 const express = require('express');
-const multer = require('multer');
-const path = require('path');
-const fs = require('fs');
-const { v4: uuidv4 } = require('uuid');
 const { body, query, validationResult } = require('express-validator');
 const db = require('../config/database');
 const { authenticate } = require('../middleware/auth');
 const { sanitizeBody } = require('../middleware/sanitize');
 const { processUpload } = require('../middleware/uploadProcessor');
+const { createUploader } = require('../middleware/uploads');
 const socketService = require('../services/socketService');
 const { createNotificationForUsers } = require('./notifications');
 
@@ -40,44 +37,33 @@ async function canManageChat(userId, roomId) {
   return false;
 }
 
-// Configure multer for chat file/audio uploads
-const chatUploadDir = path.join(process.env.UPLOAD_DIR || path.join(__dirname, '../../uploads'), 'chat');
-if (!fs.existsSync(chatUploadDir)) {
-  fs.mkdirSync(chatUploadDir, { recursive: true });
-}
-
-const chatStorage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, chatUploadDir);
-  },
-  filename: (req, file, cb) => {
-    const uniqueName = `${uuidv4()}${path.extname(file.originalname)}`;
-    cb(null, uniqueName);
-  }
-});
-
-const chatUpload = multer({
-  storage: chatStorage,
-  limits: { fileSize: 25 * 1024 * 1024 }, // 25MB limit
-  fileFilter: (req, file, cb) => {
-    const allowedTypes = [
-      'image/jpeg', 'image/png', 'image/gif', 'image/webp',
-      'application/pdf', 'application/msword',
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      'application/vnd.ms-excel',
-      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      'text/plain', 'text/csv',
-      'audio/mpeg', 'audio/wav', 'audio/ogg', 'audio/webm', 'audio/mp4',
-      'video/mp4', 'video/webm'
-    ];
-    if (allowedTypes.includes(file.mimetype) ||
-        file.mimetype.startsWith('audio/') ||
-        file.mimetype.startsWith('image/')) {
-      cb(null, true);
-    } else {
-      cb(new Error('File type not allowed'), false);
-    }
-  }
+// Chat file/audio/image uploads — 25MB.
+//
+// Security tightening (this PR): the legacy filter accepted any MIME starting
+// with `image/` or `audio/` AND did NOT verify the file extension. That meant
+// an executable renamed to `.png` with a spoofed `Content-Type: image/png`
+// passed the multer filter (uploadProcessor's magic-byte check would still
+// catch ELF/PE bytes, but the multer layer was permissive). The factory now
+// enforces BOTH an explicit MIME allowlist AND a matching extension.
+const chatUpload = createUploader({
+  subdir: 'chat',
+  maxBytes: 25 * 1024 * 1024,
+  allowedMimes: [
+    'image/jpeg', 'image/png', 'image/gif', 'image/webp',
+    'application/pdf', 'application/msword',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'application/vnd.ms-excel',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'text/plain', 'text/csv',
+    'audio/mpeg', 'audio/wav', 'audio/ogg', 'audio/webm', 'audio/mp4',
+    'video/mp4', 'video/webm'
+  ],
+  allowedExts: [
+    '.jpg', '.jpeg', '.png', '.gif', '.webp',
+    '.pdf', '.doc', '.docx', '.xls', '.xlsx',
+    '.txt', '.csv',
+    '.mp3', '.wav', '.ogg', '.webm', '.m4a', '.mp4'
+  ]
 });
 
 // Get user's chat rooms

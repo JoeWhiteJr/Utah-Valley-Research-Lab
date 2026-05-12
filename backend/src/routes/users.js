@@ -392,30 +392,18 @@ router.delete('/:id', authenticate, requireRole('admin'), async (req, res, next)
   }
 });
 
-// Avatar upload
-const multer = require('multer');
-const path = require('path');
-const fs = require('fs');
-const { v4: uuidv4 } = require('uuid');
+// Avatar upload — 5MB, image only.
+//
+// Security tightening (this PR): the legacy filter accepted any `image/*` MIME
+// without verifying the extension. Now both an explicit MIME allowlist and a
+// matching extension are required.
+const { createUploader } = require('../middleware/uploads');
 
-const avatarStorage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    const dir = path.join(process.env.UPLOAD_DIR || path.join(__dirname, '../../uploads'), 'avatars');
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-    cb(null, dir);
-  },
-  filename: (req, file, cb) => {
-    cb(null, `${uuidv4()}${path.extname(file.originalname)}`);
-  }
-});
-
-const avatarUpload = multer({
-  storage: avatarStorage,
-  limits: { fileSize: 5 * 1024 * 1024 },
-  fileFilter: (req, file, cb) => {
-    if (file.mimetype.startsWith('image/')) cb(null, true);
-    else cb(new Error('Only images allowed'), false);
-  }
+const avatarUpload = createUploader({
+  subdir: 'avatars',
+  maxBytes: 5 * 1024 * 1024,
+  allowedMimes: ['image/jpeg', 'image/png', 'image/gif', 'image/webp'],
+  allowedExts: ['.jpg', '.jpeg', '.png', '.gif', '.webp']
 });
 
 router.post('/avatar', authenticate, avatarUpload.single('avatar'), processUpload({ category: 'avatars', generateThumbnail: true }), async (req, res, next) => {
