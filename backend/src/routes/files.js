@@ -11,6 +11,7 @@ const { logAdminAction } = require('../middleware/auditLog');
 const { processUpload } = require('../middleware/uploadProcessor');
 const { indexFile } = require('../services/ragIndexingService');
 const { userHasProjectAccess } = require('../services/ragQueryService');
+const s3Storage = require('../services/s3StorageService');
 
 const router = express.Router();
 
@@ -187,6 +188,108 @@ router.get('/:id/download', authenticate, async (req, res, next) => {
   }
 });
 
+// Get an inline-viewing URL for media files (images, PDFs, audio, video).
+// For S3-backed files this returns a short-lived presigned URL with
+// Content-Disposition: inline. For local files it returns a relative
+// `/uploads/<filename>` path the client can load directly. The endpoint is
+// access-checked because returning even a path for a foreign-project file
+// would leak its existence.
+router.get('/:id/view-url', authenticate, async (req, res, next) => {
+  try {
+    const result = await db.query('SELECT * FROM files WHERE id = $1 AND deleted_at IS NULL', [req.params.id]);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: { message: 'File not found' } });
+    }
+    const file = result.rows[0];
+
+    const hasAccess = await userHasProjectAccess(req.user.id, req.user.role, file.project_id);
+    if (!hasAccess) {
+      return res.status(403).json({ error: { message: 'Access denied' } });
+    }
+
+    if (file.storage_backend === 's3' && file.s3_key && s3Storage.isEnabled()) {
+      const url = await s3Storage.getPresignedViewUrl(file.s3_key, file.file_type, 3600);
+      return res.json({ url });
+    }
+
+    res.json({ url: `/uploads/${file.filename}` });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Server-rendered HTML preview for documents and text files. Supported MIME
+// types: DOCX/DOC (mammoth → HTML), XLSX/XLS/CSV (xlsx → HTML table),
+// PPTX/PPT (officeparser → plain text), TXT/JSON/Markdown (escaped <pre>).
+// Other types return 400. Access-checked the same way as /download.
+router.get('/:id/preview', authenticate, async (req, res, next) => {
+  let tempFile = null;
+  try {
+    const result = await db.query('SELECT * FROM files WHERE id = $1 AND deleted_at IS NULL', [req.params.id]);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: { message: 'File not found' } });
+    }
+    const file = result.rows[0];
+
+    const hasAccess = await userHasProjectAccess(req.user.id, req.user.role, file.project_id);
+    if (!hasAccess) {
+      return res.status(403).json({ error: { message: 'Access denied' } });
+    }
+
+    let filePath = file.storage_path;
+    if (file.storage_backend === 's3' && file.s3_key && s3Storage.isEnabled()) {
+      filePath = await s3Storage.downloadToTemp(file.s3_key);
+      tempFile = filePath;
+    }
+
+    const mimeType = file.file_type;
+    const originalName = file.original_filename;
+    const lowerName = (originalName || '').toLowerCase();
+    let html = '';
+
+    if (mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
+        mimeType === 'application/msword') {
+      const mammoth = require('mammoth');
+      const mammothResult = await mammoth.convertToHtml({ path: filePath });
+      html = wrapHtml(mammothResult.value, originalName);
+    } else if (mimeType === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
+               mimeType === 'application/vnd.ms-excel' ||
+               mimeType === 'text/csv') {
+      const XLSX = require('xlsx');
+      const workbook = XLSX.readFile(filePath);
+      const sheets = workbook.SheetNames.map((sheetName) => {
+        const sheet = workbook.Sheets[sheetName];
+        const tableHtml = XLSX.utils.sheet_to_html(sheet);
+        return `<h2>${escapeHtml(sheetName)}</h2>${tableHtml}`;
+      });
+      html = wrapHtml(sheets.join('<hr>'), originalName);
+    } else if (mimeType === 'application/vnd.openxmlformats-officedocument.presentationml.presentation' ||
+               mimeType === 'application/vnd.ms-powerpoint') {
+      const officeparser = require('officeparser');
+      const text = await officeparser.parseOfficeAsync(filePath);
+      html = wrapHtml(`<pre style="white-space:pre-wrap;font-family:sans-serif;">${escapeHtml(text || 'No content found')}</pre>`, originalName);
+    } else if (mimeType === 'text/plain' ||
+               mimeType === 'application/json' ||
+               mimeType === 'text/markdown' ||
+               lowerName.endsWith('.md') ||
+               lowerName.endsWith('.json')) {
+      const content = fs.readFileSync(filePath, 'utf-8');
+      html = wrapHtml(`<pre style="white-space:pre-wrap;word-wrap:break-word;">${escapeHtml(content)}</pre>`, originalName);
+    } else {
+      return res.status(400).json({ error: { message: 'Preview not supported for this file type' } });
+    }
+
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.send(html);
+  } catch (error) {
+    next(error);
+  } finally {
+    if (tempFile) {
+      fs.unlink(tempFile, () => {});
+    }
+  }
+});
+
 // Delete file
 router.delete('/:id', authenticate, async (req, res, next) => {
   try {
@@ -270,5 +373,47 @@ router.put('/:id/move', authenticate, async (req, res, next) => {
     next(error);
   }
 });
+
+/**
+ * Wrap rendered body content in a minimal self-contained HTML document.
+ * Used by /preview to produce a standalone document the client can drop into
+ * a sandboxed iframe via srcDoc.
+ */
+function wrapHtml(bodyContent, title) {
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${escapeHtml(title)}</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 24px; color: #1a1a1a; line-height: 1.6; }
+    table { border-collapse: collapse; width: 100%; margin: 16px 0; }
+    th, td { border: 1px solid #ddd; padding: 8px 12px; text-align: left; }
+    th { background-color: #f5f5f5; font-weight: 600; }
+    tr:nth-child(even) { background-color: #fafafa; }
+    pre { background: #f5f5f5; padding: 16px; border-radius: 8px; overflow-x: auto; font-size: 14px; }
+    h1, h2, h3 { color: #333; }
+    hr { border: none; border-top: 1px solid #eee; margin: 24px 0; }
+    img { max-width: 100%; }
+  </style>
+</head>
+<body>${bodyContent}</body>
+</html>`;
+}
+
+/**
+ * Escape HTML special characters so user-provided text rendered inside the
+ * preview document cannot break out of <pre>/attributes.
+ */
+function escapeHtml(text) {
+  if (text === null || text === undefined) return '';
+  return String(text)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
 
 module.exports = router;
