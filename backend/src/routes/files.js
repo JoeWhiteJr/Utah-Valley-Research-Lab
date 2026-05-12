@@ -1,14 +1,12 @@
 const express = require('express');
-const multer = require('multer');
 const { rateLimit, ipKeyGenerator } = require('express-rate-limit');
-const path = require('path');
 const fs = require('fs');
-const { v4: uuidv4 } = require('uuid');
 const db = require('../config/database');
 const logger = require('../config/logger');
 const { authenticate, requireProjectAccess } = require('../middleware/auth');
 const { logAdminAction } = require('../middleware/auditLog');
 const { processUpload } = require('../middleware/uploadProcessor');
+const { createUploader } = require('../middleware/uploads');
 const { indexFile } = require('../services/ragIndexingService');
 const { userHasProjectAccess } = require('../services/ragQueryService');
 const s3Storage = require('../services/s3StorageService');
@@ -31,57 +29,43 @@ const uploadLimiter = isTestEnv
       keyGenerator: (req) => req.user?.id || ipKeyGenerator(req.ip)
     });
 
-// Configure multer for file uploads
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    const uploadDir = process.env.UPLOAD_DIR || path.join(__dirname, '../../uploads');
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir, { recursive: true });
-    }
-    cb(null, uploadDir);
-  },
-  filename: (req, file, cb) => {
-    const uniqueName = `${uuidv4()}${path.extname(file.originalname)}`;
-    cb(null, uniqueName);
-  }
-});
-
-const upload = multer({
-  storage,
-  limits: { fileSize: 50 * 1024 * 1024 }, // 50MB limit
-  fileFilter: (req, file, cb) => {
-    const allowedTypes = [
-      'application/pdf', 'application/msword',
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      'application/vnd.ms-excel',
-      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      'application/vnd.ms-powerpoint',
-      'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-      'text/plain',
-      'text/csv',
-      'image/jpeg',
-      'image/png',
-      'image/gif',
-      'image/webp',
-      'audio/mpeg',
-      'audio/wav',
-      'audio/ogg',
-      'audio/mp4',
-      'video/mp4',
-      'video/webm',
-      'video/quicktime'
-    ];
-    const allowedExtensions = /\.(pdf|doc|docx|xls|xlsx|ppt|pptx|txt|csv|png|jpg|jpeg|gif|webp|mp3|wav|ogg|m4a|mp4|webm|mov)$/i;
-    const extValid = allowedExtensions.test(file.originalname);
-    if ((allowedTypes.includes(file.mimetype) ||
-        file.mimetype.startsWith('image/') ||
-        file.mimetype.startsWith('audio/') ||
-        file.mimetype.startsWith('video/')) && extValid) {
-      cb(null, true);
-    } else {
-      cb(new Error('File type not allowed'), false);
-    }
-  }
+// Project file uploads — 50MB. The legacy config wrote files directly under
+// UPLOAD_DIR (no subdirectory); the factory preserves that when `subdir` is
+// omitted. The legacy config also accepted any MIME starting with image/,
+// audio/, or video/ on top of the explicit allowlist; this consolidation
+// drops that prefix-fallback in favor of an explicit MIME allowlist (the
+// extension allowlist below already constrained what could land).
+const upload = createUploader({
+  maxBytes: 50 * 1024 * 1024,
+  allowedMimes: [
+    'application/pdf',
+    'application/msword',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'application/vnd.ms-excel',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'application/vnd.ms-powerpoint',
+    'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    'text/plain',
+    'text/csv',
+    'image/jpeg',
+    'image/png',
+    'image/gif',
+    'image/webp',
+    'audio/mpeg',
+    'audio/wav',
+    'audio/ogg',
+    'audio/mp4',
+    'video/mp4',
+    'video/webm',
+    'video/quicktime'
+  ],
+  allowedExts: [
+    '.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx',
+    '.txt', '.csv',
+    '.png', '.jpg', '.jpeg', '.gif', '.webp',
+    '.mp3', '.wav', '.ogg', '.m4a',
+    '.mp4', '.webm', '.mov'
+  ]
 });
 
 // Get files for a project

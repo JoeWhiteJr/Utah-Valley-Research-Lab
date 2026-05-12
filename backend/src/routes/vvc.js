@@ -1,5 +1,4 @@
 const express = require('express');
-const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const { v4: uuidv4 } = require('uuid');
@@ -7,94 +6,33 @@ const { body, validationResult } = require('express-validator');
 const db = require('../config/database');
 const { authenticate, requireRole } = require('../middleware/auth');
 const { sanitizeBody } = require('../middleware/sanitize');
+const { createUploader } = require('../middleware/uploads');
 
 const router = express.Router();
 
-// Configure multer for video uploads
-const videoStorage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    const uploadDir = path.join(process.env.UPLOAD_DIR || path.join(__dirname, '../../uploads'), 'video');
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir, { recursive: true });
-    }
-    cb(null, uploadDir);
-  },
-  filename: (req, file, cb) => {
-    const uniqueName = `${uuidv4()}${path.extname(file.originalname)}`;
-    cb(null, uniqueName);
-  }
+// VVC video uploads — 2GB. Extension allowlist added during multer
+// consolidation (factory enforces ext + MIME).
+const videoUpload = createUploader({
+  subdir: 'video',
+  maxBytes: 2 * 1024 * 1024 * 1024,
+  allowedMimes: ['video/mp4', 'video/webm', 'video/quicktime'],
+  allowedExts: ['.mp4', '.webm', '.mov']
 });
 
-const videoUpload = multer({
-  storage: videoStorage,
-  limits: { fileSize: 2 * 1024 * 1024 * 1024 }, // 2GB limit for video
-  fileFilter: (req, file, cb) => {
-    const allowedTypes = ['video/mp4', 'video/webm', 'video/quicktime'];
-    const baseType = file.mimetype.split(';')[0].trim();
-    if (allowedTypes.includes(baseType)) {
-      cb(null, true);
-    } else {
-      cb(new Error('Video file type not allowed'), false);
-    }
-  }
+// VVC session image uploads — 20MB.
+const imageUpload = createUploader({
+  subdir: 'vvc-images',
+  maxBytes: 20 * 1024 * 1024,
+  allowedMimes: ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/heic', 'image/heif'],
+  allowedExts: ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.heic', '.heif']
 });
 
-// Configure multer for image uploads
-const imageStorage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    const uploadDir = path.join(process.env.UPLOAD_DIR || path.join(__dirname, '../../uploads'), 'vvc-images');
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir, { recursive: true });
-    }
-    cb(null, uploadDir);
-  },
-  filename: (req, file, cb) => {
-    const uniqueName = `${uuidv4()}${path.extname(file.originalname)}`;
-    cb(null, uniqueName);
-  }
-});
-
-const imageUpload = multer({
-  storage: imageStorage,
-  limits: { fileSize: 20 * 1024 * 1024 }, // 20MB limit for images
-  fileFilter: (req, file, cb) => {
-    const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/heic', 'image/heif'];
-    const baseType = file.mimetype.split(';')[0].trim();
-    if (allowedTypes.includes(baseType)) {
-      cb(null, true);
-    } else {
-      cb(new Error('Image file type not allowed'), false);
-    }
-  }
-});
-
-// Configure multer for project screenshots
-const screenshotStorage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    const uploadDir = path.join(process.env.UPLOAD_DIR || path.join(__dirname, '../../uploads'), 'vvc-screenshots');
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir, { recursive: true });
-    }
-    cb(null, uploadDir);
-  },
-  filename: (req, file, cb) => {
-    const uniqueName = `${uuidv4()}${path.extname(file.originalname)}`;
-    cb(null, uniqueName);
-  }
-});
-
-const screenshotUpload = multer({
-  storage: screenshotStorage,
-  limits: { fileSize: 20 * 1024 * 1024 }, // 20MB
-  fileFilter: (req, file, cb) => {
-    const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
-    const baseType = file.mimetype.split(';')[0].trim();
-    if (allowedTypes.includes(baseType)) {
-      cb(null, true);
-    } else {
-      cb(new Error('Image file type not allowed'), false);
-    }
-  }
+// VVC project screenshot uploads — 20MB.
+const screenshotUpload = createUploader({
+  subdir: 'vvc-screenshots',
+  maxBytes: 20 * 1024 * 1024,
+  allowedMimes: ['image/jpeg', 'image/png', 'image/gif', 'image/webp'],
+  allowedExts: ['.jpg', '.jpeg', '.png', '.gif', '.webp']
 });
 
 // ============================================================

@@ -1,46 +1,25 @@
 const express = require('express');
-const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
-const { v4: uuidv4 } = require('uuid');
 const { body, validationResult } = require('express-validator');
 const db = require('../config/database');
 const logger = require('../config/logger');
 const { authenticate, requireProjectAccess } = require('../middleware/auth');
 const { sanitizeBody } = require('../middleware/sanitize');
 const { processUpload } = require('../middleware/uploadProcessor');
+const { createUploader } = require('../middleware/uploads');
 const { userHasProjectAccess } = require('../services/ragQueryService');
 
 const router = express.Router();
 
-// Configure multer for audio uploads
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    const uploadDir = path.join(process.env.UPLOAD_DIR || path.join(__dirname, '../../uploads'), 'audio');
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir, { recursive: true });
-    }
-    cb(null, uploadDir);
-  },
-  filename: (req, file, cb) => {
-    const uniqueName = `${uuidv4()}${path.extname(file.originalname)}`;
-    cb(null, uniqueName);
-  }
-});
-
-const upload = multer({
-  storage,
-  limits: { fileSize: 500 * 1024 * 1024 }, // 500MB limit for audio
-  fileFilter: (req, file, cb) => {
-    const allowedTypes = ['audio/mpeg', 'audio/wav', 'audio/mp4', 'audio/webm', 'audio/ogg'];
-    // Strip codec parameters (e.g., "audio/webm;codecs=opus" -> "audio/webm")
-    const baseType = file.mimetype.split(';')[0].trim();
-    if (allowedTypes.includes(baseType)) {
-      cb(null, true);
-    } else {
-      cb(new Error('Audio file type not allowed'), false);
-    }
-  }
+// Meeting audio uploads — 500MB, audio only. Extension allowlist added during
+// multer consolidation (factory enforces ext + MIME). Codec parameters are
+// stripped from the MIME inside the factory.
+const upload = createUploader({
+  subdir: 'audio',
+  maxBytes: 500 * 1024 * 1024,
+  allowedMimes: ['audio/mpeg', 'audio/wav', 'audio/mp4', 'audio/webm', 'audio/ogg'],
+  allowedExts: ['.mp3', '.wav', '.m4a', '.mp4', '.webm', '.ogg']
 });
 
 // Get meetings for a project

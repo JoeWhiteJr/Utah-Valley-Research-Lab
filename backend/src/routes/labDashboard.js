@@ -2,52 +2,37 @@ const express = require('express');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
-const { v4: uuidv4 } = require('uuid');
 const { body, param, validationResult } = require('express-validator');
 const db = require('../config/database');
 const { authenticate, requireRole } = require('../middleware/auth');
+const { createUploader } = require('../middleware/uploads');
 
 const router = express.Router();
 
-// Configure multer for resource file uploads
+// Resource file uploads — 50MB. Extension allowlist added during multer
+// consolidation (factory enforces ext + MIME).
 const resourceUploadDir = path.join(
   process.env.UPLOAD_DIR || path.join(__dirname, '../../uploads'),
   'resources'
 );
 
-const resourceStorage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    if (!fs.existsSync(resourceUploadDir)) {
-      fs.mkdirSync(resourceUploadDir, { recursive: true });
-    }
-    cb(null, resourceUploadDir);
-  },
-  filename: (req, file, cb) => {
-    const uniqueName = `${uuidv4()}${path.extname(file.originalname)}`;
-    cb(null, uniqueName);
-  }
-});
-
-const resourceUpload = multer({
-  storage: resourceStorage,
-  limits: { fileSize: 50 * 1024 * 1024 }, // 50MB
-  fileFilter: (req, file, cb) => {
-    const allowedTypes = [
-      'application/pdf',
-      'application/msword',
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      'application/vnd.ms-powerpoint',
-      'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-      'application/vnd.ms-excel',
-      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      'image/jpeg', 'image/png', 'image/gif', 'image/webp',
-    ];
-    if (allowedTypes.includes(file.mimetype)) {
-      cb(null, true);
-    } else {
-      cb(new Error('File type not allowed'), false);
-    }
-  }
+const resourceUpload = createUploader({
+  subdir: 'resources',
+  maxBytes: 50 * 1024 * 1024,
+  allowedMimes: [
+    'application/pdf',
+    'application/msword',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'application/vnd.ms-powerpoint',
+    'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    'application/vnd.ms-excel',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'image/jpeg', 'image/png', 'image/gif', 'image/webp'
+  ],
+  allowedExts: [
+    '.pdf', '.doc', '.docx', '.ppt', '.pptx', '.xls', '.xlsx',
+    '.jpg', '.jpeg', '.png', '.gif', '.webp'
+  ]
 });
 
 // All routes require authentication
