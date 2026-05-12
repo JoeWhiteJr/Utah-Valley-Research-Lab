@@ -76,7 +76,7 @@ export default function FileCard({ file, onDownload, onDelete, onPreview }) {
       <div className="h-32 bg-gray-50 dark:bg-gray-900 flex items-center justify-center relative">
         {isImage ? (
           <img
-            src={getUploadUrl(`/uploads/${file.filename}`)}
+            src={file.thumbnail_url || getUploadUrl(`/uploads/${file.filename}`)}
             alt={file.original_filename}
             loading="lazy"
             decoding="async"

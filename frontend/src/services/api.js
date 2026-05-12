@@ -166,7 +166,9 @@ export const filesApi = {
   },
   download: (id) => api.get(`/files/${id}/download`, { responseType: 'blob' }),
   delete: (id) => api.delete(`/files/${id}`),
-  move: (fileId, folderId) => api.put(`/files/${fileId}/move`, { folder_id: folderId })
+  move: (fileId, folderId) => api.put(`/files/${fileId}/move`, { folder_id: folderId }),
+  getViewUrl: (id) => api.get(`/files/${id}/view-url`),
+  getPreviewHtml: (id) => api.get(`/files/${id}/preview`, { responseType: 'text' })
 }
 
 // Folders

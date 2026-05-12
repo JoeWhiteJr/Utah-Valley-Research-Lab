@@ -80,12 +80,44 @@ app.use(cors({
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Serve cover images statically (these are public project images, not sensitive files)
-// Other file uploads remain behind authenticated /api/files/:id/download endpoint
+// Serve public assets (cover images, avatars, resources) with S3 fallback.
+// When the local file is present we sendFile() with a one-day cache. When the
+// local file is missing but S3 is configured we redirect to a short-lived
+// presigned URL. Otherwise 404. Other file uploads (project documents, chat
+// attachments, etc.) remain behind authenticated API endpoints.
+const fs = require('fs');
+const s3Storage = require('./services/s3StorageService');
 const uploadDir = process.env.UPLOAD_DIR || path.join(__dirname, '../uploads');
-app.use('/uploads/covers', express.static(path.join(uploadDir, 'covers'), { maxAge: '1d' }));
-app.use('/uploads/avatars', express.static(path.join(uploadDir, 'avatars'), { maxAge: '1d' }));
-app.use('/uploads/resources', express.static(path.join(uploadDir, 'resources'), { maxAge: '1d' }));
+
+function makeStaticWithS3Fallback(subdir, s3ContentType) {
+  return async (req, res) => {
+    // path.basename strips any traversal segments so a request like
+    // /uploads/covers/../../etc/passwd can only ever resolve to "passwd".
+    const safeName = path.basename(req.path);
+    const localPath = path.join(uploadDir, subdir, safeName);
+    if (fs.existsSync(localPath)) {
+      res.set('Cache-Control', 'public, max-age=86400');
+      return res.sendFile(localPath);
+    }
+    if (s3Storage.isEnabled()) {
+      try {
+        const s3Key = `${subdir}/${safeName}`;
+        const exists = await s3Storage.exists(s3Key);
+        if (exists) {
+          const url = await s3Storage.getPresignedViewUrl(s3Key, s3ContentType, 3600);
+          return res.redirect(url);
+        }
+      } catch (err) {
+        logger.error({ err, subdir, safeName }, 'S3 static fallback error');
+      }
+    }
+    res.status(404).json({ error: { message: 'Not found' } });
+  };
+}
+
+app.use('/uploads/covers', makeStaticWithS3Fallback('covers', 'image/jpeg'));
+app.use('/uploads/avatars', makeStaticWithS3Fallback('avatars', 'image/jpeg'));
+app.use('/uploads/resources', makeStaticWithS3Fallback('resources', 'application/octet-stream'));
 
 // Rate limiting
 const authLimiter = rateLimit({
