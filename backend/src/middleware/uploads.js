@@ -46,11 +46,17 @@ function createUploader({ subdir = '', maxBytes, allowedMimes, allowedExts }) {
   const extSet = new Set(allowedExts.map((e) => e.toLowerCase()));
   const mimeSet = new Set(allowedMimes.map((m) => m.toLowerCase()));
 
+  // Create the destination directory at instantiation rather than on first
+  // upload. Some test fixtures (and the download endpoint) write directly to
+  // UPLOAD_DIR before any multer request fires, and lazy-mkdir leaves them
+  // racing against whichever upload happens to run first under jest's
+  // parallel workers.
+  if (!fs.existsSync(destDir)) {
+    fs.mkdirSync(destDir, { recursive: true });
+  }
+
   const storage = multer.diskStorage({
     destination: (req, file, cb) => {
-      if (!fs.existsSync(destDir)) {
-        fs.mkdirSync(destDir, { recursive: true });
-      }
       cb(null, destDir);
     },
     filename: (req, file, cb) => {
