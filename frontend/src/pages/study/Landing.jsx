@@ -1,8 +1,13 @@
+import { useSearchParams } from 'react-router-dom'
 import { useStudyStore } from '../../store/studyStore'
 import Button from '../../components/Button'
 
 export default function StudyLanding() {
   const { start, loading, error } = useStudyStore()
+  // /participate links over with ?slug=<study> so the explicit choice is honored.
+  // No slug → backend picks the most recently created active study.
+  const [searchParams] = useSearchParams()
+  const requestedSlug = searchParams.get('slug') || null
 
   return (
     <div className="flex items-center justify-center min-h-screen p-4">
@@ -24,11 +29,11 @@ export default function StudyLanding() {
             {error}
           </div>
         )}
-        <Button onClick={start} loading={loading} size="lg" className="w-full">
+        <Button onClick={() => start(requestedSlug)} loading={loading} size="lg" className="w-full">
           Begin Study
         </Button>
         <p className="mt-4 text-xs text-text-secondary dark:text-gray-500">
-          By clicking &ldquo;Begin Study&rdquo; you will be assigned to one of three short tasks. You can stop at any time by closing this tab.
+          By clicking &ldquo;Begin Study&rdquo; you will be assigned to a short task. You can stop at any time by closing this tab.
         </p>
       </div>
     </div>

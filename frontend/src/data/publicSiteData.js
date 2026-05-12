@@ -34,6 +34,7 @@ export const navigation = [
   { label: 'Projects', path: '/projects' },
   { label: 'Team', path: '/team' },
   { label: 'Blog', path: '/blog' },
+  { label: 'Participate', path: '/participate' },
   { label: 'Contact', path: '/contact' },
   { label: 'Donate', path: '/donate', isButton: true },
 ];

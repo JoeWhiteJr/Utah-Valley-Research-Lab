@@ -15,6 +15,7 @@ import SectionHeader from '../shared/SectionHeader';
 import ServiceCard from '../shared/ServiceCard';
 import FeaturedProjectCard from '../shared/FeaturedProjectCard';
 import ScrollAnimateWrapper from '../shared/ScrollAnimateWrapper';
+import StudyCta from '../shared/StudyCta';
 import {
   partnersData,
   featuredProjectsData,
@@ -162,6 +163,9 @@ export default function HomePage() {
           </div>
         </div>
       </section>
+
+      {/* Research study CTA — surfaces the most recent active study, hides if none */}
+      <StudyCta />
 
       {/* Featured Projects Section */}
       <section className="py-20 bg-gray-50">
