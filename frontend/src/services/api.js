@@ -550,15 +550,19 @@ export const resourcesApi = {
 
 // Research study (effort-justification games at /study)
 export const studyApi = {
-  start: () => api.post('/study/start'),
+  // slug is optional; when null the backend uses the most recently created active study.
+  start: (slug = null) => api.post('/study/start', null, { params: slug ? { slug } : undefined }),
   consent: (participant_code, demographics) =>
     api.post('/study/consent', { participant_code, demographics }),
   save: (participant_code, payload) =>
     api.post('/study/save', { participant_code, payload }),
   snapshot: (participant_code, payload) =>
     api.post('/study/snapshot', { participant_code, payload }),
-  stats: () => api.get('/study/stats'),
-  exportUrl: (experiment) => `${API_URL}/study/export/${experiment}`,
+  // Public listing of active studies for the homepage card + /participate page.
+  listActiveStudies: () => api.get('/study/list', { _silent: true }),
+  stats: (slug = null) => api.get('/study/stats', { params: slug ? { slug } : undefined }),
+  exportUrl: (experiment, slug = null) =>
+    `${API_URL}/study/export/${experiment}${slug ? `?slug=${encodeURIComponent(slug)}` : ''}`,
   listParticipants: (params = {}) =>
     api.get('/study/participants', { params }),
   getParticipant: (code) => api.get(`/study/participants/${code}`),

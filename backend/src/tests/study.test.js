@@ -36,6 +36,37 @@ describe('Study API', () => {
     await db.query("DELETE FROM users WHERE email LIKE '%studytest%'");
   });
 
+  describe('GET /api/study/list (public)', () => {
+    it('returns active studies without auth', async () => {
+      const res = await request(app).get('/api/study/list');
+      expect(res.status).toBe(200);
+      expect(Array.isArray(res.body.studies)).toBe(true);
+      // The effort-justification study is seeded by migration 045 and is active.
+      const slugs = res.body.studies.map((s) => s.slug);
+      expect(slugs).toContain('effort-justification');
+      const ej = res.body.studies.find((s) => s.slug === 'effort-justification');
+      expect(ej.title).toBeTruthy();
+    });
+  });
+
+  describe('POST /api/study/start (slug routing)', () => {
+    it('returns 404 when an unknown slug is requested', async () => {
+      const res = await request(app)
+        .post('/api/study/start?slug=does-not-exist')
+        .set('X-Forwarded-For', '10.99.0.201');
+      expect(res.status).toBe(404);
+    });
+
+    it('returns study metadata in the response', async () => {
+      const res = await request(app)
+        .post('/api/study/start')
+        .set('X-Forwarded-For', '10.99.0.202');
+      expect(res.status).toBe(201);
+      expect(res.body.study_slug).toBe('effort-justification');
+      expect(res.body.study_title).toBeTruthy();
+    });
+  });
+
   describe('POST /api/study/start', () => {
     it('creates a participant + assignment with a known experiment + condition', async () => {
       const res = await request(app).post('/api/study/start');

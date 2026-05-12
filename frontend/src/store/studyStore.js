@@ -7,6 +7,8 @@ import { studyApi } from '../services/api'
 const initialState = {
   step: 'landing',
   participant_code: null,
+  study_slug: null,
+  study_title: null,
   experiment: null,
   condition: null,
   loading: false,
@@ -20,12 +22,14 @@ export const useStudyStore = create(
 
       setStep: (step) => set({ step }),
 
-      start: async () => {
+      start: async (slug = null) => {
         set({ loading: true, error: null })
         try {
-          const { data } = await studyApi.start()
+          const { data } = await studyApi.start(slug)
           set({
             participant_code: data.participant_code,
+            study_slug: data.study_slug || null,
+            study_title: data.study_title || null,
             experiment: data.experiment,
             condition: data.condition,
             step: 'consent',
@@ -91,6 +95,8 @@ export const useStudyStore = create(
       partialize: (state) => ({
         step: state.step,
         participant_code: state.participant_code,
+        study_slug: state.study_slug,
+        study_title: state.study_title,
         experiment: state.experiment,
         condition: state.condition,
       }),

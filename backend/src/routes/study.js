@@ -5,20 +5,35 @@ const rateLimit = require('express-rate-limit');
 const db = require('../config/database');
 const logger = require('../config/logger');
 const { authenticate, requireRole } = require('../middleware/auth');
+const { getStudyConfig } = require('../research-studies');
 
 const router = express.Router();
 
-const EXPERIMENTS = {
-  treasure_hunt: ['BASELINE', 'HIGH_EFFORT', 'NR_PATTERN', 'RN_PATTERN'],
-  career_choice: ['WITHIN_SUBJECTS'],
-  pattern_memory: ['NR_PATTERN', 'RANDOM']
-};
-
-const EXPERIMENT_PREFIX = {
-  treasure_hunt: 'TH',
-  career_choice: 'CC',
-  pattern_memory: 'PM'
-};
+// Resolve a study by slug, or fall back to the most recently created active
+// study when no slug is provided (the common case for /study root traffic).
+// Returns { dbRow, config } or null when nothing matches.
+async function resolveStudy(slug) {
+  let dbRow;
+  if (slug) {
+    const result = await db.query(
+      `SELECT id, slug, title, blurb, estimated_minutes, status
+       FROM studies WHERE slug = $1`,
+      [slug]
+    );
+    dbRow = result.rows[0];
+  } else {
+    const result = await db.query(
+      `SELECT id, slug, title, blurb, estimated_minutes, status
+       FROM studies WHERE status = 'active'
+       ORDER BY created_at DESC LIMIT 1`
+    );
+    dbRow = result.rows[0];
+  }
+  if (!dbRow) return null;
+  const config = getStudyConfig(dbRow.slug);
+  if (!config) return null;
+  return { dbRow, config };
+}
 
 const isTestEnv = process.env.NODE_ENV === 'test';
 
@@ -43,8 +58,8 @@ function hashIp(ip) {
   return crypto.createHash('sha256').update(`uvrl-study:${ip}`).digest('hex').slice(0, 32);
 }
 
-function generateParticipantCode(experiment) {
-  const prefix = EXPERIMENT_PREFIX[experiment] || 'XX';
+function generateParticipantCode(studyConfig, experiment) {
+  const prefix = studyConfig.experiments[experiment]?.prefix || 'XX';
   const random = crypto.randomBytes(4).toString('hex');
   return `${prefix}_${Date.now()}_${random}`;
 }
@@ -55,16 +70,16 @@ function generateParticipantCode(experiment) {
 // not for the entire request. `xact_lock` auto-releases on COMMIT/ROLLBACK.
 const BALANCE_LOCK_KEY = 'study_balance';
 
-async function pickBalancedConditionTx(client, experiment) {
-  const conditions = EXPERIMENTS[experiment];
+async function pickBalancedConditionTx(client, studyId, studyConfig, experiment) {
+  const conditions = studyConfig.experiments[experiment]?.conditions;
   if (!conditions) throw new Error(`Unknown experiment: ${experiment}`);
 
   const result = await client.query(
     `SELECT condition, COUNT(*)::int AS n
      FROM study_assignments
-     WHERE experiment = $1
+     WHERE study_id = $1 AND experiment = $2
      GROUP BY condition`,
-    [experiment]
+    [studyId, experiment]
   );
 
   const counts = Object.fromEntries(conditions.map(c => [c, 0]));
@@ -77,12 +92,14 @@ async function pickBalancedConditionTx(client, experiment) {
   return candidates[Math.floor(Math.random() * candidates.length)];
 }
 
-async function pickBalancedExperimentTx(client) {
-  const experiments = Object.keys(EXPERIMENTS);
+async function pickBalancedExperimentTx(client, studyId, studyConfig) {
+  const experiments = Object.keys(studyConfig.experiments);
   const result = await client.query(
     `SELECT experiment, COUNT(*)::int AS n
      FROM study_assignments
-     GROUP BY experiment`
+     WHERE study_id = $1
+     GROUP BY experiment`,
+    [studyId]
   );
   const counts = Object.fromEntries(experiments.map(e => [e, 0]));
   for (const row of result.rows) {
@@ -98,9 +115,27 @@ const DEDUP_WINDOW_HOURS = 24;
 
 // Start a study session: assign experiment + condition, create participant row.
 // Atomic under load via pg_advisory_xact_lock; rejects same-IP repeats within DEDUP_WINDOW_HOURS.
+// Resolves study by ?slug=... or falls back to the most recently created active study.
 router.post('/start', startLimiter, async (req, res, next) => {
   const client = await db.getClient();
   try {
+    const requestedSlug = (req.query.slug || req.body?.slug || '').trim() || null;
+    const resolved = await resolveStudy(requestedSlug);
+    if (!resolved) {
+      return res.status(404).json({
+        error: { message: requestedSlug
+          ? `Study "${requestedSlug}" not found.`
+          : 'No active study available right now. Please check back later.'
+        }
+      });
+    }
+    const { dbRow: study, config: studyConfig } = resolved;
+    if (study.status !== 'active') {
+      return res.status(403).json({
+        error: { message: 'This study is not currently recruiting participants.' }
+      });
+    }
+
     const userAgent = req.get('User-Agent') || null;
     const ipHash = hashIp(req.ip);
 
@@ -114,10 +149,11 @@ router.post('/start', startLimiter, async (req, res, next) => {
       const recent = await client.query(
         `SELECT 1 FROM study_participants
          WHERE ip_hash = $1
+           AND study_id = $2
            AND completed_at IS NOT NULL
            AND completed_at > NOW() - INTERVAL '${DEDUP_WINDOW_HOURS} hours'
          LIMIT 1`,
-        [ipHash]
+        [ipHash, study.id]
       );
       if (recent.rows.length > 0) {
         await client.query('ROLLBACK');
@@ -127,33 +163,50 @@ router.post('/start', startLimiter, async (req, res, next) => {
       }
     }
 
-    const experiment = await pickBalancedExperimentTx(client);
-    const condition = await pickBalancedConditionTx(client, experiment);
-    const code = generateParticipantCode(experiment);
+    const experiment = await pickBalancedExperimentTx(client, study.id, studyConfig);
+    const condition = await pickBalancedConditionTx(client, study.id, studyConfig, experiment);
+    const code = generateParticipantCode(studyConfig, experiment);
 
     const participant = await client.query(
-      `INSERT INTO study_participants (participant_code, user_agent, ip_hash)
-       VALUES ($1, $2, $3) RETURNING id, participant_code`,
-      [code, userAgent, ipHash]
+      `INSERT INTO study_participants (participant_code, user_agent, ip_hash, study_id)
+       VALUES ($1, $2, $3, $4) RETURNING id, participant_code`,
+      [code, userAgent, ipHash, study.id]
     );
     const assignment = await client.query(
-      `INSERT INTO study_assignments (participant_id, experiment, condition)
-       VALUES ($1, $2, $3) RETURNING id, experiment, condition, assigned_at`,
-      [participant.rows[0].id, experiment, condition]
+      `INSERT INTO study_assignments (participant_id, experiment, condition, study_id)
+       VALUES ($1, $2, $3, $4) RETURNING id, experiment, condition, assigned_at`,
+      [participant.rows[0].id, experiment, condition, study.id]
     );
     await client.query('COMMIT');
 
     res.status(201).json({
       participant_code: participant.rows[0].participant_code,
       assignment_id: assignment.rows[0].id,
+      study_slug: study.slug,
+      study_title: study.title,
       experiment: assignment.rows[0].experiment,
-      condition: assignment.rows[0].condition
+      condition: assignment.rows[0].condition,
     });
   } catch (error) {
     await client.query('ROLLBACK').catch(() => {});
     next(error);
   } finally {
     client.release();
+  }
+});
+
+// Public list of active studies for the homepage card and /participate page.
+// Returns only metadata that's safe to expose unauthenticated.
+router.get('/list', async (req, res, next) => {
+  try {
+    const result = await db.query(
+      `SELECT slug, title, blurb, estimated_minutes, created_at
+       FROM studies WHERE status = 'active'
+       ORDER BY created_at DESC`
+    );
+    res.json({ studies: result.rows });
+  } catch (error) {
+    next(error);
   }
 });
 
@@ -287,22 +340,32 @@ router.post('/save', saveLimiter, [
   }
 });
 
-// Admin: per-experiment recruitment counts.
+// Admin: per-experiment recruitment counts for one study. ?slug= optional;
+// defaults to the most recently created active study.
 router.get('/stats', authenticate, requireRole('admin'), async (req, res, next) => {
   try {
+    const requestedSlug = (req.query.slug || '').trim() || null;
+    const resolved = await resolveStudy(requestedSlug);
+    if (!resolved) {
+      return res.status(404).json({ error: { message: 'Study not found' } });
+    }
+    const { dbRow: study, config: studyConfig } = resolved;
+
     const result = await db.query(
       `SELECT experiment, condition,
               COUNT(*)::int AS assigned,
               COUNT(completed_at)::int AS completed
        FROM study_assignments
+       WHERE study_id = $1
        GROUP BY experiment, condition
-       ORDER BY experiment, condition`
+       ORDER BY experiment, condition`,
+      [study.id]
     );
 
     const stats = {};
-    for (const exp of Object.keys(EXPERIMENTS)) {
+    for (const exp of Object.keys(studyConfig.experiments)) {
       stats[exp] = { conditions: {}, total_assigned: 0, total_completed: 0 };
-      for (const cond of EXPERIMENTS[exp]) {
+      for (const cond of studyConfig.experiments[exp].conditions) {
         stats[exp].conditions[cond] = { assigned: 0, completed: 0 };
       }
     }
@@ -316,7 +379,7 @@ router.get('/stats', authenticate, requireRole('admin'), async (req, res, next) 
       stats[row.experiment].total_completed += row.completed;
     }
 
-    res.json({ stats });
+    res.json({ study: { slug: study.slug, title: study.title }, stats });
   } catch (error) {
     next(error);
   }
@@ -341,60 +404,32 @@ function csvRow(values) {
   return values.map(csvField).join(',') + '\n';
 }
 
-const EXPORT_COLUMNS = {
-  treasure_hunt: [
-    ['participant_code', d => d.participant_code],
-    ['condition', d => d.condition],
-    ['assigned_at', d => d.assigned_at],
-    ['completed_at', d => d.completed_at],
-    ['total_coins', d => d.payload?.total_coins],
-    ['extinction_chests_opened', d => d.payload?.extinction_chests_opened ?? 0],
-    ['extinction_quit_pressed', d => d.payload?.extinction_quit_pressed ?? false],
-    ['start_time', d => d.payload?.start_time],
-    ['end_time', d => d.payload?.end_time]
-  ],
-  career_choice: [
-    ['participant_code', d => d.participant_code],
-    ['condition', d => d.condition],
-    ['assigned_at', d => d.assigned_at],
-    ['completed_at', d => d.completed_at],
-    ['tenure_A', d => d.payload?.scenario_responses?.A?.tenure],
-    ['tenure_B', d => d.payload?.scenario_responses?.B?.tenure],
-    ['tenure_C', d => d.payload?.scenario_responses?.C?.tenure],
-    ['value_A', d => d.payload?.scenario_responses?.A?.value],
-    ['value_B', d => d.payload?.scenario_responses?.B?.value],
-    ['value_C', d => d.payload?.scenario_responses?.C?.value]
-  ],
-  pattern_memory: [
-    ['participant_code', d => d.participant_code],
-    ['condition', d => d.condition],
-    ['assigned_at', d => d.assigned_at],
-    ['completed_at', d => d.completed_at],
-    ['expectation_rating', d => d.payload?.expectation?.rating],
-    ['pct_bet_ace', d => d.payload?.betting?.summary?.pct_bet_ace_after_blank],
-    ['pattern_detected', d => d.payload?.memory_test?.pattern_detected]
-  ]
-};
-
-// Streaming CSV export: writes the header, then iterates rows in batches and
-// `res.write()`s each row. Avoids materializing the full result set in memory
-// when datasets grow into the thousands.
-router.get('/export/:experiment', authenticate, requireRole('admin'), [
-  param('experiment').isIn(Object.keys(EXPERIMENTS))
-], async (req, res, next) => {
+// Streaming CSV export for one experiment within one study. ?slug= optional;
+// defaults to the most recently created active study. Export columns come from
+// the per-study config so each study can ship its own DV layout.
+router.get('/export/:experiment', authenticate, requireRole('admin'), async (req, res, next) => {
   const PAGE_SIZE = 200;
   let client;
   try {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({ error: { message: 'Invalid experiment' } });
+    const requestedSlug = (req.query.slug || '').trim() || null;
+    const resolved = await resolveStudy(requestedSlug);
+    if (!resolved) {
+      return res.status(404).json({ error: { message: 'Study not found' } });
     }
+    const { dbRow: study, config: studyConfig } = resolved;
     const { experiment } = req.params;
-    const columns = EXPORT_COLUMNS[experiment];
+    const experimentConfig = studyConfig.experiments[experiment];
+    if (!experimentConfig) {
+      return res.status(400).json({ error: { message: 'Invalid experiment for this study' } });
+    }
+    const columns = experimentConfig.exportColumns;
+    if (!columns) {
+      return res.status(500).json({ error: { message: 'Export columns not defined for this experiment' } });
+    }
 
     res.writeHead(200, {
       'Content-Type': 'text/csv',
-      'Content-Disposition': `attachment; filename=${experiment}_responses.csv`,
+      'Content-Disposition': `attachment; filename=${study.slug}_${experiment}_responses.csv`,
     });
     res.write(csvRow(columns.map(c => c[0])));
 
@@ -412,10 +447,12 @@ router.get('/export/:experiment', authenticate, requireRole('admin'), [
          FROM study_responses r
          JOIN study_assignments a ON a.id = r.assignment_id
          JOIN study_participants p ON p.id = a.participant_id
-         WHERE r.is_snapshot = false AND a.experiment = $1
+         WHERE r.is_snapshot = false
+           AND a.study_id = $1
+           AND a.experiment = $2
          ORDER BY a.completed_at ASC NULLS LAST, p.participant_code ASC
-         LIMIT $2 OFFSET $3`,
-        [experiment, PAGE_SIZE, offset]
+         LIMIT $3 OFFSET $4`,
+        [study.id, experiment, PAGE_SIZE, offset]
       );
       for (const row of result.rows) {
         res.write(csvRow(columns.map(c => c[1](row))));
@@ -434,32 +471,39 @@ router.get('/export/:experiment', authenticate, requireRole('admin'), [
   }
 });
 
-// Admin: list recent participants. Supports filtering by experiment and completion state,
-// plus pagination. Validation is done manually below against the EXPERIMENTS whitelist —
-// no express-validator middleware needed.
+// Admin: list recent participants for one study. ?slug= optional; defaults to
+// the most recently created active study. Filter by experiment + completion state,
+// paginate via limit + offset. Validation is manual against per-study config.
 router.get('/participants', authenticate, requireRole('admin'), async (req, res, next) => {
   try {
+    const requestedSlug = (req.query.slug || '').trim() || null;
+    const resolved = await resolveStudy(requestedSlug);
+    if (!resolved) {
+      return res.status(404).json({ error: { message: 'Study not found' } });
+    }
+    const { dbRow: study, config: studyConfig } = resolved;
+
     const limit = Math.min(parseInt(req.query.limit, 10) || 50, 200);
     const offset = Math.max(parseInt(req.query.offset, 10) || 0, 0);
     const experiment = req.query.experiment;
     const completed = req.query.completed;
 
-    if (experiment && !Object.keys(EXPERIMENTS).includes(experiment)) {
-      return res.status(400).json({ error: { message: 'Invalid experiment filter' } });
+    if (experiment && !Object.keys(studyConfig.experiments).includes(experiment)) {
+      return res.status(400).json({ error: { message: 'Invalid experiment filter for this study' } });
     }
     if (completed && !['true', 'false', 'all'].includes(completed)) {
       return res.status(400).json({ error: { message: 'Invalid completed filter' } });
     }
 
-    const where = [];
-    const params = [];
+    const where = [`a.study_id = $1`];
+    const params = [study.id];
     if (experiment) {
       params.push(experiment);
       where.push(`a.experiment = $${params.length}`);
     }
     if (completed === 'true') where.push(`a.completed_at IS NOT NULL`);
     if (completed === 'false') where.push(`a.completed_at IS NULL`);
-    const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
+    const whereSql = `WHERE ${where.join(' AND ')}`;
 
     params.push(limit, offset);
     const result = await db.query(
@@ -473,7 +517,7 @@ router.get('/participants', authenticate, requireRole('admin'), async (req, res,
        LIMIT $${params.length - 1} OFFSET $${params.length}`,
       params
     );
-    res.json({ participants: result.rows });
+    res.json({ study: { slug: study.slug, title: study.title }, participants: result.rows });
   } catch (error) {
     next(error);
   }
@@ -492,7 +536,7 @@ router.get('/participants/:code', authenticate, requireRole('admin'), [
 
     const participant = await db.query(
       `SELECT id, participant_code, consent_given_at, demographics,
-              user_agent, ip_hash, completed_at, created_at, updated_at
+              user_agent, ip_hash, completed_at, created_at, updated_at, study_id
        FROM study_participants WHERE participant_code = $1`,
       [code]
     );
@@ -500,6 +544,11 @@ router.get('/participants/:code', authenticate, requireRole('admin'), [
       return res.status(404).json({ error: { message: 'Participant not found' } });
     }
     const p = participant.rows[0];
+
+    const studyRow = await db.query(
+      `SELECT slug, title FROM studies WHERE id = $1`,
+      [p.study_id]
+    );
 
     const assignment = await db.query(
       `SELECT id, experiment, condition, assigned_at, completed_at
@@ -520,6 +569,7 @@ router.get('/participants/:code', authenticate, requireRole('admin'), [
 
     res.json({
       participant: p,
+      study: studyRow.rows[0] || null,
       assignment: a,
       responses: responses.rows,
     });

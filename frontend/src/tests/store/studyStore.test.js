@@ -31,21 +31,34 @@ describe('studyStore', () => {
     expect(useStudyStore.getState().step).toBe('landing')
   })
 
-  it('start() advances to consent and stores assignment', async () => {
+  it('start() advances to consent and stores assignment + study metadata', async () => {
     studyApi.start.mockResolvedValue({
       data: {
         participant_code: 'TH_123_abcd',
+        study_slug: 'effort-justification',
+        study_title: 'Effort Justification & Behavioral Persistence',
         experiment: 'treasure_hunt',
         condition: 'BASELINE',
       },
     })
     await useStudyStore.getState().start()
     const s = useStudyStore.getState()
+    expect(studyApi.start).toHaveBeenCalledWith(null)
     expect(s.participant_code).toBe('TH_123_abcd')
+    expect(s.study_slug).toBe('effort-justification')
+    expect(s.study_title).toBe('Effort Justification & Behavioral Persistence')
     expect(s.experiment).toBe('treasure_hunt')
     expect(s.condition).toBe('BASELINE')
     expect(s.step).toBe('consent')
     expect(s.loading).toBe(false)
+  })
+
+  it('start(slug) forwards the slug to the API', async () => {
+    studyApi.start.mockResolvedValue({
+      data: { participant_code: 'X', experiment: 'e', condition: 'c', study_slug: 'foo' },
+    })
+    await useStudyStore.getState().start('foo')
+    expect(studyApi.start).toHaveBeenCalledWith('foo')
   })
 
   it('start() captures error message and stays on landing', async () => {

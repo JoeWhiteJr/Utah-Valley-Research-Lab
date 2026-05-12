@@ -38,6 +38,7 @@ import TeamPage from './components/public/pages/TeamPage'
 import BlogPage from './components/public/pages/BlogPage'
 import ContactPage from './components/public/pages/ContactPage'
 import DonatePage from './components/public/pages/DonatePage'
+import ParticipatePage from './components/public/pages/ParticipatePage'
 
 // Legal pages
 const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy'))
@@ -115,6 +116,7 @@ function App() {
               <Route path="/blog" element={<BlogPage />} />
               <Route path="/contact" element={<ContactPage />} />
               <Route path="/donate" element={<DonatePage />} />
+              <Route path="/participate" element={<ParticipatePage />} />
               <Route path="/privacy" element={<PrivacyPolicy />} />
               <Route path="/terms" element={<TermsOfService />} />
             </Route>
