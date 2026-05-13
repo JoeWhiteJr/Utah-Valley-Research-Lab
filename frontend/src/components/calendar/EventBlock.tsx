@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { useDraggable } from '@dnd-kit/core';
 import type { CalendarEvent } from './types';
 import { TIME_CONFIG } from './types';
@@ -22,8 +22,8 @@ export function EventBlock({ event, hourHeight, onEdit, onResize, readOnly }: Ev
   const [resizeDeltaY, setResizeDeltaY] = useState(0);
   const resizeStartY = useRef(0);
 
-  const start = new Date(event.start_time);
-  const end = new Date(event.end_time);
+  const start = useMemo(() => new Date(event.start_time), [event.start_time]);
+  const end = useMemo(() => new Date(event.end_time), [event.end_time]);
 
   const startHour = start.getHours() + start.getMinutes() / 60;
   const endHour = end.getHours() + end.getMinutes() / 60;

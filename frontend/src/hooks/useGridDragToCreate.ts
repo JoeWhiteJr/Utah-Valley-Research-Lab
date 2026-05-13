@@ -200,7 +200,7 @@ export function useGridDragToCreate({
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [dragState, gridRef, hourHeight, onRangeSelected, getDateForColumn, baseDate]);
+  }, [dragState, gridRef, hourHeight, onRangeSelected, getDateForColumn, baseDate, columnCount, gutterWidth]);
 
   const getPreviewStyle = useCallback((): DragPreview | null => {
     if (!dragState?.isDragging) return null;

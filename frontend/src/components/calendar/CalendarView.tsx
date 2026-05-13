@@ -51,12 +51,13 @@ export function CalendarView({ scope, compact = false, projectId }: CalendarView
   // Calculate date range based on current view
   const dateRange = useMemo(() => {
     switch (currentView) {
-      case 'daily':
-        return { start: startOfDay(selectedDate), end: endOfDay(selectedDate) };
       case 'weekly':
         return { start: startOfWeek(selectedDate, { weekStartsOn: 0 }), end: endOfWeek(selectedDate, { weekStartsOn: 0 }) };
       case 'monthly':
         return { start: startOfMonth(selectedDate), end: endOfMonth(selectedDate) };
+      case 'daily':
+      default:
+        return { start: startOfDay(selectedDate), end: endOfDay(selectedDate) };
     }
   }, [selectedDate, currentView]);
 
