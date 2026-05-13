@@ -8,7 +8,7 @@ import { usersApi } from '../../services/api';
 import { ClockPicker } from './ClockPicker';
 import { RepeatPicker } from './RepeatPicker';
 import ConfirmDialog from '../ConfirmDialog';
-import type { CalendarScope, CalendarCategory, RepeatRule, CreateEventData } from './types';
+import type { CalendarScope, CalendarCategory, RepeatRule, CreateEventData, EventAttendee } from './types';
 import { CATEGORY_COLORS } from './types';
 
 const FOCUSABLE = 'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
@@ -48,7 +48,7 @@ export function EventModal({ scope, onClose }: EventModalProps) {
   const [repeatRule, setRepeatRule] = useState<RepeatRule | null>(editingEvent?.repeat_rule || null);
   const [notes, setNotes] = useState(editingEvent?.notes || '');
   const [attendeeIds, setAttendeeIds] = useState<string[]>(
-    editingEvent?.attendees?.map((a) => a.user_id) || []
+    editingEvent?.attendees?.map((a: EventAttendee) => a.user_id) || []
   );
   const [isSaving, setIsSaving] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -342,7 +342,7 @@ export function EventModal({ scope, onClose }: EventModalProps) {
                   className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
                     categoryId === cat.id ? 'ring-2 ring-offset-1' : 'hover:opacity-80'
                   }`}
-                  style={{ backgroundColor: `${cat.color}20`, color: cat.color, ringColor: cat.color }}
+                  style={{ backgroundColor: `${cat.color}20`, color: cat.color, ['--tw-ring-color' as never]: cat.color }}
                 >
                   <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: cat.color }} />
                   {cat.name}
@@ -439,7 +439,7 @@ export function EventModal({ scope, onClose }: EventModalProps) {
               {isEditing && editingEvent?.attendees && editingEvent.attendees.length > 0 && (
                 <div className="mt-2 p-2 bg-gray-50 dark:bg-gray-800 rounded-lg">
                   <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">RSVP Status:</p>
-                  {editingEvent.attendees.map((att) => (
+                  {editingEvent.attendees.map((att: EventAttendee) => (
                     <div key={att.id} className="flex items-center gap-2 text-xs">
                       <span className="text-gray-700 dark:text-gray-300">{att.user_name}</span>
                       <span className={`px-1.5 py-0.5 rounded-full ${

@@ -2,7 +2,7 @@ import { useMemo, useRef, useState, useCallback } from 'react';
 import { startOfMonth, startOfWeek, addDays, isSameDay, isToday, isSameMonth, format } from 'date-fns';
 import { DndContext, DragOverlay, MouseSensor, TouchSensor, useSensor, useSensors, useDroppable, useDraggable } from '@dnd-kit/core';
 import type { DragEndEvent, DragStartEvent } from '@dnd-kit/core';
-import type { CalendarEvent, DeadlineEvent } from './types';
+import type { CalendarEvent, DeadlineEvent, CalendarScope } from './types';
 import { DAYS_SHORT } from './types';
 import { useDateRangeDrag } from '../../hooks/useDateRangeDrag';
 
@@ -16,7 +16,7 @@ interface MonthlyViewProps {
   onMoveEvent: (id: string, start_time: string, end_time: string) => void;
   onTimeClick?: (time: Date) => void;
   onTimeRangeSelect?: (startTime: Date, endTime: Date) => void;
-  scope: 'lab' | 'personal';
+  scope: CalendarScope;
 }
 
 function DraggableEventPill({ event, onEditEvent }: { event: CalendarEvent; onEditEvent: (e: CalendarEvent) => void }) {
