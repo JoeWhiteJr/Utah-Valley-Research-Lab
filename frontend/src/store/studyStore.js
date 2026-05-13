@@ -91,7 +91,11 @@ export const useStudyStore = create(
     }),
     {
       name: 'uvrl-study-session',
-      storage: createJSONStorage(() => sessionStorage),
+      // localStorage instead of sessionStorage so a participant who closes the
+      // tab and reopens the link later resumes where they left off. The persisted
+      // payload is the participant_code (random, non-PII) + step + study slug —
+      // safe to keep across sessions.
+      storage: createJSONStorage(() => localStorage),
       partialize: (state) => ({
         step: state.step,
         participant_code: state.participant_code,
