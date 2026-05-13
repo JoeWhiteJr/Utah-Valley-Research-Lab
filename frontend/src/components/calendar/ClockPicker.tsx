@@ -87,7 +87,7 @@ export function ClockPicker({ value, onChange, label }: ClockPickerProps) {
       const y = e.clientY - rect.top - centerY;
 
       // Bug B fix: use raw angle for smooth preview (no snapping)
-      let angle = Math.atan2(y, x) * (180 / Math.PI);
+      const angle = Math.atan2(y, x) * (180 / Math.PI);
       setHoverAngle(angle);
     },
     [isDragging]

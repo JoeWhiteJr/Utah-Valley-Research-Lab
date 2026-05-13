@@ -30,7 +30,7 @@ export function DailyView({
 
   const gridRef = useRef<HTMLDivElement>(null);
 
-  const { dragState, justDraggedRef, onMouseDown, getPreviewStyle } = useGridDragToCreate({
+  const { justDraggedRef, onMouseDown, getPreviewStyle } = useGridDragToCreate({
     hourHeight,
     gridRef,
     onRangeSelected: onTimeRangeSelect || (() => {}),

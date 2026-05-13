@@ -5,7 +5,7 @@ import type { DragEndEvent, DragStartEvent } from '@dnd-kit/core';
 import { EventBlock } from './EventBlock';
 import type { CalendarEvent, CalendarScope, DeadlineEvent } from './types';
 import { TIME_CONFIG } from './types';
-import { useGridDragToCreate, type DragPreview } from '../../hooks/useGridDragToCreate';
+import { useGridDragToCreate } from '../../hooks/useGridDragToCreate';
 
 interface WeeklyViewProps {
   selectedDate: Date;
@@ -21,7 +21,7 @@ interface WeeklyViewProps {
 }
 
 export function WeeklyView({
-  selectedDate, events, deadlines, hourHeight,
+  selectedDate, events, deadlines: _deadlines, hourHeight,
   onTimeClick, onEditEvent, onMoveEvent, onTimeRangeSelect, onSelectDate, scope,
 }: WeeklyViewProps) {
   const weekStart = useMemo(() => startOfWeek(selectedDate, { weekStartsOn: 0 }), [selectedDate]);

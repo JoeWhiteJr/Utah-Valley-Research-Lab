@@ -5,7 +5,6 @@ import {
 import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfDay, endOfDay, addDays, addWeeks, addMonths, subDays, subWeeks, subMonths } from 'date-fns';
 import { useCalendarStore } from '../../store/calendarStore';
 import { useAuthStore } from '../../store/authStore';
-import { useProjectStore } from '../../store/projectStore';
 import { DailyView } from './DailyView';
 import { WeeklyView } from './WeeklyView';
 import { MonthlyView } from './MonthlyView';
@@ -22,12 +21,11 @@ interface CalendarViewProps {
 
 export function CalendarView({ scope, compact = false, projectId }: CalendarViewProps) {
   const { user } = useAuthStore();
-  const { projects } = useProjectStore();
 
   const {
     selectedDate, currentView, hourHeight,
-    events, categories, deadlines, filters,
-    isCreateModalOpen, editingEvent,
+    events, deadlines,
+    isCreateModalOpen,
     fetchEvents, fetchCategories, fetchDeadlines,
     setSelectedDate, setCurrentView, setScope,
     openCreateModal, closeCreateModal, setEditingEvent,
@@ -112,7 +110,7 @@ export function CalendarView({ scope, compact = false, projectId }: CalendarView
 
   const [viewingEvent, setViewingEvent] = useState<CalendarEvent | null>(null);
 
-  const handleEditEvent = useCallback((event: any) => {
+  const handleEditEvent = useCallback((event: CalendarEvent) => {
     if (scope === 'dashboard' && event.scope === 'project') {
       setViewingEvent(event);
       return;
@@ -121,7 +119,7 @@ export function CalendarView({ scope, compact = false, projectId }: CalendarView
   }, [scope, setEditingEvent]);
 
   const handleMoveEvent = useCallback((id: string, start_time: string, end_time: string) => {
-    const event = events.find((e: any) => e.id === id);
+    const event = events.find((e: CalendarEvent) => e.id === id);
     if (scope === 'dashboard' && event?.scope === 'project') return;
     moveEvent(id, start_time, end_time);
   }, [scope, events, moveEvent]);

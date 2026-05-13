@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { X, Trash2, Calendar, Users, Link } from 'lucide-react';
+import { X, Trash2, Users, Link } from 'lucide-react';
 import { format } from 'date-fns';
 import { useCalendarStore } from '../../store/calendarStore';
 import { useAuthStore } from '../../store/authStore';
@@ -140,10 +140,10 @@ export function EventModal({ scope, onClose }: EventModalProps) {
     const projectStore = useProjectStore.getState();
     if (projectStore.projects.length === 0) {
       projectStore.fetchProjects().then(() => {
-        setProjects(useProjectStore.getState().projects.map((p: any) => ({ id: p.id, title: p.title })));
+        setProjects(useProjectStore.getState().projects.map((p: { id: string; title: string }) => ({ id: p.id, title: p.title })));
       });
     } else {
-      setProjects(projectStore.projects.map((p: any) => ({ id: p.id, title: p.title })));
+      setProjects(projectStore.projects.map((p: { id: string; title: string }) => ({ id: p.id, title: p.title })));
     }
 
     if (scope === 'lab') {
@@ -154,7 +154,9 @@ export function EventModal({ scope, onClose }: EventModalProps) {
   }, [scope]);
 
   // Get the projectId filter from calendarStore for project scope
-  const calendarFilters = useCalendarStore((s: any) => s.filters);
+  const calendarFilters = useCalendarStore(
+    (s: { filters: { projectId?: string | null } }) => s.filters
+  );
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -172,7 +174,7 @@ export function EventModal({ scope, onClose }: EventModalProps) {
       start_time: startTime.toISOString(),
       end_time: endTime.toISOString(),
       all_day: allDay,
-      scope: effectiveScope as any,
+      scope: effectiveScope,
       category_id: categoryId,
       project_id: effectiveProjectId,
       repeat_rule: repeatRule,

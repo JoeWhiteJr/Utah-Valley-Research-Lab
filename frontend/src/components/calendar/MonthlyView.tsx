@@ -63,7 +63,7 @@ export function MonthlyView({
 }: MonthlyViewProps) {
   const justDraggedRef = useRef(false);
 
-  const { isDragging, onCellMouseDown, onCellMouseEnter, isInRange } = useDateRangeDrag({
+  const { onCellMouseDown, onCellMouseEnter, isInRange } = useDateRangeDrag({
     onRangeSelected: (start, end) => {
       if (onTimeRangeSelect) {
         onTimeRangeSelect(start, end);

@@ -28,12 +28,9 @@ module.exports = {
       rules: {
         // 'no-unused-vars' is JS-only and conflicts with the TS-aware version on .ts/.tsx files.
         'no-unused-vars': 'off',
-        // Calendar files predate this lint config and have legacy patterns. Disabled
-        // here so the lint extension lands without scope-creeping into a cleanup pass.
-        // Re-enable in a follow-up after the calendar code is groomed.
-        '@typescript-eslint/no-unused-vars': 'off',
-        '@typescript-eslint/no-explicit-any': 'off',
-        'prefer-const': 'off',
+        '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_', ignoreRestSiblings: true }],
+        '@typescript-eslint/no-explicit-any': 'error',
+        // prefer-const inherits from eslint:recommended/recommended-type — no override needed
       },
     },
   ],
