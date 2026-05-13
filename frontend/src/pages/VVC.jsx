@@ -8,6 +8,7 @@ import Modal from '../components/Modal'
 import Input from '../components/Input'
 import VideoPlayer from '../components/VideoPlayer'
 import RichTextEditor from '../components/RichTextEditor'
+import ConfirmDialog from '../components/ConfirmDialog'
 import { Code, Plus, Trash2, Edit3, Calendar, Upload, FileText, Sparkles, Video, ExternalLink, Image, X, Rocket } from 'lucide-react'
 
 export default function VVC() {
@@ -58,6 +59,9 @@ export default function VVC() {
   const [screenshotFile, setScreenshotFile] = useState(null)
   const [projectSaving, setProjectSaving] = useState(false)
 
+  // Pending destructive action (session/project delete)
+  const [pendingDelete, setPendingDelete] = useState(null)
+
   useEffect(() => { fetchSessions() }, [fetchSessions])
   useEffect(() => { fetchResources() }, [fetchResources])
   useEffect(() => { fetchProjects() }, [fetchProjects])
@@ -101,10 +105,9 @@ export default function VVC() {
     }
   }, [editingSession, sessionForm, videoUploadFile, updateSession, createSession, uploadVideo])
 
-  const handleDeleteSession = useCallback(async (id) => {
-    if (!window.confirm('Delete this session?')) return
-    await deleteSession(id)
-  }, [deleteSession])
+  const handleDeleteSession = useCallback((session) => {
+    setPendingDelete({ type: 'session', id: session.id, title: session.title })
+  }, [])
 
   // Session detail handlers
   const handleOpenDetail = useCallback((session) => {
@@ -205,10 +208,20 @@ export default function VVC() {
     }
   }, [editingProject, projectForm, screenshotFile, updateProject, createProject, uploadScreenshot])
 
-  const handleDeleteProject = useCallback(async (id) => {
-    if (!window.confirm('Delete this project?')) return
-    await deleteProject(id)
-  }, [deleteProject])
+  const handleDeleteProject = useCallback((project) => {
+    setPendingDelete({ type: 'project', id: project.id, title: project.title })
+  }, [])
+
+  const handleConfirmDelete = useCallback(async () => {
+    if (!pendingDelete) return
+    const { type, id } = pendingDelete
+    if (type === 'session') {
+      await deleteSession(id)
+    } else if (type === 'project') {
+      await deleteProject(id)
+    }
+    setPendingDelete(null)
+  }, [pendingDelete, deleteSession, deleteProject])
 
   const formatDate = (dateStr) => {
     if (!dateStr) return null
@@ -290,7 +303,7 @@ export default function VVC() {
                           className="p-1.5 rounded-lg text-text-secondary hover:text-primary-600 hover:bg-primary-50 dark:hover:bg-primary-900/30 transition-colors">
                           <Edit3 size={14} />
                         </button>
-                        <button onClick={() => handleDeleteSession(session.id)} title="Delete"
+                        <button onClick={() => handleDeleteSession(session)} title="Delete"
                           className="p-1.5 rounded-lg text-text-secondary hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors">
                           <Trash2 size={14} />
                         </button>
@@ -379,7 +392,7 @@ export default function VVC() {
                               className="p-1.5 rounded-lg text-text-secondary hover:text-primary-600 hover:bg-primary-50 dark:hover:bg-primary-900/30 transition-colors">
                               <Edit3 size={14} />
                             </button>
-                            <button onClick={() => handleDeleteProject(project.id)} title="Delete"
+                            <button onClick={() => handleDeleteProject(project)} title="Delete"
                               className="p-1.5 rounded-lg text-text-secondary hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors">
                               <Trash2 size={14} />
                             </button>
@@ -745,6 +758,21 @@ export default function VVC() {
           </div>
         </form>
       </Modal>
+
+      {/* Confirm Dialog — session / project delete */}
+      <ConfirmDialog
+        isOpen={!!pendingDelete}
+        onClose={() => setPendingDelete(null)}
+        onConfirm={handleConfirmDelete}
+        title={pendingDelete?.type === 'session' ? 'Delete Session' : 'Delete Project'}
+        message={
+          pendingDelete?.title
+            ? `Are you sure you want to delete "${pendingDelete.title}"? This cannot be undone.`
+            : `Are you sure you want to delete this ${pendingDelete?.type}? This cannot be undone.`
+        }
+        confirmLabel="Delete"
+        variant="danger"
+      />
 
       {/* Loading overlay */}
       {isLoading && (

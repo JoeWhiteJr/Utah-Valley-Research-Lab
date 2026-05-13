@@ -8,6 +8,7 @@ import Modal from '../components/Modal'
 import Input from '../components/Input'
 import AudioPlayer from '../components/AudioPlayer'
 import RichTextEditor from '../components/RichTextEditor'
+import ConfirmDialog from '../components/ConfirmDialog'
 import { BookOpen, Plus, Check, Trash2, Edit3, Calendar, ChevronRight, Clock, Upload, FileText, Sparkles, Archive, Undo2 } from 'lucide-react'
 
 export default function BookClub() {
@@ -36,6 +37,7 @@ export default function BookClub() {
   const [expandedPastBook, setExpandedPastBook] = useState(null)
   const [saving, setSaving] = useState(false)
   const [audioUploadFile, setAudioUploadFile] = useState(null)
+  const [pendingBookAction, setPendingBookAction] = useState(null)
 
   useEffect(() => { fetchBooks() }, [fetchBooks])
 
@@ -65,9 +67,9 @@ export default function BookClub() {
     setShowBookModal(false)
   }, [editingBook, bookForm, updateBook, createBook])
 
-  const handleDeleteBook = useCallback(async (id) => {
-    await deleteBook(id)
-  }, [deleteBook])
+  const handleDeleteBook = useCallback((book) => {
+    setPendingBookAction({ type: 'delete', book })
+  }, [])
 
   const handleOpenSetCurrent = useCallback((book) => {
     setSetCurrentModal(book)
@@ -81,15 +83,26 @@ export default function BookClub() {
     setSetCurrentDate('')
   }, [setCurrentModal, setCurrentDate, setCurrent])
 
-  const handleShelveBook = useCallback(async (id) => {
-    if (!window.confirm('Move this book to past books?')) return
-    await shelveBook(id)
-  }, [shelveBook])
+  const handleShelveBook = useCallback((book) => {
+    setPendingBookAction({ type: 'shelve', book })
+  }, [])
 
-  const handleMoveToUpcoming = useCallback(async (id) => {
-    if (!window.confirm('Move this book back to the book list?')) return
-    await moveToUpcoming(id)
-  }, [moveToUpcoming])
+  const handleMoveToUpcoming = useCallback((book) => {
+    setPendingBookAction({ type: 'restore', book })
+  }, [])
+
+  const handleConfirmBookAction = useCallback(async () => {
+    if (!pendingBookAction) return
+    const { type, book } = pendingBookAction
+    if (type === 'delete') {
+      await deleteBook(book.id)
+    } else if (type === 'shelve') {
+      await shelveBook(book.id)
+    } else if (type === 'restore') {
+      await moveToUpcoming(book.id)
+    }
+    setPendingBookAction(null)
+  }, [pendingBookAction, deleteBook, shelveBook, moveToUpcoming])
 
   const handleVote = useCallback(async (bookId) => {
     if (userVoteBookId === bookId) {
@@ -166,10 +179,10 @@ export default function BookClub() {
                   <Button size="sm" variant="outline" onClick={() => handleOpenMeeting(currentBook)}>
                     <FileText size={14} className="mr-1" /> Meeting Notes
                   </Button>
-                  <Button size="sm" variant="outline" onClick={() => handleShelveBook(currentBook.id)}>
+                  <Button size="sm" variant="outline" onClick={() => handleShelveBook(currentBook)}>
                     <Archive size={14} className="mr-1" /> Shelve Book
                   </Button>
-                  <Button size="sm" variant="outline" onClick={() => handleMoveToUpcoming(currentBook.id)}>
+                  <Button size="sm" variant="outline" onClick={() => handleMoveToUpcoming(currentBook)}>
                     <Undo2 size={14} className="mr-1" /> Move to Book List
                   </Button>
                 </div>
@@ -257,7 +270,7 @@ export default function BookClub() {
                         className="p-1.5 rounded-lg text-text-secondary hover:text-primary-600 hover:bg-primary-50 dark:hover:bg-primary-900/30 transition-colors">
                         <Edit3 size={14} />
                       </button>
-                      <button onClick={() => handleDeleteBook(book.id)} title="Delete"
+                      <button onClick={() => handleDeleteBook(book)} title="Delete"
                         className="p-1.5 rounded-lg text-text-secondary hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors">
                         <Trash2 size={14} />
                       </button>
@@ -308,7 +321,7 @@ export default function BookClub() {
                         </button>
                         {isAdmin && (
                           <button
-                            onClick={() => handleMoveToUpcoming(book.id)}
+                            onClick={() => handleMoveToUpcoming(book)}
                             className="text-xs font-medium text-text-secondary dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 flex items-center gap-1"
                           >
                             <Undo2 size={12} /> Move to Book List
@@ -482,6 +495,35 @@ export default function BookClub() {
           </div>
         )}
       </Modal>
+
+      {/* Confirm Dialog — shared by delete / shelve / restore */}
+      <ConfirmDialog
+        isOpen={!!pendingBookAction}
+        onClose={() => setPendingBookAction(null)}
+        onConfirm={handleConfirmBookAction}
+        title={
+          pendingBookAction?.type === 'delete' ? 'Delete Book' :
+          pendingBookAction?.type === 'shelve' ? 'Shelve Book' :
+          pendingBookAction?.type === 'restore' ? 'Move to Book List' :
+          'Are you sure?'
+        }
+        message={
+          pendingBookAction?.type === 'delete'
+            ? `Are you sure you want to delete "${pendingBookAction?.book?.title}"? This cannot be undone.`
+            : pendingBookAction?.type === 'shelve'
+            ? `Move "${pendingBookAction?.book?.title}" to past books?`
+            : pendingBookAction?.type === 'restore'
+            ? `Move "${pendingBookAction?.book?.title}" back to the book list?`
+            : ''
+        }
+        confirmLabel={
+          pendingBookAction?.type === 'delete' ? 'Delete' :
+          pendingBookAction?.type === 'shelve' ? 'Shelve' :
+          pendingBookAction?.type === 'restore' ? 'Move' :
+          'Confirm'
+        }
+        variant={pendingBookAction?.type === 'delete' ? 'danger' : 'primary'}
+      />
 
       {/* Loading overlay */}
       {isLoading && (
