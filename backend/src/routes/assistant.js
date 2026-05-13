@@ -23,6 +23,22 @@ const claudeMessageLimiter = isTestEnv
       keyGenerator: (req) => req.user?.id || ipKeyGenerator(req.ip)
     });
 
+// 24h cap stacked on top of the 5-min limiter above. The 5-min window prevents
+// burst spikes, but a determined user could still grind 30 calls every 5 min
+// (~8,640/day). The daily cap puts a real ceiling on insider grinding and
+// leaked-token abuse. Wired BEFORE claudeMessageLimiter so it short-circuits
+// cheaply once the daily budget is exhausted.
+const dailyClaudeLimiter = isTestEnv
+  ? (req, res, next) => next()
+  : rateLimit({
+      windowMs: 24 * 60 * 60 * 1000, // 24 hours (rolling)
+      max: 200,
+      standardHeaders: true,
+      legacyHeaders: false,
+      message: { error: { message: 'Daily Claude usage limit reached. Try again tomorrow.' } },
+      keyGenerator: (req) => req.user?.id || ipKeyGenerator(req.ip)
+    });
+
 // All routes require authentication
 router.use(authenticate);
 
@@ -153,7 +169,7 @@ router.delete('/conversations/:id', async (req, res, next) => {
 });
 
 // POST /api/assistant/conversations/:id/messages — Send message → RAG → Claude → response
-router.post('/conversations/:id/messages', claudeMessageLimiter, async (req, res, next) => {
+router.post('/conversations/:id/messages', dailyClaudeLimiter, claudeMessageLimiter, async (req, res, next) => {
   try {
     const { message } = req.body;
     if (!message || !message.trim()) {
