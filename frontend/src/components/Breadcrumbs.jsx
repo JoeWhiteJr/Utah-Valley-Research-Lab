@@ -1,7 +1,7 @@
 import { useLocation, Link } from 'react-router-dom'
 import { useProjectStore } from '../store/projectStore'
 import { useChatStore } from '../store/chatStore'
-import { ArrowLeft } from 'lucide-react'
+import { ChevronRight } from 'lucide-react'
 
 const routeLabels = {
   'dashboard': 'Dashboard',
@@ -64,17 +64,32 @@ export default function Breadcrumbs() {
 
   if (crumbs.length <= 1) return null
 
-  const parentCrumb = crumbs[crumbs.length - 2]
-
   return (
-    <nav className="text-sm mb-4">
-      <Link
-        to={parentCrumb.path}
-        className="inline-flex items-center gap-1.5 text-text-secondary dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 transition-colors"
-      >
-        <ArrowLeft size={14} />
-        Back to {parentCrumb.label}
-      </Link>
+    <nav aria-label="Breadcrumb" className="text-sm mb-4">
+      <ol className="inline-flex items-center gap-1.5 flex-wrap">
+        {crumbs.map((crumb, index) => {
+          const isLast = index === crumbs.length - 1
+          return (
+            <li key={crumb.path} className="inline-flex items-center gap-1.5">
+              {index > 0 && (
+                <ChevronRight size={14} className="text-text-tertiary dark:text-gray-500" aria-hidden="true" />
+              )}
+              {isLast ? (
+                <span aria-current="page" className="text-text-primary dark:text-gray-200 font-medium">
+                  {crumb.label}
+                </span>
+              ) : (
+                <Link
+                  to={crumb.path}
+                  className="text-text-secondary dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 transition-colors"
+                >
+                  {crumb.label}
+                </Link>
+              )}
+            </li>
+          )
+        })}
+      </ol>
     </nav>
   )
 }
