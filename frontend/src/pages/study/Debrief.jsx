@@ -45,18 +45,12 @@ export default function StudyDebrief() {
           Your responses have been recorded. Here is what the study was actually about.
         </p>
 
-        <div className="space-y-5 text-sm text-text-secondary dark:text-gray-300 mb-6">
-          <section>
-            <h2 className="font-semibold text-text-primary dark:text-gray-200 mb-1">
-              The research question
-            </h2>
-            <p>
-              This study tests two competing theories of why people keep going at a task even after rewards stop. <strong>Festinger&apos;s Cognitive Dissonance Theory</strong> predicts that people who exerted high effort will continue longer because they justify the effort by deciding the activity was worthwhile. <strong>Capaldi&apos;s Sequential Theory</strong> predicts that people who saw rewards in a particular pattern (specifically, where empty trials reliably preceded rewarded ones) will continue longer because they have learned to expect a payoff after a disappointment.
-            </p>
-          </section>
-
-          <section>
-            <h2 className="font-semibold text-text-primary dark:text-gray-200 mb-1">
+        {/* "What you did" stays open by default — that's what participants
+            actually want to know after 12 minutes of clicking. The background
+            sections collapse so the page isn't a wall of text. */}
+        <div className="space-y-3 text-sm text-text-secondary dark:text-gray-300 mb-6">
+          <section className="bg-gray-50 dark:bg-gray-700/40 rounded-organic p-4">
+            <h2 className="font-semibold text-text-primary dark:text-gray-200 mb-2">
               What you did
             </h2>
             <p className="mb-2">
@@ -65,32 +59,21 @@ export default function StudyDebrief() {
             {conditionParagraph && <p>{conditionParagraph}</p>}
           </section>
 
-          <section>
-            <h2 className="font-semibold text-text-primary dark:text-gray-200 mb-1">
-              Why we didn&apos;t tell you the design upfront
-            </h2>
-            <p>
-              If participants know which theory the design is testing, they often unconsciously adjust their behavior to match the prediction they think the researchers want. Telling you the manipulation only after the task lets your behavior speak for itself.
-            </p>
-          </section>
+          <DebriefDetail summary="The research question">
+            This study tests two competing theories of why people keep going at a task even after rewards stop. <strong>Festinger&apos;s Cognitive Dissonance Theory</strong> predicts that people who exerted high effort will continue longer because they justify the effort by deciding the activity was worthwhile. <strong>Capaldi&apos;s Sequential Theory</strong> predicts that people who saw rewards in a particular pattern (specifically, where empty trials reliably preceded rewarded ones) will continue longer because they have learned to expect a payoff after a disappointment.
+          </DebriefDetail>
 
-          <section>
-            <h2 className="font-semibold text-text-primary dark:text-gray-200 mb-1">
-              Your data
-            </h2>
-            <p>
-              Your responses are stored anonymously under a randomly assigned participant code. They will be used in aggregate analyses and may appear in published research with no way to identify you. Because no name or email was collected, we cannot remove your individual data after submission &mdash; but we also cannot connect it to you.
-            </p>
-          </section>
+          <DebriefDetail summary="Why we didn't tell you the design upfront">
+            If participants know which theory the design is testing, they often unconsciously adjust their behavior to match the prediction they think the researchers want. Telling you the manipulation only after the task lets your behavior speak for itself.
+          </DebriefDetail>
 
-          <section>
-            <h2 className="font-semibold text-text-primary dark:text-gray-200 mb-1">
-              Questions or concerns
-            </h2>
-            <p>
-              Please contact the research team at the UVU Stats Lab. Questions about your rights as a research participant can be directed to the UVU Institutional Review Board.
-            </p>
-          </section>
+          <DebriefDetail summary="Your data">
+            Your responses are stored anonymously under a randomly assigned participant code. They will be used in aggregate analyses and may appear in published research with no way to identify you. Because no name or email was collected, we cannot remove your individual data after submission &mdash; but we also cannot connect it to you.
+          </DebriefDetail>
+
+          <DebriefDetail summary="Questions or concerns">
+            Please contact the research team at the UVU Stats Lab. Questions about your rights as a research participant can be directed to the UVU Institutional Review Board.
+          </DebriefDetail>
         </div>
 
         <Button onClick={finish} className="w-full" size="lg">
@@ -104,5 +87,24 @@ export default function StudyDebrief() {
         )}
       </div>
     </div>
+  )
+}
+
+// Native <details>/<summary> is keyboard-accessible and screen-reader-friendly
+// out of the box — no need for a custom disclosure component.
+function DebriefDetail({ summary, children }) {
+  return (
+    <details className="group bg-gray-50 dark:bg-gray-700/40 rounded-organic p-4 open:pb-4">
+      <summary className="font-semibold text-text-primary dark:text-gray-200 cursor-pointer list-none flex items-center justify-between [&::-webkit-details-marker]:hidden">
+        <span>{summary}</span>
+        <span
+          aria-hidden="true"
+          className="text-text-secondary dark:text-gray-400 text-xs transition-transform group-open:rotate-90"
+        >
+          ▸
+        </span>
+      </summary>
+      <div className="mt-3 text-text-secondary dark:text-gray-300">{children}</div>
+    </details>
   )
 }

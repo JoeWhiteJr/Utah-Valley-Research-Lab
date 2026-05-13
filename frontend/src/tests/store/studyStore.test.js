@@ -25,6 +25,7 @@ describe('studyStore', () => {
     })
     vi.clearAllMocks()
     sessionStorage.clear()
+    localStorage.clear()
   })
 
   it('starts in landing step', () => {

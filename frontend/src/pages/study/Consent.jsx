@@ -6,6 +6,8 @@ import { useEffect, useRef, useState } from 'react'
 import { useStudyStore } from '../../store/studyStore'
 import Button from '../../components/Button'
 
+const HONEYPOT_OOPS = 'Something went wrong. Please refresh this page and try again.'
+
 const CONSENT_SECTIONS = [
   {
     heading: 'Purpose',
@@ -47,6 +49,7 @@ export default function StudyConsent() {
   const { submitConsent, loading, error } = useStudyStore()
   const [agreed, setAgreed] = useState(false)
   const [honeypot, setHoneypot] = useState('')
+  const [localError, setLocalError] = useState(null)
   const arrivedAt = useRef(Date.now())
 
   useEffect(() => {
@@ -55,14 +58,20 @@ export default function StudyConsent() {
 
   const handleAgree = () => {
     if (honeypot) {
-      console.warn('study: honeypot filled, ignoring consent submission')
+      // Surface a friendly error instead of silently dropping the click — a real
+      // participant whose autofill tripped the trap shouldn't be left stranded
+      // wondering why "I agree" did nothing.
+      console.warn('study: honeypot filled, blocking consent submission')
+      setLocalError(HONEYPOT_OOPS)
       return
     }
     const elapsed = Date.now() - arrivedAt.current
     if (elapsed < MIN_CONSENT_TIME_MS) {
-      console.warn(`study: consent submitted in ${elapsed}ms (< ${MIN_CONSENT_TIME_MS}ms minimum), ignoring`)
+      console.warn(`study: consent submitted in ${elapsed}ms (< ${MIN_CONSENT_TIME_MS}ms minimum), blocking`)
+      setLocalError('Please take a moment to read the consent text before agreeing.')
       return
     }
+    setLocalError(null)
     submitConsent()
   }
 
@@ -85,22 +94,35 @@ export default function StudyConsent() {
             </div>
           ))}
         </div>
-        {error && (
-          <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-700 rounded-lg text-red-700 dark:text-red-400 text-sm">
-            {error}
+        {(error || localError) && (
+          <div
+            className="mb-4 p-3 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-700 rounded-lg text-red-700 dark:text-red-400 text-sm"
+            role="alert"
+            aria-live="polite"
+          >
+            {localError || error}
           </div>
         )}
-        {/* Honeypot — humans don't see or focus this. Bots typically fill all inputs. */}
-        <input
-          type="text"
-          name="company_url"
-          tabIndex={-1}
-          autoComplete="off"
-          value={honeypot}
-          onChange={(e) => setHoneypot(e.target.value)}
+        {/* Honeypot — humans don't see or focus this. Bots typically fill all
+            inputs. The wrapping div is aria-hidden + inert so assistive tech
+            doesn't expose this input via the forms rotor. */}
+        <div
           aria-hidden="true"
-          style={{ position: 'absolute', left: '-9999px', width: '1px', height: '1px', opacity: 0 }}
-        />
+          // @ts-ignore: inert is a valid HTML attribute; older React types miss it.
+          inert=""
+          style={{ position: 'absolute', left: '-9999px', width: '1px', height: '1px', overflow: 'hidden' }}
+        >
+          <label htmlFor="study-consent-hp">Company URL (leave blank)</label>
+          <input
+            id="study-consent-hp"
+            type="text"
+            name="company_url"
+            tabIndex={-1}
+            autoComplete="off"
+            value={honeypot}
+            onChange={(e) => setHoneypot(e.target.value)}
+          />
+        </div>
         <label className="flex items-start gap-3 mb-6 cursor-pointer">
           <input
             type="checkbox"

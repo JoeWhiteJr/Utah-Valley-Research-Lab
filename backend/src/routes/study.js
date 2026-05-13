@@ -222,10 +222,14 @@ router.post('/consent', [
     }
     const { participant_code, demographics } = req.body;
 
+    // Merge-on-write: a second /consent call (e.g. browser-back from debrief
+    // re-submitting the demographics form) must not wipe earlier-submitted
+    // fields. Postgres JSONB || concat with RHS winning on key collision keeps
+    // the union and the latest values for shared keys.
     const result = await db.query(
       `UPDATE study_participants
        SET consent_given_at = COALESCE(consent_given_at, CURRENT_TIMESTAMP),
-           demographics = $2,
+           demographics = COALESCE(demographics, '{}'::jsonb) || $2::jsonb,
            updated_at = CURRENT_TIMESTAMP
        WHERE participant_code = $1
        RETURNING id, consent_given_at`,

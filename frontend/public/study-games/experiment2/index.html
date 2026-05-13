@@ -202,40 +202,71 @@
       };
       if (!window.UVRL_STUDY.pid) return;
 
+      function postParent(msg) {
+        try { window.parent.postMessage(msg, '*'); } catch (e) { /* ignore */ }
+      }
+      function postSave(status) {
+        postParent({ type: 'study_save', status: status, participant_code: window.UVRL_STUDY.pid });
+      }
+
       var origFetch = window.fetch.bind(window);
       window.fetch = function (input, init) {
         var url = typeof input === 'string' ? input : (input && input.url) || '';
         if (url === '/api/save' && init && init.body) {
+          var data = null;
+          var parseError = null;
           try {
-            var data = JSON.parse(init.body);
-            var isSnapshot = !!data.last_snapshot;
-            var routedUrl = isSnapshot ? '/api/study/snapshot' : '/api/study/save';
-            var routedBody = JSON.stringify({
+            data = JSON.parse(init.body);
+          } catch (e) {
+            parseError = e;
+          }
+
+          if (parseError) {
+            console.warn('UVRL study shim: payload parse failed, sending error envelope', parseError);
+            postSave('saving');
+            var errBody = JSON.stringify({
               participant_code: window.UVRL_STUDY.pid,
-              payload: data
+              payload: {
+                parse_error: true,
+                message: String(parseError && parseError.message || parseError),
+                raw_preview: String(init.body).slice(0, 1000),
+              },
             });
-            var promise = origFetch(routedUrl, {
+            return origFetch('/api/study/save', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: routedBody
+              body: errBody,
+            }).then(function (r) {
+              postSave(r && r.ok ? 'saved' : 'error');
+              return r;
+            }).catch(function (err) {
+              postSave('error');
+              throw err;
             });
-            if (!isSnapshot) {
-              promise.then(function (r) {
-                if (r && r.ok && !window.UVRL_STUDY.completed) {
-                  window.UVRL_STUDY.completed = true;
-                  try {
-                    window.parent.postMessage({
-                      type: 'study_complete',
-                      participant_code: window.UVRL_STUDY.pid
-                    }, '*');
-                  } catch (e) { /* ignore */ }
-                }
-              }).catch(function () { /* original handler reports errors */ });
-            }
-            return promise;
-          } catch (e) {
-            console.warn('UVRL study shim: failed to rewrap save', e);
           }
+
+          var isSnapshot = !!data.last_snapshot;
+          var routedUrl = isSnapshot ? '/api/study/snapshot' : '/api/study/save';
+          var routedBody = JSON.stringify({
+            participant_code: window.UVRL_STUDY.pid,
+            payload: data,
+          });
+          postSave('saving');
+          var promise = origFetch(routedUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: routedBody,
+          });
+          promise.then(function (r) {
+            postSave(r && r.ok ? 'saved' : 'error');
+            if (!isSnapshot && r && r.ok && !window.UVRL_STUDY.completed) {
+              window.UVRL_STUDY.completed = true;
+              postParent({ type: 'study_complete', participant_code: window.UVRL_STUDY.pid });
+            }
+          }).catch(function () {
+            postSave('error');
+          });
+          return promise;
         }
         return origFetch(input, init);
       };
