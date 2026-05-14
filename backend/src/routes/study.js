@@ -16,14 +16,14 @@ async function resolveStudy(slug) {
   let dbRow;
   if (slug) {
     const result = await db.query(
-      `SELECT id, slug, title, blurb, estimated_minutes, status
+      `SELECT id, slug, title, blurb, estimated_minutes, status, recruitment_target_per_condition
        FROM studies WHERE slug = $1`,
       [slug]
     );
     dbRow = result.rows[0];
   } else {
     const result = await db.query(
-      `SELECT id, slug, title, blurb, estimated_minutes, status
+      `SELECT id, slug, title, blurb, estimated_minutes, status, recruitment_target_per_condition
        FROM studies WHERE status = 'active'
        ORDER BY created_at DESC LIMIT 1`
     );
@@ -366,6 +366,8 @@ router.get('/stats', authenticate, requireRole('admin'), async (req, res, next) 
       [study.id]
     );
 
+    const target = study.recruitment_target_per_condition || null;
+
     const stats = {};
     for (const exp of Object.keys(studyConfig.experiments)) {
       stats[exp] = { conditions: {}, total_assigned: 0, total_completed: 0 };
@@ -383,7 +385,65 @@ router.get('/stats', authenticate, requireRole('admin'), async (req, res, next) 
       stats[row.experiment].total_completed += row.completed;
     }
 
-    res.json({ study: { slug: study.slug, title: study.title }, stats });
+    // Decorate each condition with target + status when a target is set on the
+    // study. Status: 'on_track' (<90%) | 'near_complete' (90-99%) | 'met' (100%) |
+    // 'over' (>100%). Lets the admin UI surface "stop recruiting" without
+    // computing in the browser.
+    if (target) {
+      for (const exp of Object.keys(stats)) {
+        for (const cond of Object.keys(stats[exp].conditions)) {
+          const c = stats[exp].conditions[cond];
+          c.target = target;
+          const pct = target > 0 ? (c.completed / target) * 100 : 0;
+          c.progress_pct = Math.round(pct);
+          c.status = pct >= 100 ? (pct > 100 ? 'over' : 'met')
+                  : pct >= 90 ? 'near_complete'
+                  : 'on_track';
+        }
+      }
+    }
+
+    res.json({
+      study: {
+        slug: study.slug,
+        title: study.title,
+        recruitment_target_per_condition: target,
+      },
+      stats,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Public: anonymous follow-up signup. Email is stored in a SEPARATE table from
+// participant data — no foreign key, no participant_code, no way to relink to
+// a specific response. Keeps the consent form's anonymity promise intact.
+// Idempotent: same email + same study collapses on the unique constraint.
+router.post('/follow-up', saveLimiter, [
+  body('email').isEmail().normalizeEmail().withMessage('Valid email required'),
+  body('study_slug').optional().isString().trim().isLength({ min: 1, max: 64 }),
+], async (req, res, next) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ error: { message: 'Validation failed', details: errors.array() } });
+    }
+    const { email } = req.body;
+    const requestedSlug = (req.body.study_slug || '').trim() || null;
+    const resolved = await resolveStudy(requestedSlug);
+    if (!resolved) {
+      return res.status(404).json({ error: { message: 'Study not found' } });
+    }
+    const { dbRow: study } = resolved;
+
+    await db.query(
+      `INSERT INTO study_follow_up_signups (study_id, email)
+       VALUES ($1, $2)
+       ON CONFLICT (study_id, email) DO NOTHING`,
+      [study.id, email]
+    );
+    res.json({ ok: true });
   } catch (error) {
     next(error);
   }

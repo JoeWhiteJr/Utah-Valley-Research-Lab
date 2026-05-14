@@ -1,8 +1,12 @@
 // Debrief content draft. Final wording should be reviewed by the research team
 // / Festinger-Capaldi study lead before launch.
 
+import { useState } from 'react'
 import { useStudyStore } from '../../store/studyStore'
+import { studyApi } from '../../services/api'
 import Button from '../../components/Button'
+import Input from '../../components/Input'
+import { Mail } from 'lucide-react'
 
 const CONDITION_DESCRIPTIONS = {
   treasure_hunt: {
@@ -76,6 +80,8 @@ export default function StudyDebrief() {
           </DebriefDetail>
         </div>
 
+        <FollowUpOptIn />
+
         <Button onClick={finish} className="w-full" size="lg">
           Finish
         </Button>
@@ -86,6 +92,84 @@ export default function StudyDebrief() {
           </p>
         )}
       </div>
+    </div>
+  )
+}
+
+// Optional anonymous mailing list signup — wants to know when results are
+// published. The backend stores the email in a SEPARATE table with no link
+// back to participant_code or responses, preserving the consent form's
+// anonymity guarantee. Wording reflects that.
+function FollowUpOptIn() {
+  const study_slug = useStudyStore((s) => s.study_slug)
+  const [email, setEmail] = useState('')
+  const [status, setStatus] = useState('idle') // idle | sending | sent | error
+  const [error, setError] = useState(null)
+
+  const submit = async (e) => {
+    e.preventDefault()
+    const trimmed = email.trim()
+    if (!trimmed) return
+    setStatus('sending')
+    setError(null)
+    try {
+      await studyApi.followUp(trimmed, study_slug)
+      setStatus('sent')
+    } catch (err) {
+      setStatus('error')
+      setError(err.response?.data?.error?.message || 'Could not save your email. Please try again.')
+    }
+  }
+
+  if (status === 'sent') {
+    return (
+      <div className="mb-6 p-4 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 rounded-organic text-sm">
+        <p className="font-semibold text-text-primary dark:text-gray-100 mb-1 flex items-center gap-2">
+          <Mail size={14} className="text-emerald-600 dark:text-emerald-400" />
+          You&apos;re on the list
+        </p>
+        <p className="text-text-secondary dark:text-gray-300">
+          We&apos;ll email you when results from this study are published. Your email
+          is stored separately from your study responses and cannot be linked
+          back to them.
+        </p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="mb-6 p-4 bg-gray-50 dark:bg-gray-700/40 rounded-organic">
+      <p className="font-semibold text-text-primary dark:text-gray-200 mb-1 flex items-center gap-2 text-sm">
+        <Mail size={14} className="text-primary-600 dark:text-primary-400" />
+        Want to hear about the results? (optional)
+      </p>
+      <p className="text-xs text-text-secondary dark:text-gray-400 mb-3">
+        We&apos;ll send one email when this study is published. Your address is
+        stored separately from your responses &mdash; we can&apos;t connect it back to
+        what you submitted.
+      </p>
+      <form onSubmit={submit} className="flex gap-2 items-start">
+        <div className="flex-1">
+          <Input
+            label=""
+            type="email"
+            placeholder="you@example.com"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+          />
+        </div>
+        <Button
+          type="submit"
+          size="md"
+          loading={status === 'sending'}
+          disabled={!email.trim()}
+        >
+          Sign up
+        </Button>
+      </form>
+      {status === 'error' && error && (
+        <p className="mt-2 text-xs text-red-600 dark:text-red-400">{error}</p>
+      )}
     </div>
   )
 }
