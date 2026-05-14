@@ -346,6 +346,83 @@ describe('Study API', () => {
     });
   });
 
+  describe('Recruitment targets in /stats', () => {
+    it('decorates conditions with target + progress when the study has a target', async () => {
+      const res = await request(app)
+        .get('/api/study/stats')
+        .set('Authorization', `Bearer ${adminToken}`);
+      expect(res.status).toBe(200);
+      expect(res.body.study.recruitment_target_per_condition).toBe(80);
+      // Migration 046 seeds effort-justification at 80/condition. Pick any
+      // condition under any experiment and check the shape.
+      const exp = Object.keys(res.body.stats)[0];
+      const cond = Object.keys(res.body.stats[exp].conditions)[0];
+      const c = res.body.stats[exp].conditions[cond];
+      expect(c).toHaveProperty('target', 80);
+      expect(c).toHaveProperty('progress_pct');
+      expect(['on_track', 'near_complete', 'met', 'over']).toContain(c.status);
+    });
+  });
+
+  describe('POST /api/study/follow-up', () => {
+    afterAll(async () => {
+      await db.query("DELETE FROM study_follow_up_signups WHERE email LIKE '%followup-test%'");
+    });
+
+    it('accepts an email + records it under the most recent active study', async () => {
+      const res = await request(app)
+        .post('/api/study/follow-up')
+        .send({ email: 'followup-test-1@example.com' });
+      expect(res.status).toBe(200);
+      expect(res.body.ok).toBe(true);
+      const rows = await db.query(
+        "SELECT email FROM study_follow_up_signups WHERE email = $1",
+        ['followup-test-1@example.com']
+      );
+      expect(rows.rows).toHaveLength(1);
+    });
+
+    it('is idempotent on a repeat submission', async () => {
+      await request(app)
+        .post('/api/study/follow-up')
+        .send({ email: 'followup-test-2@example.com' });
+      await request(app)
+        .post('/api/study/follow-up')
+        .send({ email: 'followup-test-2@example.com' });
+      const rows = await db.query(
+        "SELECT email FROM study_follow_up_signups WHERE email = $1",
+        ['followup-test-2@example.com']
+      );
+      expect(rows.rows).toHaveLength(1);
+    });
+
+    it('rejects invalid emails', async () => {
+      const res = await request(app)
+        .post('/api/study/follow-up')
+        .send({ email: 'not-an-email' });
+      expect(res.status).toBe(400);
+    });
+
+    it('rejects unknown study_slug', async () => {
+      const res = await request(app)
+        .post('/api/study/follow-up')
+        .send({ email: 'followup-test-3@example.com', study_slug: 'does-not-exist' });
+      expect(res.status).toBe(404);
+    });
+
+    it('stores no reference to participant_code', async () => {
+      // Belt-and-suspenders: confirm the table schema can't hold a participant
+      // FK. If a future migration adds one, this test fails loudly and the
+      // anonymous-promise wording needs to be revisited.
+      const cols = await db.query(
+        `SELECT column_name FROM information_schema.columns
+         WHERE table_name = 'study_follow_up_signups'`
+      );
+      const names = cols.rows.map(r => r.column_name).sort();
+      expect(names).toEqual(['created_at', 'email', 'id', 'study_id']);
+    });
+  });
+
   describe('Dedup by ip_hash', () => {
     it('rejects a second start within the dedup window if a prior session completed from same IP', async () => {
       const TEST_IP = '10.99.0.42';

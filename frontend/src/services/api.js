@@ -562,6 +562,8 @@ export const studyApi = {
     api.post('/study/snapshot', { participant_code, payload }),
   // Public listing of active studies for the homepage card + /participate page.
   listActiveStudies: () => api.get('/study/list', { _silent: true }),
+  followUp: (email, study_slug = null) =>
+    api.post('/study/follow-up', { email, ...(study_slug ? { study_slug } : {}) }),
   stats: (slug = null) => api.get('/study/stats', { params: slug ? { slug } : undefined }),
   exportUrl: (experiment, slug = null) =>
     `${API_URL}/study/export/${experiment}${slug ? `?slug=${encodeURIComponent(slug)}` : ''}`,

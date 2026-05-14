@@ -346,6 +346,7 @@ function ExperimentCard({ experiment, data, onDownload }) {
             <th className="pb-2 font-medium">Condition</th>
             <th className="pb-2 font-medium text-right">Assigned</th>
             <th className="pb-2 font-medium text-right">Completed</th>
+            <th className="pb-2 font-medium">Progress</th>
           </tr>
         </thead>
         <tbody>
@@ -354,10 +355,54 @@ function ExperimentCard({ experiment, data, onDownload }) {
               <td className="py-2 font-mono text-text-primary dark:text-gray-200">{cond}</td>
               <td className="py-2 text-right text-text-primary dark:text-gray-200">{counts.assigned}</td>
               <td className="py-2 text-right text-text-primary dark:text-gray-200">{counts.completed}</td>
+              <td className="py-2 w-1/3">
+                <ConditionProgress counts={counts} />
+              </td>
             </tr>
           ))}
         </tbody>
       </table>
+    </div>
+  )
+}
+
+// Renders nothing if the study has no recruitment target. Otherwise: a thin
+// progress bar plus a status pill (on track / near complete / met / over).
+function ConditionProgress({ counts }) {
+  if (!counts.target) {
+    return <span className="text-text-secondary dark:text-gray-500 text-xs">—</span>
+  }
+  const pct = Math.min(counts.progress_pct ?? 0, 120)
+  const status = counts.status || 'on_track'
+  const barColor =
+    status === 'over' ? 'bg-amber-500'
+    : status === 'met' ? 'bg-emerald-500'
+    : status === 'near_complete' ? 'bg-emerald-400'
+    : 'bg-primary-500'
+  const pillClass =
+    status === 'over' ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300'
+    : status === 'met' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300'
+    : status === 'near_complete' ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-200'
+    : 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300'
+  const pillLabel =
+    status === 'over' ? 'Over target — stop recruiting'
+    : status === 'met' ? 'Target met'
+    : status === 'near_complete' ? 'Nearly complete'
+    : 'On track'
+  return (
+    <div className="flex items-center gap-2">
+      <div className="flex-1 h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+        <div
+          className={`h-full ${barColor} transition-all`}
+          style={{ width: `${Math.min(pct, 100)}%` }}
+        />
+      </div>
+      <span className="text-xs text-text-secondary dark:text-gray-400 tabular-nums whitespace-nowrap">
+        {counts.completed}/{counts.target}
+      </span>
+      <span className={`text-[10px] font-medium uppercase tracking-wide px-2 py-0.5 rounded-full whitespace-nowrap ${pillClass}`}>
+        {pillLabel}
+      </span>
     </div>
   )
 }
