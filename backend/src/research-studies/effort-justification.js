@@ -4,11 +4,14 @@
 module.exports = {
   slug: 'effort-justification',
   title: 'Effort Justification & Behavioral Persistence',
-  // Maps experiment_name → { prefix, conditions, htmlPath, exportColumns }.
+  // Maps experiment_name → { prefix, conditions, htmlPath, exportColumns,
+  // recruitment_target_per_condition }. Picker stops assigning to any condition
+  // that has already hit recruitment_target_per_condition.
   experiments: {
     treasure_hunt: {
       prefix: 'TH',
       conditions: ['BASELINE', 'HIGH_EFFORT', 'NR_PATTERN', 'RN_PATTERN'],
+      recruitment_target_per_condition: 80,
       htmlPath: '/study-games/experiment1/index.html',
       title: 'Digital Treasure Hunt',
       exportColumns: [
@@ -26,6 +29,7 @@ module.exports = {
     career_choice: {
       prefix: 'CC',
       conditions: ['WITHIN_SUBJECTS'],
+      recruitment_target_per_condition: 80,
       htmlPath: '/study-games/experiment2/index.html',
       title: 'Career Choice Study',
       exportColumns: [
@@ -44,6 +48,7 @@ module.exports = {
     pattern_memory: {
       prefix: 'PM',
       conditions: ['NR_PATTERN', 'RANDOM'],
+      recruitment_target_per_condition: 80,
       htmlPath: '/study-games/experiment3/index.html',
       title: 'Pattern Memory Challenge',
       exportColumns: [
