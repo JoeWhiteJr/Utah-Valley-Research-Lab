@@ -21,13 +21,28 @@ function detectTouchPrimary() {
 }
 
 export default function StudyGameFrame() {
-  const { participant_code, experiment, condition, markComplete } = useStudyStore()
+  const { step, participant_code, experiment, condition, markComplete } = useStudyStore()
   const iframeRef = useRef(null)
   const [iframeError, setIframeError] = useState(false)
   const [mobileOverride, setMobileOverride] = useState(false)
   const [isTouchPrimary, setIsTouchPrimary] = useState(detectTouchPrimary())
   const [saveStatus, setSaveStatus] = useState('idle') // idle | saving | saved | error
   const saveStatusTimerRef = useRef(null)
+
+  // Warn before unloading mid-game so accidental tab closes don't silently end
+  // the session. Modern browsers ignore the message string and show their own
+  // "Leave site? Changes you made may not be saved" prompt; the returnValue
+  // assignment is still required for legacy browsers.
+  useEffect(() => {
+    if (step !== 'game') return undefined
+    const handler = (e) => {
+      e.preventDefault()
+      e.returnValue = ''
+      return ''
+    }
+    window.addEventListener('beforeunload', handler)
+    return () => window.removeEventListener('beforeunload', handler)
+  }, [step])
 
   useEffect(() => {
     const handler = (event) => {
