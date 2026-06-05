@@ -93,8 +93,8 @@ describe('Study API', () => {
     });
   });
 
-  describe('POST /api/study/consent + /api/study/save', () => {
-    it('records consent and a final save, marking the participant complete', async () => {
+  describe('POST /api/study/consent + /api/study/save + /api/study/finish', () => {
+    it('records consent and a final save without marking complete; /finish sets completed_at', async () => {
       const start = await request(app).post('/api/study/start');
       const code = start.body.participant_code;
 
@@ -111,11 +111,27 @@ describe('Study API', () => {
       expect(save.status).toBe(200);
       expect(save.body.ok).toBe(true);
 
-      const row = await db.query(
-        'SELECT completed_at FROM study_participants WHERE participant_code = $1',
+      // After /save, completion is still null — participant hasn't seen the
+      // debrief yet, so they aren't counted as complete.
+      const beforeFinish = await db.query(
+        'SELECT p.completed_at AS p_completed, a.completed_at AS a_completed FROM study_participants p JOIN study_assignments a ON a.participant_id = p.id WHERE p.participant_code = $1',
         [code]
       );
-      expect(row.rows[0].completed_at).not.toBeNull();
+      expect(beforeFinish.rows[0].p_completed).toBeNull();
+      expect(beforeFinish.rows[0].a_completed).toBeNull();
+
+      const finish = await request(app)
+        .post('/api/study/finish')
+        .send({ participant_code: code });
+      expect(finish.status).toBe(200);
+      expect(finish.body.ok).toBe(true);
+
+      const afterFinish = await db.query(
+        'SELECT p.completed_at AS p_completed, a.completed_at AS a_completed FROM study_participants p JOIN study_assignments a ON a.participant_id = p.id WHERE p.participant_code = $1',
+        [code]
+      );
+      expect(afterFinish.rows[0].p_completed).not.toBeNull();
+      expect(afterFinish.rows[0].a_completed).not.toBeNull();
     });
 
     it('rejects save with unknown participant_code', async () => {
@@ -123,6 +139,24 @@ describe('Study API', () => {
         .post('/api/study/save')
         .send({ participant_code: 'TH_does_not_exist_xxx', payload: {} });
       expect(res.status).toBe(404);
+    });
+
+    it('rejects /finish with unknown participant_code', async () => {
+      const res = await request(app)
+        .post('/api/study/finish')
+        .send({ participant_code: 'TH_does_not_exist_xxx' });
+      expect(res.status).toBe(404);
+    });
+
+    it('rejects /save when payload is not an object', async () => {
+      const start = await request(app)
+        .post('/api/study/start')
+        .set('X-Forwarded-For', '10.99.0.150');
+      const code = start.body.participant_code;
+      const res = await request(app)
+        .post('/api/study/save')
+        .send({ participant_code: code, payload: 'a string is not an object' });
+      expect(res.status).toBe(400);
     });
   });
 
@@ -433,6 +467,12 @@ describe('Study API', () => {
       await request(app)
         .post('/api/study/save')
         .send({ participant_code: start1.body.participant_code, payload: { total_coins: 1 } });
+      // /save no longer marks the participant complete — completion now
+      // happens on /finish (clicked from the Debrief page). Without /finish,
+      // dedup wouldn't trigger.
+      await request(app)
+        .post('/api/study/finish')
+        .send({ participant_code: start1.body.participant_code });
 
       // Second start from the same IP should be rejected with 409.
       const start2 = await request(app)

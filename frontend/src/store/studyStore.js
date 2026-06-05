@@ -85,7 +85,22 @@ export const useStudyStore = create(
 
       markComplete: () => set({ step: 'demographics' }),
 
-      finish: () => set({ step: 'done' }),
+      // Final step — called from the Debrief page's Finish button. Posts to
+      // /study/finish so the backend marks completed_at NOW (not on /save),
+      // then advances UI to done. Network failure still advances the UI: the
+      // participant has already seen the debrief, so blocking them on a
+      // backend hiccup would be worse than the small bookkeeping gap.
+      finish: async () => {
+        const { participant_code } = get()
+        if (participant_code) {
+          try {
+            await studyApi.finish(participant_code)
+          } catch {
+            // Swallow — UI advance is more important than the completed_at write.
+          }
+        }
+        set({ step: 'done' })
+      },
 
       reset: () => set({ ...initialState }),
     }),
