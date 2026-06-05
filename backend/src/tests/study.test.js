@@ -1,6 +1,7 @@
 const request = require('supertest');
 const { app } = require('../index');
 const db = require('../config/database');
+const studyRouter = require('../routes/study');
 const { createTestUser } = require('./testHelper');
 
 describe('Study API', () => {
@@ -487,6 +488,161 @@ describe('Study API', () => {
         .post('/api/study/start')
         .set('X-Forwarded-For', '10.99.0.99');
       expect(start.status).toBe(201);
+    });
+  });
+
+  describe('Recruitment-target enforcement (picker)', () => {
+    const { pickBalancedConditionTx, pickBalancedExperimentTx } = studyRouter._test;
+
+    // Stub client whose query() returns pre-canned count rows for any SELECT.
+    // The picker only does GROUP BY COUNT queries, so a single response works
+    // for either picker. `counts` is { conditionOrExperiment: n }.
+    function stubClient(counts, key) {
+      return {
+        query: async () => ({
+          rows: Object.entries(counts).map(([k, n]) => ({ [key]: k, n })),
+        }),
+      };
+    }
+
+    it('pickBalancedConditionTx returns null when every condition is at quota', async () => {
+      const cfg = {
+        experiments: {
+          xp: {
+            conditions: ['A', 'B'],
+            recruitment_target_per_condition: 5,
+          },
+        },
+      };
+      const client = stubClient({ A: 5, B: 5 }, 'condition');
+      const pick = await pickBalancedConditionTx(client, 'study-1', cfg, 'xp');
+      expect(pick).toBeNull();
+    });
+
+    it('pickBalancedConditionTx skips full buckets and picks an open one', async () => {
+      const cfg = {
+        experiments: {
+          xp: {
+            conditions: ['A', 'B', 'C'],
+            recruitment_target_per_condition: 5,
+          },
+        },
+      };
+      const client = stubClient({ A: 5, B: 3, C: 5 }, 'condition');
+      const pick = await pickBalancedConditionTx(client, 'study-1', cfg, 'xp');
+      expect(pick).toBe('B');
+    });
+
+    it('pickBalancedExperimentTx returns null when every experiment is full', async () => {
+      const cfg = {
+        experiments: {
+          x1: { conditions: ['A', 'B'], recruitment_target_per_condition: 5 }, // capacity 10
+          x2: { conditions: ['C'], recruitment_target_per_condition: 5 },      // capacity 5
+        },
+      };
+      const client = stubClient({ x1: 10, x2: 5 }, 'experiment');
+      const pick = await pickBalancedExperimentTx(client, 'study-1', cfg);
+      expect(pick).toBeNull();
+    });
+
+    it('pickBalancedExperimentTx skips full experiments and picks an open one', async () => {
+      const cfg = {
+        experiments: {
+          x1: { conditions: ['A', 'B'], recruitment_target_per_condition: 5 }, // capacity 10
+          x2: { conditions: ['C'], recruitment_target_per_condition: 5 },      // capacity 5
+        },
+      };
+      const client = stubClient({ x1: 10, x2: 2 }, 'experiment');
+      const pick = await pickBalancedExperimentTx(client, 'study-1', cfg);
+      expect(pick).toBe('x2');
+    });
+
+    it('treats missing recruitment_target_per_condition as no cap', async () => {
+      const cfg = {
+        experiments: {
+          xp: {
+            conditions: ['A', 'B'],
+            // no recruitment_target_per_condition
+          },
+        },
+      };
+      const client = stubClient({ A: 1000, B: 999 }, 'condition');
+      const pick = await pickBalancedConditionTx(client, 'study-1', cfg, 'xp');
+      expect(pick).toBe('B');
+    });
+
+    it('/start returns 410 when every condition for the picked experiment is at quota', async () => {
+      // Saturate the existing active study by inserting one fake completed
+      // assignment per (experiment, condition) pair up to the per-experiment
+      // target. We use the same TH_/CC_/PM_ prefixes so the afterAll cleanup
+      // catches our rows. Done in a single batched INSERT via generate_series
+      // for speed.
+      const studyRow = await db.query(
+        "SELECT id FROM studies WHERE slug = 'effort-justification'"
+      );
+      const studyId = studyRow.rows[0].id;
+      const cfg = require('../research-studies/effort-justification');
+
+      for (const [expName, expCfg] of Object.entries(cfg.experiments)) {
+        for (const cond of expCfg.conditions) {
+          // Seed `target` rows for this (experiment, condition). Each gets a
+          // unique participant under one of the TH_/CC_/PM_ prefixes so the
+          // afterAll DELETE picks them up.
+          const target = expCfg.recruitment_target_per_condition;
+          await db.query(
+            `WITH new_p AS (
+               INSERT INTO study_participants (participant_code, study_id)
+               SELECT $1 || '_quota_' || $2 || '_' || g, $3
+               FROM generate_series(1, $4) g
+               RETURNING id, participant_code
+             )
+             INSERT INTO study_assignments (participant_id, experiment, condition, study_id)
+             SELECT id, $5, $6, $3 FROM new_p`,
+            [expCfg.prefix, cond, studyId, target, expName, cond]
+          );
+        }
+      }
+
+      const res = await request(app)
+        .post('/api/study/start')
+        .set('X-Forwarded-For', '10.99.0.111');
+      expect(res.status).toBe(410);
+      expect(res.body.error.message).toMatch(/no longer recruiting/i);
+
+      // And: no rogue participant row was created for this IP.
+      const stragglers = await db.query(
+        "SELECT 1 FROM study_participants WHERE ip_hash = $1",
+        [require('crypto').createHash('sha256').update('uvrl-study:10.99.0.111').digest('hex').slice(0, 32)]
+      );
+      expect(stragglers.rows).toHaveLength(0);
+
+      // Clean up the quota-seed rows so later tests in this suite still find
+      // an open recruiting slot if anything reruns.
+      await db.query(
+        `DELETE FROM study_assignments
+         WHERE participant_id IN (
+           SELECT id FROM study_participants WHERE participant_code LIKE '%quota%'
+         )`
+      );
+      await db.query(
+        "DELETE FROM study_participants WHERE participant_code LIKE '%quota%'"
+      );
+    });
+  });
+
+  describe('Stronger participant_code entropy', () => {
+    it('participant_code random suffix is at least 24 hex chars (12 bytes)', async () => {
+      const res = await request(app)
+        .post('/api/study/start')
+        .set('X-Forwarded-For', '10.99.0.222');
+      expect(res.status).toBe(201);
+      const code = res.body.participant_code;
+      // Format: PREFIX_<epochMs>_<hex>
+      const parts = code.split('_');
+      expect(parts.length).toBe(3);
+      const suffix = parts[2];
+      expect(suffix.length).toBeGreaterThanOrEqual(24);
+      expect(suffix).toMatch(/^[0-9a-f]+$/);
     });
   });
 });

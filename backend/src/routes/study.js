@@ -60,7 +60,7 @@ function hashIp(ip) {
 
 function generateParticipantCode(studyConfig, experiment) {
   const prefix = studyConfig.experiments[experiment]?.prefix || 'XX';
-  const random = crypto.randomBytes(4).toString('hex');
+  const random = crypto.randomBytes(12).toString('hex');
   return `${prefix}_${Date.now()}_${random}`;
 }
 
@@ -68,10 +68,12 @@ function generateParticipantCode(studyConfig, experiment) {
 // advisory lock so concurrent /start calls can't all read the same counts and
 // land in the same condition. The lock is held only for the picker + insert,
 // not for the entire request. `xact_lock` auto-releases on COMMIT/ROLLBACK.
-const BALANCE_LOCK_KEY = 'study_balance';
+// The lock key is scoped per-study so concurrent /start calls on different
+// studies don't serialize against each other.
 
 async function pickBalancedConditionTx(client, studyId, studyConfig, experiment) {
-  const conditions = studyConfig.experiments[experiment]?.conditions;
+  const experimentConfig = studyConfig.experiments[experiment];
+  const conditions = experimentConfig?.conditions;
   if (!conditions) throw new Error(`Unknown experiment: ${experiment}`);
 
   const result = await client.query(
@@ -87,8 +89,18 @@ async function pickBalancedConditionTx(client, studyId, studyConfig, experiment)
     if (row.condition in counts) counts[row.condition] = row.n;
   }
 
-  const minCount = Math.min(...conditions.map(c => counts[c]));
-  const candidates = conditions.filter(c => counts[c] === minCount);
+  // Drop any condition that has already hit its per-condition recruitment
+  // target so the picker can't keep adding to a full bucket. When every
+  // condition is at quota, signal exhaustion with null so the caller can
+  // 410 the request instead of overshooting.
+  const target = experimentConfig.recruitment_target_per_condition;
+  const open = typeof target === 'number'
+    ? conditions.filter(c => counts[c] < target)
+    : conditions;
+  if (open.length === 0) return null;
+
+  const minCount = Math.min(...open.map(c => counts[c]));
+  const candidates = open.filter(c => counts[c] === minCount);
   return candidates[Math.floor(Math.random() * candidates.length)];
 }
 
@@ -105,8 +117,21 @@ async function pickBalancedExperimentTx(client, studyId, studyConfig) {
   for (const row of result.rows) {
     if (row.experiment in counts) counts[row.experiment] = row.n;
   }
-  const minCount = Math.min(...experiments.map(e => counts[e]));
-  const candidates = experiments.filter(e => counts[e] === minCount);
+
+  // Drop any experiment whose total assigned has reached its full capacity
+  // (target_per_condition × number_of_conditions). When every experiment is
+  // full, return null and let the caller respond with 410.
+  const open = experiments.filter(e => {
+    const cfg = studyConfig.experiments[e];
+    const target = cfg.recruitment_target_per_condition;
+    if (typeof target !== 'number') return true;
+    const capacity = target * cfg.conditions.length;
+    return counts[e] < capacity;
+  });
+  if (open.length === 0) return null;
+
+  const minCount = Math.min(...open.map(e => counts[e]));
+  const candidates = open.filter(e => counts[e] === minCount);
   return candidates[Math.floor(Math.random() * candidates.length)];
 }
 
@@ -143,7 +168,9 @@ router.post('/start', startLimiter, async (req, res, next) => {
     // Serialize concurrent assignment picks so balance counts remain consistent.
     // The dedup check runs INSIDE the lock so two simultaneous /start calls from
     // the same IP can't both pass the check before either completes the insert.
-    await client.query(`SELECT pg_advisory_xact_lock(hashtext($1))`, [BALANCE_LOCK_KEY]);
+    // Scoping the key per-study lets /start calls on different studies run in
+    // parallel instead of serializing through a single global lock.
+    await client.query(`SELECT pg_advisory_xact_lock(hashtext($1))`, ['study_balance:' + study.id]);
 
     if (ipHash) {
       const recent = await client.query(
@@ -164,7 +191,18 @@ router.post('/start', startLimiter, async (req, res, next) => {
     }
 
     const experiment = await pickBalancedExperimentTx(client, study.id, studyConfig);
-    const condition = await pickBalancedConditionTx(client, study.id, studyConfig, experiment);
+    const condition = experiment
+      ? await pickBalancedConditionTx(client, study.id, studyConfig, experiment)
+      : null;
+    // Picker returns null when every experiment / condition is at its
+    // recruitment target. Roll back without creating participant or
+    // assignment rows so we never overshoot the quota.
+    if (!experiment || !condition) {
+      await client.query('ROLLBACK');
+      return res.status(410).json({
+        error: { message: 'This study is no longer recruiting participants.' }
+      });
+    }
     const code = generateParticipantCode(studyConfig, experiment);
 
     const participant = await client.query(
@@ -708,5 +746,14 @@ router.get('/participants/:code', authenticate, requireRole('admin'), [
     next(error);
   }
 });
+
+// Exposed for unit testing — the route handler is the contract for production
+// callers, these helpers let tests exercise the quota logic without seeding
+// hundreds of rows through HTTP.
+router._test = {
+  pickBalancedConditionTx,
+  pickBalancedExperimentTx,
+  generateParticipantCode,
+};
 
 module.exports = router;
