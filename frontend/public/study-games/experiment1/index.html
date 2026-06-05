@@ -99,6 +99,26 @@ Date: January 2025
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
+
+        /* Treasure chest button — visually identical to the previous div,
+           but a real <button> so screen readers announce it and keyboard
+           users get Space/Enter activation for free. */
+        .chest {
+            background: none;
+            border: none;
+            padding: 0;
+            font: inherit;
+            cursor: pointer;
+            font-size: 100px;
+            line-height: 1;
+            margin: 30px 0;
+            color: inherit;
+        }
+        .chest:focus-visible {
+            outline: 3px solid #f1c40f;
+            outline-offset: 4px;
+            border-radius: 8px;
+        }
     </style>
 </head>
 <body>
@@ -349,9 +369,10 @@ Date: January 2025
                             </span>
                         </div>
 
-                        <div id="chest-container" style="font-size: 100px; cursor: pointer; margin: 30px 0;">
-                            📦
-                        </div>
+                        <button id="chest-container" class="chest" type="button"
+                                aria-label="Treasure chest. Press Space or Enter to click and open it.">
+                            <span role="img" aria-hidden="true">📦</span>
+                        </button>
 
                         <div style="width: 300px; height: 20px; background: #ecf0f1;
                                     border-radius: 10px; margin: 20px auto; overflow: hidden;">
@@ -407,10 +428,18 @@ Date: January 2025
                             expData.practice_coins += CONFIG.coins_per_chest;
                         }
 
-                        // Show outcome
+                        // Show outcome — prepend explicit words so screen readers
+                        // and color-blind participants get the signal in TEXT,
+                        // not just emoji/color. Disable the chest button so
+                        // additional clicks/keys can't fire after the trial ends.
+                        const outcomeText = trial.outcome === 1
+                            ? `Reward! +${CONFIG.coins_per_chest} coins.`
+                            : 'Empty. No coins.';
+                        container.disabled = true;
+                        container.setAttribute('aria-label', outcomeText);
                         container.innerHTML = trial.outcome === 1
-                            ? `<div style="color: #f1c40f;">+${CONFIG.coins_per_chest} COINS! 🪙</div>`
-                            : `<div style="color: #e74c3c;">EMPTY ❌</div>`;
+                            ? `<div style="color: #f1c40f;" role="status">${outcomeText} <span aria-hidden="true">🪙</span></div>`
+                            : `<div style="color: #e74c3c;" role="status">${outcomeText} <span aria-hidden="true">❌</span></div>`;
 
                         // Record data
                         const data = {

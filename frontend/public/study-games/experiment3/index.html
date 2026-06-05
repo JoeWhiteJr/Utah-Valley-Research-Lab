@@ -81,7 +81,7 @@
         }
         .counter {
             text-align: center;
-            color: #95a5a6;
+            color: #cbd2d9;
             margin-top: 20px;
             font-size: 14px;
         }
@@ -92,7 +92,7 @@
             font-weight: 600;
         }
         .trial-display {
-            color: #95a5a6;
+            color: #cbd2d9;
             font-size: 14px;
         }
         .game-header {
@@ -117,7 +117,7 @@
         }
         .feedback.win { color: #27ae60; }
         .feedback.loss { color: #e74c3c; }
-        .feedback.skip { color: #95a5a6; }
+        .feedback.skip { color: #cbd2d9; }
         textarea, input[type="text"], input[type="number"] {
             width: 100%;
             padding: 10px 12px;
@@ -166,7 +166,7 @@
         .likert .scale-label {
             flex: 1 1 100px;
             font-size: 13px;
-            color: #95a5a6;
+            color: #cbd2d9;
         }
         .likert .scale-label.right { text-align: right; }
         .likert .options { display: flex; gap: 8px; }
@@ -176,7 +176,7 @@
             align-items: center;
             cursor: pointer;
             font-size: 14px;
-            color: #bdc3c7;
+            color: #e1e6eb;
         }
         .likert input[type="radio"] {
             margin: 0 0 4px;
@@ -195,7 +195,7 @@
         .radio-list input[type="radio"] { margin-right: 10px; transform: scale(1.2); }
         .slider-row {
             display: flex; justify-content: space-between;
-            font-size: 13px; color: #95a5a6;
+            font-size: 13px; color: #cbd2d9;
         }
         input[type="range"] { width: 100%; accent-color: #3498db; }
         .slider-value {
@@ -214,6 +214,55 @@
             height: 100%;
             background: #3498db;
             transition: width 0.3s;
+        }
+        @media (max-width: 768px) {
+            #app {
+                margin: 10px;
+                padding: 16px 18px;
+                max-width: none;
+                min-height: 0;
+            }
+            h1 { font-size: 1.5rem; }
+            h2 { font-size: 1.25rem; }
+            .digit-display {
+                font-size: 36px !important;
+                letter-spacing: 8px !important;
+                margin: 30px 0 !important;
+            }
+            .card {
+                width: 100px !important;
+                height: 140px !important;
+                margin: 20px auto !important;
+            }
+            .card .label {
+                font-size: 18px !important;
+                margin-top: 16px !important;
+            }
+            .card.blank .label { margin-top: 56px !important; }
+            .card .heart {
+                font-size: 50px !important;
+                margin-top: 6px !important;
+            }
+            .likert .options {
+                flex-direction: column;
+                gap: 8px;
+                width: 100%;
+            }
+            .likert .scale-label {
+                flex: 1 1 auto !important;
+                text-align: left !important;
+            }
+            .likert .scale-label.right { text-align: right !important; }
+            button {
+                font-size: 1rem;
+                padding: 12px 16px;
+            }
+            .bet-buttons {
+                flex-wrap: wrap;
+                gap: 8px;
+            }
+            .bet-buttons button { max-width: none; }
+            .timer-big { font-size: 28px; }
         }
     </style>
 </head>
@@ -459,7 +508,7 @@
                 <li>Make predictions and place bets</li>
                 <li>Brief follow-up questions</li>
             </ol>
-            <p style="color:#95a5a6;">Total time: about 10 minutes.</p>
+            <p style="color:#cbd2d9;">Total time: about 10 minutes.</p>
             <button id="btn-start">Begin</button>
         `, TOTAL_PHASES, 0);
         document.getElementById('btn-start').addEventListener('click', runEncoding);
@@ -507,7 +556,7 @@
             <h2>Quick Task</h2>
             <p>Type as many <strong>animals</strong> as you can in 30 seconds.
             Separate them with commas.</p>
-            <p style="color:#95a5a6;">Examples: cat, dog, elephant...</p>
+            <p style="color:#cbd2d9;">Examples: cat, dog, elephant...</p>
             <button id="btn-go">Start</button>
         `, TOTAL_PHASES, phaseIdx);
         document.getElementById('btn-go').addEventListener('click', () => {
@@ -791,7 +840,7 @@
         render(`
             <h2>Memory Test</h2>
             <p>You'll see 5 digits for 3 seconds. Type them <strong>BACKWARDS</strong>.</p>
-            <p style="color:#95a5a6;">Example: if you see <code>1 — 2 — 3</code>, type <code>321</code>.</p>
+            <p style="color:#cbd2d9;">Example: if you see <code>1 — 2 — 3</code>, type <code>321</code>.</p>
             <button id="btn-go">Show digits</button>
         `, TOTAL_PHASES, phaseIdx);
         document.getElementById('btn-go').addEventListener('click', () => {
@@ -916,7 +965,7 @@
             "BLANK → ACE" creates expectations that persist even when the pattern stops.
             Your data helps us test this theory.</p>
             <p>Your completion code: <code style="background:#0f1626;padding:4px 8px;border-radius:4px;color:#f1c40f;">${code}</code></p>
-            <div id="save-status" style="color:#95a5a6;margin-top:20px;">Saving final data...</div>
+            <div id="save-status" style="color:#cbd2d9;margin-top:20px;">Saving final data...</div>
         `, TOTAL_PHASES, TOTAL_PHASES);
 
         try {
