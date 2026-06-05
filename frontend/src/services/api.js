@@ -560,6 +560,12 @@ export const studyApi = {
     api.post('/study/save', { participant_code, payload }),
   snapshot: (participant_code, payload) =>
     api.post('/study/snapshot', { participant_code, payload }),
+  // Marks the session complete. Call ONLY from the Debrief page's Finish
+  // button — calling earlier (e.g. on Demographics submit) re-creates the bug
+  // where tab-close on Demographics leaves a "completed" row with empty
+  // demographics.
+  finish: (participant_code) =>
+    api.post('/study/finish', { participant_code }),
   // Public listing of active studies for the homepage card + /participate page.
   listActiveStudies: () => api.get('/study/list', { _silent: true }),
   followUp: (email, study_slug = null) =>

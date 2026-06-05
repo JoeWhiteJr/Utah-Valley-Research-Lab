@@ -77,7 +77,7 @@ app.use(cors({
   },
   credentials: true
 }));
-app.use(express.json());
+app.use(express.json({ limit: '64kb' }));
 app.use(express.urlencoded({ extended: true }));
 
 // Serve public assets (cover images, avatars, resources) with S3 fallback.

@@ -249,7 +249,12 @@ router.post('/consent', [
 // Mid-game snapshot. Fire-and-forget from the iframe; failures shouldn't block the game.
 router.post('/snapshot', saveLimiter, [
   body('participant_code').isString().trim().isLength({ min: 6, max: 64 }),
-  body('payload').exists()
+  body('payload').isObject().withMessage('payload must be a JSON object'),
+  body('payload').custom(p => {
+    const size = Buffer.byteLength(JSON.stringify(p));
+    if (size > 64000) throw new Error('payload exceeds 64KB');
+    return true;
+  }),
 ], async (req, res, next) => {
   try {
     const errors = validationResult(req);
@@ -271,6 +276,16 @@ router.post('/snapshot', saveLimiter, [
       return res.status(404).json({ error: { message: 'Assignment not found' } });
     }
 
+    // Cap snapshot rows per assignment so a runaway iframe can't fill the
+    // table. Single COUNT before insert keeps the check cheap.
+    const cnt = await db.query(
+      'SELECT COUNT(*)::int AS n FROM study_responses WHERE assignment_id = $1 AND is_snapshot = true',
+      [assignment.rows[0].id]
+    );
+    if (cnt.rows[0].n >= 200) {
+      return res.status(429).json({ error: { message: 'Snapshot limit reached for this session' } });
+    }
+
     await db.query(
       `INSERT INTO study_responses (assignment_id, payload, is_snapshot)
        VALUES ($1, $2, true)`,
@@ -283,10 +298,19 @@ router.post('/snapshot', saveLimiter, [
   }
 });
 
-// Final save. Marks assignment + participant as completed.
+// Final save. Persists the final JSONB payload only. `completed_at` is set by
+// the separate /finish endpoint after the participant clicks Finish on the
+// Debrief page — without that split, anyone who closes the tab on the
+// Demographics page (which is rendered AFTER /save) leaves a "completed" row
+// with empty demographics.
 router.post('/save', saveLimiter, [
   body('participant_code').isString().trim().isLength({ min: 6, max: 64 }),
-  body('payload').exists()
+  body('payload').isObject().withMessage('payload must be a JSON object'),
+  body('payload').custom(p => {
+    const size = Buffer.byteLength(JSON.stringify(p));
+    if (size > 64000) throw new Error('payload exceeds 64KB');
+    return true;
+  }),
 ], async (req, res, next) => {
   const client = await db.getClient();
   try {
@@ -312,7 +336,7 @@ router.post('/save', saveLimiter, [
       return res.status(404).json({ error: { message: 'Assignment not found' } });
     }
 
-    const { assignment_id, participant_id } = assignment.rows[0];
+    const { assignment_id } = assignment.rows[0];
 
     // Idempotent: a partial unique index on (assignment_id) WHERE is_snapshot = false
     // allows ON CONFLICT to merge retries / double-submits into a single final row
@@ -324,6 +348,49 @@ router.post('/save', saveLimiter, [
        DO UPDATE SET payload = EXCLUDED.payload, submitted_at = CURRENT_TIMESTAMP`,
       [assignment_id, payload]
     );
+
+    await client.query('COMMIT');
+    res.json({ ok: true });
+  } catch (error) {
+    await client.query('ROLLBACK').catch(() => {});
+    next(error);
+  } finally {
+    client.release();
+  }
+});
+
+// Mark assignment + participant as completed. Called from the Debrief page's
+// final "Finish" button — NOT from Demographics — so a participant who closes
+// the tab between /save and Debrief is correctly counted as in-progress
+// rather than as a finished session with missing demographics.
+router.post('/finish', saveLimiter, [
+  body('participant_code').isString().trim().isLength({ min: 6, max: 64 }),
+], async (req, res, next) => {
+  const client = await db.getClient();
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ error: { message: 'Validation failed', details: errors.array() } });
+    }
+    const { participant_code } = req.body;
+
+    await client.query('BEGIN');
+
+    const assignment = await client.query(
+      `SELECT a.id AS assignment_id, p.id AS participant_id
+       FROM study_assignments a
+       JOIN study_participants p ON p.id = a.participant_id
+       WHERE p.participant_code = $1
+       ORDER BY a.assigned_at DESC LIMIT 1`,
+      [participant_code]
+    );
+
+    if (assignment.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: { message: 'Assignment not found' } });
+    }
+
+    const { assignment_id, participant_id } = assignment.rows[0];
 
     await client.query(
       `UPDATE study_assignments SET completed_at = CURRENT_TIMESTAMP WHERE id = $1`,

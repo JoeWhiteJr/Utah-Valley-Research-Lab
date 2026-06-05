@@ -8,6 +8,7 @@ vi.mock('../../services/api', () => ({
     consent: vi.fn(),
     save: vi.fn(),
     snapshot: vi.fn(),
+    finish: vi.fn(),
     stats: vi.fn(),
     exportUrl: vi.fn(),
   },
@@ -105,10 +106,20 @@ describe('studyStore', () => {
     expect(studyApi.consent).not.toHaveBeenCalled()
   })
 
-  it('markComplete() moves to demographics; finish() moves to done', () => {
+  it('markComplete() moves to demographics; finish() posts to /finish and moves to done', async () => {
+    useStudyStore.setState({ participant_code: 'TH_x' })
+    studyApi.finish.mockResolvedValue({ data: { ok: true } })
     useStudyStore.getState().markComplete()
     expect(useStudyStore.getState().step).toBe('demographics')
-    useStudyStore.getState().finish()
+    await useStudyStore.getState().finish()
+    expect(studyApi.finish).toHaveBeenCalledWith('TH_x')
+    expect(useStudyStore.getState().step).toBe('done')
+  })
+
+  it('finish() still advances UI when /finish errors (debrief already seen)', async () => {
+    useStudyStore.setState({ participant_code: 'TH_x', step: 'debrief' })
+    studyApi.finish.mockRejectedValue(new Error('network'))
+    await useStudyStore.getState().finish()
     expect(useStudyStore.getState().step).toBe('done')
   })
 
