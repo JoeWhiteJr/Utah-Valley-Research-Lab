@@ -34,6 +34,7 @@ Secondary risks under load:
 - [ ] Backup script verified to stream to S3 without staging full dump on local disk (or rotated within 24h).
 - [ ] Load test simulating 100 concurrent participants completes without 5xx errors (k6 or autocannon).
 - [ ] Backup restore tested end-to-end from S3 → fresh DB.
+- [ ] Replace `TODO_LAB_EMAIL@uvu.edu` and `TODO_IRB_EMAIL@uvu.edu` in `Consent.jsx` + `Debrief.jsx` with the real IRB-approved contacts.
 
 ## Notes / Why this matters
 
