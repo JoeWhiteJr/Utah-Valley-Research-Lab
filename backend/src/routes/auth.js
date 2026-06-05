@@ -8,17 +8,16 @@ const { authenticate, generateToken } = require('../middleware/auth');
 const { logActivity } = require('./users');
 const logger = require('../config/logger');
 const { sendPasswordResetEmail } = require('../services/email');
-const { rateLimit, ipKeyGenerator } = require('express-rate-limit');
+const { ipKeyGenerator } = require('express-rate-limit');
+const { createLimiter } = require('../middleware/rateLimiter');
 
 const router = express.Router();
 
-const isTestEnv = process.env.NODE_ENV === 'test';
-
 // Stricter rate limit for password reset to prevent email enumeration
-const forgotPasswordLimiter = rateLimit({
+const forgotPasswordLimiter = createLimiter({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 5,
-  message: { error: { message: 'Too many password reset requests, please try again later' } },
+  message: 'Too many password reset requests, please try again later',
   keyGenerator: (req) => req.body?.email || req.ip,
 });
 
@@ -28,16 +27,12 @@ const forgotPasswordLimiter = rateLimit({
 // real defense against credential guessing. Keyed by email so an attacker
 // rotating IPs across one account still gets stopped, falling back to IP when
 // the body is absent or malformed.
-const loginLimiter = isTestEnv
-  ? (req, res, next) => next()
-  : rateLimit({
-      windowMs: 15 * 60 * 1000, // 15 minutes
-      max: 5,
-      standardHeaders: true,
-      legacyHeaders: false,
-      message: { error: { message: 'Too many login attempts. Please try again in 15 minutes.' } },
-      keyGenerator: (req) => req.body?.email?.toLowerCase() || ipKeyGenerator(req.ip),
-    });
+const loginLimiter = createLimiter({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 5,
+  message: 'Too many login attempts. Please try again in 15 minutes.',
+  keyGenerator: (req) => req.body?.email?.toLowerCase() || ipKeyGenerator(req.ip),
+});
 
 // Register - disabled, users must apply and be approved by an admin
 // New accounts are created via the application approval flow (see routes/applications.js)

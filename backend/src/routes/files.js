@@ -1,5 +1,5 @@
 const express = require('express');
-const { rateLimit, ipKeyGenerator } = require('express-rate-limit');
+const { ipKeyGenerator } = require('express-rate-limit');
 const fs = require('fs');
 const db = require('../config/database');
 const logger = require('../config/logger');
@@ -7,27 +7,22 @@ const { authenticate, requireProjectAccess } = require('../middleware/auth');
 const { logAdminAction } = require('../middleware/auditLog');
 const { processUpload } = require('../middleware/uploadProcessor');
 const { createUploader } = require('../middleware/uploads');
+const { createLimiter } = require('../middleware/rateLimiter');
 const { indexFile } = require('../services/ragIndexingService');
 const { userHasProjectAccess } = require('../services/ragQueryService');
 const s3Storage = require('../services/s3StorageService');
 
 const router = express.Router();
 
-const isTestEnv = process.env.NODE_ENV === 'test';
-
 // Per-user rate limit on uploads. Multer caps each file at 50MB but with no
 // frequency cap a user could push ~5GB/min of disk usage. Limit by user id so
 // shared NAT (e.g. campus WiFi) doesn't penalize legitimate users.
-const uploadLimiter = isTestEnv
-  ? (req, res, next) => next()
-  : rateLimit({
-      windowMs: 5 * 60 * 1000, // 5 minutes
-      max: 20,
-      standardHeaders: true,
-      legacyHeaders: false,
-      message: { error: { message: 'Too many uploads. Please wait a few minutes before uploading more files.' } },
-      keyGenerator: (req) => req.user?.id || ipKeyGenerator(req.ip)
-    });
+const uploadLimiter = createLimiter({
+  windowMs: 5 * 60 * 1000, // 5 minutes
+  max: 20,
+  message: 'Too many uploads. Please wait a few minutes before uploading more files.',
+  keyGenerator: (req) => req.user?.id || ipKeyGenerator(req.ip)
+});
 
 // Project file uploads — 50MB. The legacy config wrote files directly under
 // UPLOAD_DIR (no subdirectory); the factory preserves that when `subdir` is

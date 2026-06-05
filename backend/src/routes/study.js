@@ -1,10 +1,10 @@
 const express = require('express');
 const crypto = require('crypto');
 const { body, param, validationResult } = require('express-validator');
-const rateLimit = require('express-rate-limit');
 const db = require('../config/database');
 const logger = require('../config/logger');
 const { authenticate, requireRole } = require('../middleware/auth');
+const { createLimiter } = require('../middleware/rateLimiter');
 const { getStudyConfig } = require('../research-studies');
 
 const router = express.Router();
@@ -35,23 +35,17 @@ async function resolveStudy(slug) {
   return { dbRow, config };
 }
 
-const isTestEnv = process.env.NODE_ENV === 'test';
+const startLimiter = createLimiter({
+  windowMs: 60 * 1000,
+  max: 10,
+  message: 'Too many study sessions started, please try again later'
+});
 
-const startLimiter = isTestEnv
-  ? (req, res, next) => next()
-  : rateLimit({
-      windowMs: 60 * 1000,
-      max: 10,
-      message: { error: { message: 'Too many study sessions started, please try again later' } }
-    });
-
-const saveLimiter = isTestEnv
-  ? (req, res, next) => next()
-  : rateLimit({
-      windowMs: 60 * 1000,
-      max: 60,
-      message: { error: { message: 'Too many save requests, please slow down' } }
-    });
+const saveLimiter = createLimiter({
+  windowMs: 60 * 1000,
+  max: 60,
+  message: 'Too many save requests, please slow down'
+});
 
 function hashIp(ip) {
   if (!ip) return null;

@@ -3,7 +3,6 @@ const http = require('http');
 const cors = require('cors');
 const path = require('path');
 const helmet = require('helmet');
-const rateLimit = require('express-rate-limit');
 const pinoHttp = require('pino-http');
 const logger = require('./config/logger');
 const db = require('./config/database');
@@ -39,6 +38,7 @@ const vvcRoutes = require('./routes/vvc');
 const labDashboardRoutes = require('./routes/labDashboard');
 const studyRoutes = require('./routes/study');
 const { publicRouter: siteContentPublicRoutes, adminRouter: siteContentAdminRoutes } = require('./routes/siteContent');
+const { createLimiter } = require('./middleware/rateLimiter');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -123,16 +123,16 @@ app.use('/uploads/resources', makeStaticWithS3Fallback('resources', 'application
 // Router-level backstop for /api/auth/* — generous IP-only bucket so a refresh-heavy
 // SPA (calling /me on every focus/visibility change) can't self-lock. The strict
 // per-email loginLimiter on POST /login does the actual credential-stuffing defense.
-const authLimiter = rateLimit({
+const authLimiter = createLimiter({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 60,
-  message: { error: { message: 'Too many requests, please try again later' } }
+  message: 'Too many requests, please try again later'
 });
 
-const apiLimiter = rateLimit({
+const apiLimiter = createLimiter({
   windowMs: 60 * 1000, // 1 minute
   max: 100,
-  message: { error: { message: 'Too many requests, please try again later' } }
+  message: 'Too many requests, please try again later'
 });
 
 // API Routes

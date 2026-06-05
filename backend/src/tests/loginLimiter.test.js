@@ -141,7 +141,9 @@ describe('split authLimiter — router-level authLimiter still wired in index.js
   );
 
   it('defines an authLimiter', () => {
-    expect(indexSource).toMatch(/const\s+authLimiter\s*=\s*rateLimit\(/);
+    // Accepts either the legacy `rateLimit(...)` call or the consolidated
+    // `createLimiter(...)` factory introduced in refactor/rate-limiter-factory.
+    expect(indexSource).toMatch(/const\s+authLimiter\s*=\s*(?:rateLimit|createLimiter)\(/);
   });
 
   it('applies authLimiter to /api/auth at the router level', () => {
@@ -155,7 +157,9 @@ describe('split authLimiter — router-level authLimiter still wired in index.js
   it('uses the loosened 60-request cap (not the old 20)', () => {
     // Regression guard — the looser cap is the whole point of the split. If
     // someone reverts to 20 the SPA self-lock returns.
-    const match = indexSource.match(/const\s+authLimiter\s*=\s*rateLimit\(\s*\{([\s\S]*?)\}\s*\)/);
+    const match = indexSource.match(
+      /const\s+authLimiter\s*=\s*(?:rateLimit|createLimiter)\(\s*\{([\s\S]*?)\}\s*\)/
+    );
     expect(match).not.toBeNull();
     expect(match[1]).toMatch(/max:\s*60\b/);
     expect(match[1]).not.toMatch(/max:\s*20\b/);

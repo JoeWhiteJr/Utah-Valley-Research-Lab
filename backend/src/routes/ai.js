@@ -1,28 +1,23 @@
 const express = require('express');
-const { rateLimit, ipKeyGenerator } = require('express-rate-limit');
+const { ipKeyGenerator } = require('express-rate-limit');
 const { body, validationResult } = require('express-validator');
 const db = require('../config/database');
 const logger = require('../config/logger');
 const { authenticate, requireRole } = require('../middleware/auth');
+const { createLimiter } = require('../middleware/rateLimiter');
 
 const router = express.Router();
-
-const isTestEnv = process.env.NODE_ENV === 'test';
 
 // Shared per-user rate limit for every Gemini-backed endpoint in this file.
 // Each call hits the paid Gemini API, so a single user can amplify cost across
 // chat, summarize-*, admin-summary and review-application combined — keep the
 // budget shared rather than per-route.
-const llmLimiter = isTestEnv
-  ? (req, res, next) => next()
-  : rateLimit({
-      windowMs: 5 * 60 * 1000, // 5 minutes
-      max: 20,
-      standardHeaders: true,
-      legacyHeaders: false,
-      message: { error: { message: 'Too many AI requests. Please wait a few minutes before trying again.' } },
-      keyGenerator: (req) => req.user?.id || ipKeyGenerator(req.ip)
-    });
+const llmLimiter = createLimiter({
+  windowMs: 5 * 60 * 1000, // 5 minutes
+  max: 20,
+  message: 'Too many AI requests. Please wait a few minutes before trying again.',
+  keyGenerator: (req) => req.user?.id || ipKeyGenerator(req.ip)
+});
 
 // 24h cap stacked on top of the shared 5-min llmLimiter above. The 5-min cap
 // stops bursts but a user could still grind ~5,760/day across the six Gemini
@@ -30,16 +25,12 @@ const llmLimiter = isTestEnv
 // can't burn 150 on /chat and another 150 on /summarize-project — one budget,
 // one ceiling. Wired BEFORE llmLimiter on each route for cheap short-circuit
 // once the daily budget is exhausted.
-const dailyGeminiLimiter = isTestEnv
-  ? (req, res, next) => next()
-  : rateLimit({
-      windowMs: 24 * 60 * 60 * 1000, // 24 hours (rolling)
-      max: 150,
-      standardHeaders: true,
-      legacyHeaders: false,
-      message: { error: { message: 'Daily AI usage limit reached. Try again tomorrow.' } },
-      keyGenerator: (req) => req.user?.id || ipKeyGenerator(req.ip)
-    });
+const dailyGeminiLimiter = createLimiter({
+  windowMs: 24 * 60 * 60 * 1000, // 24 hours (rolling)
+  max: 150,
+  message: 'Daily AI usage limit reached. Try again tomorrow.',
+  keyGenerator: (req) => req.user?.id || ipKeyGenerator(req.ip)
+});
 
 // Lazy load Google Generative AI SDK
 let GoogleGenerativeAI = null;
