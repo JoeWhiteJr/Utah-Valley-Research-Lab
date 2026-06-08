@@ -6,6 +6,7 @@ const logger = require('../config/logger');
 const { authenticate, requireRole } = require('../middleware/auth');
 const { createLimiter } = require('../middleware/rateLimiter');
 const { getStudyConfig } = require('../research-studies');
+const { CONSENT_MIN_SECONDS } = require('../research-studies/study-constants');
 
 const router = express.Router();
 
@@ -259,6 +260,28 @@ router.post('/consent', [
     }
     const { participant_code, demographics } = req.body;
     const consented = req.body.consented === true;
+
+    // Server-side mirror of the client-side consent read-time gate in
+    // Consent.jsx. A bot/script that POSTs /consent directly bypasses the
+    // client timer, so enforce CONSENT_MIN_SECONDS server-side too. Only
+    // applied on the first /consent call (before consent_given_at is set) so
+    // a returning participant submitting demographics isn't rejected.
+    const existing = await db.query(
+      `SELECT consent_given_at,
+              EXTRACT(EPOCH FROM (NOW() - created_at))::float AS sec
+       FROM study_participants
+       WHERE participant_code = $1`,
+      [participant_code]
+    );
+
+    if (existing.rows.length === 0) {
+      return res.status(404).json({ error: { message: 'Participant not found' } });
+    }
+
+    if (existing.rows[0].consent_given_at === null
+        && existing.rows[0].sec < CONSENT_MIN_SECONDS) {
+      return res.status(403).json({ error: { message: 'Consent submitted too quickly' } });
+    }
 
     // Merge-on-write: a second /consent call (e.g. browser-back from debrief
     // re-submitting the demographics form) must not wipe earlier-submitted

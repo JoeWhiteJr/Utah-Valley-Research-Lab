@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, forwardRef } from 'react'
 import { useStudyStore } from '../../store/studyStore'
 import Button from '../../components/Button'
+import { LOAD_TIMEOUT_MS } from './constants'
 
 const EXPERIMENT_PATH = {
   treasure_hunt: '/study-games/experiment1/index.html',
@@ -13,7 +14,6 @@ const EXPERIMENT_PATH = {
 // which fit a 1024px viewport but still navigate via touch — see the warning.
 // A narrow desktop window is *not* a reason to show the warning.
 const TOUCH_UNFRIENDLY_EXPERIMENTS = new Set(['treasure_hunt'])
-const LOAD_TIMEOUT_MS = 12000
 
 function detectTouchPrimary() {
   if (typeof window === 'undefined') return false

@@ -99,6 +99,14 @@ describe('Study API', () => {
       const start = await request(app).post('/api/study/start');
       const code = start.body.participant_code;
 
+      // Backdate created_at past the CONSENT_MIN_SECONDS server-side gate so
+      // the test doesn't have to sleep. The gate only triggers when the first
+      // /consent call lands inside the read-time window.
+      await db.query(
+        "UPDATE study_participants SET created_at = NOW() - INTERVAL '10 seconds' WHERE participant_code = $1",
+        [code]
+      );
+
       const consent = await request(app)
         .post('/api/study/consent')
         .send({ participant_code: code, consented: true, demographics: { age: 30, gender: 'Female' } });
@@ -196,6 +204,12 @@ describe('Study API', () => {
         .set('X-Forwarded-For', '10.99.0.181');
       const code = start.body.participant_code;
 
+      // Backdate so PR-5's CONSENT_MIN_SECONDS gate doesn't fire.
+      await db.query(
+        "UPDATE study_participants SET created_at = NOW() - INTERVAL '10 seconds' WHERE participant_code = $1",
+        [code]
+      );
+
       await request(app)
         .post('/api/study/consent')
         .send({ participant_code: code, consented: true });
@@ -220,6 +234,12 @@ describe('Study API', () => {
         .set('X-Forwarded-For', '10.99.0.182');
       const code = start.body.participant_code;
 
+      // Backdate so PR-5's CONSENT_MIN_SECONDS gate doesn't fire.
+      await db.query(
+        "UPDATE study_participants SET created_at = NOW() - INTERVAL '10 seconds' WHERE participant_code = $1",
+        [code]
+      );
+
       const res = await request(app)
         .post('/api/study/consent')
         .send({ participant_code: code, consented: true });
@@ -232,6 +252,13 @@ describe('Study API', () => {
         .post('/api/study/start')
         .set('X-Forwarded-For', '10.99.0.183');
       const code = start.body.participant_code;
+
+      // Backdate so PR-5's CONSENT_MIN_SECONDS gate doesn't fire — we want
+      // to exercise PR-1's 409 path, not the timing gate.
+      await db.query(
+        "UPDATE study_participants SET created_at = NOW() - INTERVAL '10 seconds' WHERE participant_code = $1",
+        [code]
+      );
 
       // Demographics-only call without ever calling /consent with
       // consented:true. The bot half of the attack chain.
@@ -256,6 +283,12 @@ describe('Study API', () => {
         .set('X-Forwarded-For', '10.99.0.184');
       const code = start.body.participant_code;
 
+      // Backdate so PR-5's CONSENT_MIN_SECONDS gate doesn't fire.
+      await db.query(
+        "UPDATE study_participants SET created_at = NOW() - INTERVAL '10 seconds' WHERE participant_code = $1",
+        [code]
+      );
+
       // Step 1: real consent.
       await request(app)
         .post('/api/study/consent')
@@ -273,6 +306,77 @@ describe('Study API', () => {
         [code]
       );
       expect(row.rows[0].demographics.age).toBe(42);
+    });
+  });
+
+  describe('Server-side consent min-time enforcement', () => {
+    it('rejects /consent with 403 when called < CONSENT_MIN_SECONDS after /start', async () => {
+      const start = await request(app)
+        .post('/api/study/start')
+        .set('X-Forwarded-For', '10.99.0.160');
+      const code = start.body.participant_code;
+
+      // No backdating: the participant row is fresh, so the gate triggers.
+      // Use consented:true so we hit PR-5's timing gate, not PR-1's 409.
+      const consent = await request(app)
+        .post('/api/study/consent')
+        .send({ participant_code: code, consented: true });
+      expect(consent.status).toBe(403);
+      expect(consent.body.error.message).toMatch(/too quickly/i);
+
+      // And no consent_given_at was written.
+      const row = await db.query(
+        'SELECT consent_given_at FROM study_participants WHERE participant_code = $1',
+        [code]
+      );
+      expect(row.rows[0].consent_given_at).toBeNull();
+    });
+
+    it('accepts /consent when called > CONSENT_MIN_SECONDS after /start', async () => {
+      const start = await request(app)
+        .post('/api/study/start')
+        .set('X-Forwarded-For', '10.99.0.161');
+      const code = start.body.participant_code;
+
+      // Backdate created_at so the elapsed-time check passes without sleeping.
+      await db.query(
+        "UPDATE study_participants SET created_at = NOW() - INTERVAL '10 seconds' WHERE participant_code = $1",
+        [code]
+      );
+
+      const consent = await request(app)
+        .post('/api/study/consent')
+        .send({ participant_code: code, consented: true });
+      expect(consent.status).toBe(200);
+      expect(consent.body.ok).toBe(true);
+    });
+
+    it('does not re-enforce the gate on a second /consent call (demographics resubmit)', async () => {
+      const start = await request(app)
+        .post('/api/study/start')
+        .set('X-Forwarded-For', '10.99.0.162');
+      const code = start.body.participant_code;
+
+      // First consent call after the gate has passed.
+      await db.query(
+        "UPDATE study_participants SET created_at = NOW() - INTERVAL '10 seconds' WHERE participant_code = $1",
+        [code]
+      );
+      const first = await request(app)
+        .post('/api/study/consent')
+        .send({ participant_code: code, consented: true });
+      expect(first.status).toBe(200);
+
+      // Now simulate a browser-back resubmit landing immediately — the gate
+      // must not re-fire because consent_given_at is already set.
+      await db.query(
+        "UPDATE study_participants SET created_at = NOW() WHERE participant_code = $1",
+        [code]
+      );
+      const second = await request(app)
+        .post('/api/study/consent')
+        .send({ participant_code: code, demographics: { age: 31 } });
+      expect(second.status).toBe(200);
     });
   });
 
@@ -377,6 +481,11 @@ describe('Study API', () => {
         .post('/api/study/start')
         .set('X-Forwarded-For', '10.99.0.1');
       detailCode = start.body.participant_code;
+      // Backdate created_at past the CONSENT_MIN_SECONDS server-side gate.
+      await db.query(
+        "UPDATE study_participants SET created_at = NOW() - INTERVAL '10 seconds' WHERE participant_code = $1",
+        [detailCode]
+      );
       await request(app)
         .post('/api/study/consent')
         .send({ participant_code: detailCode, consented: true, demographics: { age: 25 } });

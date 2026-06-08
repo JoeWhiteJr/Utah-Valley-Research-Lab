@@ -2,6 +2,7 @@ import { useId, useRef, useState } from 'react'
 import { useStudyStore } from '../../store/studyStore'
 import Button from '../../components/Button'
 import Input from '../../components/Input'
+import { MIN_AGE, MAX_AGE } from './constants'
 
 const GENDER_OPTIONS = ['Female', 'Male', 'Non-binary', 'Prefer to self-describe', 'Prefer not to say']
 const ETHNICITY_OPTIONS = [
@@ -46,12 +47,12 @@ export default function StudyDemographics() {
   const handleSubmit = async (e) => {
     e.preventDefault()
     const age = parseInt(form.age, 10)
-    if (Number.isNaN(age) || age > 120) {
+    if (Number.isNaN(age) || age > MAX_AGE) {
       setLocalError('Please enter a valid age.')
       ageInputRef.current?.focus()
       return
     }
-    if (age < 18) {
+    if (age < MIN_AGE) {
       setLocalError('You must be 18 or older to participate in this study.')
       ageInputRef.current?.focus()
       return
@@ -90,8 +91,8 @@ export default function StudyDemographics() {
               ref={ageInputRef}
               label="Age"
               type="number"
-              min="18"
-              max="120"
+              min={MIN_AGE}
+              max={MAX_AGE}
               value={form.age}
               onChange={update('age')}
               required
