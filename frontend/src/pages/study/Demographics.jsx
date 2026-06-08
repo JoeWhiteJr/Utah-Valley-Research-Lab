@@ -1,4 +1,4 @@
-import { useId, useState } from 'react'
+import { useId, useRef, useState } from 'react'
 import { useStudyStore } from '../../store/studyStore'
 import Button from '../../components/Button'
 import Input from '../../components/Input'
@@ -35,13 +35,27 @@ export default function StudyDemographics() {
     education: '',
     native_english: '',
   })
+  const [localError, setLocalError] = useState('')
+  const ageInputRef = useRef(null)
 
-  const update = (key) => (e) => setForm((f) => ({ ...f, [key]: e.target.value }))
+  const update = (key) => (e) => {
+    setForm((f) => ({ ...f, [key]: e.target.value }))
+    if (key === 'age' && localError) setLocalError('')
+  }
 
   const handleSubmit = async (e) => {
     e.preventDefault()
     const age = parseInt(form.age, 10)
-    if (Number.isNaN(age) || age < 18 || age > 120) return
+    if (Number.isNaN(age) || age > 120) {
+      setLocalError('Please enter a valid age.')
+      ageInputRef.current?.focus()
+      return
+    }
+    if (age < 18) {
+      setLocalError('You must be 18 or older to participate in this study.')
+      ageInputRef.current?.focus()
+      return
+    }
     const demographics = {
       age,
       gender: form.gender === 'Prefer to self-describe' ? form.gender_self || 'self-described' : form.gender,
@@ -70,16 +84,30 @@ export default function StudyDemographics() {
             {error}
           </div>
         )}
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <Input
-            label="Age"
-            type="number"
-            min="18"
-            max="120"
-            value={form.age}
-            onChange={update('age')}
-            required
-          />
+        <form onSubmit={handleSubmit} noValidate className="space-y-4">
+          <div>
+            <Input
+              ref={ageInputRef}
+              label="Age"
+              type="number"
+              min="18"
+              max="120"
+              value={form.age}
+              onChange={update('age')}
+              required
+              aria-invalid={localError ? 'true' : undefined}
+              aria-describedby={localError ? 'age-error' : undefined}
+            />
+            {localError && (
+              <p
+                id="age-error"
+                role="alert"
+                className="mt-1 text-sm text-red-600 dark:text-red-400"
+              >
+                {localError}
+              </p>
+            )}
+          </div>
           <SelectField label="Gender" value={form.gender} onChange={update('gender')} options={GENDER_OPTIONS} />
           {form.gender === 'Prefer to self-describe' && (
             <Input
@@ -97,7 +125,7 @@ export default function StudyDemographics() {
             onChange={update('native_english')}
             options={['Yes', 'No', 'Prefer not to say']}
           />
-          <Button type="submit" loading={loading} disabled={!isValid} className="w-full" size="lg">
+          <Button type="submit" loading={loading} disabled={!isValid || !!localError} className="w-full" size="lg">
             Continue
           </Button>
         </form>
