@@ -13,6 +13,13 @@ const initialState = {
   condition: null,
   loading: false,
   error: null,
+  // /finish lifecycle: 'idle' before the user clicks Finish, 'pending' while
+  // the request is in flight, 'success' once the backend has stamped
+  // completed_at, 'error' if the request failed. The Debrief page reads these
+  // to disable the button while pending and to surface a retry on failure.
+  finishStatus: 'idle',
+  finishError: null,
+  completedAt: null,
 }
 
 export const useStudyStore = create(
@@ -96,19 +103,40 @@ export const useStudyStore = create(
 
       // Final step — called from the Debrief page's Finish button. Posts to
       // /study/finish so the backend marks completed_at NOW (not on /save),
-      // then advances UI to done. Network failure still advances the UI: the
-      // participant has already seen the debrief, so blocking them on a
-      // backend hiccup would be worse than the small bookkeeping gap.
+      // then advances UI to done.
+      //
+      // Previous behaviour swallowed errors and advanced regardless, which
+      // hides genuine save failures from the participant (and from us — the
+      // session looks finished client-side but completed_at is never set).
+      // Now: on success, advance to 'done'. On error, keep the user on
+      // debrief and surface finishError so the Debrief page can render a
+      // "Try again" affordance.
       finish: async () => {
         const { participant_code } = get()
-        if (participant_code) {
-          try {
-            await studyApi.finish(participant_code)
-          } catch {
-            // Swallow — UI advance is more important than the completed_at write.
-          }
+        if (!participant_code) {
+          set({ step: 'done' })
+          return
         }
-        set({ step: 'done' })
+        set({ finishStatus: 'pending', finishError: null })
+        try {
+          const res = await studyApi.finish(participant_code)
+          set({
+            finishStatus: 'success',
+            completedAt: res?.data?.completed_at ?? null,
+            step: 'done',
+          })
+        } catch (err) {
+          set({
+            finishStatus: 'error',
+            finishError:
+              err?.response?.data?.error?.message ||
+              err?.message ||
+              'Could not save completion.',
+          })
+          // Intentionally do NOT advance step — leave participant on debrief
+          // so they can hit "Try again" and we don't lose the completed_at
+          // write to a silent network blip.
+        }
       },
 
       reset: () => set({ ...initialState }),

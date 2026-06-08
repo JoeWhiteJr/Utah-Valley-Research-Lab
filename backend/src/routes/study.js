@@ -423,6 +423,13 @@ router.post('/save', saveLimiter, [
 // final "Finish" button — NOT from Demographics — so a participant who closes
 // the tab between /save and Debrief is correctly counted as in-progress
 // rather than as a finished session with missing demographics.
+//
+// Idempotent: a double-clicked Finish button (or any retry after a successful
+// write) must not re-stamp completed_at and corrupt duration calculations. The
+// UPDATEs gate on `completed_at IS NULL`; rowCount tells us whether THIS call
+// was the first-time finish or a no-op repeat. The per-study advisory lock
+// closes the race where two concurrent /finish calls for the same participant
+// could both observe NULL before either commits.
 router.post('/finish', saveLimiter, [
   body('participant_code').isString().trim().isLength({ min: 6, max: 64 }),
 ], async (req, res, next) => {
@@ -444,7 +451,7 @@ router.post('/finish', saveLimiter, [
     // check runs first so 404 vs 403 doesn't leak "this participant_code is
     // real but hasn't consented" to an attacker probing codes.
     const proof = await client.query(
-      `SELECT p.id AS participant_id, a.id AS assignment_id,
+      `SELECT p.id AS participant_id, a.id AS assignment_id, a.study_id,
               p.consent_given_at, sr.id AS response_id
        FROM study_participants p
        JOIN study_assignments a ON a.participant_id = p.id
@@ -469,19 +476,54 @@ router.post('/finish', saveLimiter, [
       return res.status(403).json({ error: { message: 'No study response recorded' } });
     }
 
-    const { assignment_id, participant_id } = proof.rows[0];
+    const { assignment_id, participant_id, study_id } = proof.rows[0];
 
+    // Per-study lock so two concurrent /finish calls for the same participant
+    // can't both pass the `completed_at IS NULL` gate. Scoped by study so
+    // /finish calls on different studies don't serialize on a single key.
+    // `xact_lock` releases on COMMIT/ROLLBACK.
     await client.query(
-      `UPDATE study_assignments SET completed_at = CURRENT_TIMESTAMP WHERE id = $1`,
+      `SELECT pg_advisory_xact_lock(hashtext($1))`,
+      ['study_finish:' + study_id]
+    );
+
+    const assignmentUpdate = await client.query(
+      `UPDATE study_assignments
+       SET completed_at = CURRENT_TIMESTAMP
+       WHERE id = $1 AND completed_at IS NULL
+       RETURNING completed_at`,
       [assignment_id]
     );
-    await client.query(
-      `UPDATE study_participants SET completed_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = $1`,
+    const participantUpdate = await client.query(
+      `UPDATE study_participants
+       SET completed_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+       WHERE id = $1 AND completed_at IS NULL
+       RETURNING completed_at`,
       [participant_id]
     );
 
+    // rowCount === 0 on both UPDATEs means completed_at was already set —
+    // this is a repeat call (double-click, retry, race loser). Return the
+    // existing timestamp instead of NULL so the client can still show it.
+    const firstFinish = assignmentUpdate.rowCount > 0 || participantUpdate.rowCount > 0;
+    let completed_at;
+    if (firstFinish) {
+      completed_at = (assignmentUpdate.rows[0]?.completed_at)
+        ?? (participantUpdate.rows[0]?.completed_at);
+    } else {
+      const existing = await client.query(
+        `SELECT completed_at FROM study_assignments WHERE id = $1`,
+        [assignment_id]
+      );
+      completed_at = existing.rows[0]?.completed_at ?? null;
+    }
+
     await client.query('COMMIT');
-    res.json({ ok: true });
+    res.json({
+      ok: true,
+      already_completed: !firstFinish,
+      completed_at,
+    });
   } catch (error) {
     await client.query('ROLLBACK').catch(() => {});
     next(error);
