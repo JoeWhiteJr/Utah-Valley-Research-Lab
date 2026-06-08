@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { act, render, screen, fireEvent, waitFor } from '@testing-library/react'
 import StudyDebrief from '../../../pages/study/Debrief'
 import { useStudyStore } from '../../../store/studyStore'
 
@@ -51,6 +51,7 @@ describe('StudyDebrief /finish UI', () => {
     render(<StudyDebrief />)
     const button = screen.getByRole('button', { name: /saving/i })
     expect(button).toBeDisabled()
+    expect(button).toHaveAttribute('aria-busy', 'true')
   })
 
   it('renders a role="alert" with the error and a Try again button when finishStatus is error', () => {
@@ -73,5 +74,70 @@ describe('StudyDebrief /finish UI', () => {
     resetStore({ finishStatus: 'success' })
     render(<StudyDebrief />)
     expect(screen.queryByRole('alert')).toBeNull()
+  })
+})
+
+describe('StudyDebrief Finish button click behavior', () => {
+  beforeEach(() => {
+    resetStore()
+    vi.clearAllMocks()
+  })
+
+  it('disables the Finish button and shows "Saving..." while finish() is in flight', async () => {
+    // Replace the store's finish() with a deferred promise so we can observe
+    // the in-flight state before resolving.
+    let resolveFinish
+    const finishPromise = new Promise((resolve) => {
+      resolveFinish = resolve
+    })
+    useStudyStore.setState({
+      finish: vi.fn(async () => {
+        useStudyStore.setState({ finishStatus: 'pending' })
+        await finishPromise
+        useStudyStore.setState({ finishStatus: 'success' })
+      }),
+    })
+
+    render(<StudyDebrief />)
+    const finishBtn = screen.getByRole('button', { name: /^finish$/i })
+    expect(finishBtn).not.toBeDisabled()
+
+    fireEvent.click(finishBtn)
+
+    // Mid-flight: button is disabled, aria-busy, and shows "Saving..."
+    await waitFor(() => {
+      const savingBtn = screen.getByRole('button', { name: /saving/i })
+      expect(savingBtn).toBeDisabled()
+      expect(savingBtn).toHaveAttribute('aria-busy', 'true')
+    })
+
+    // Resolve the in-flight finish so the test can clean up.
+    await act(async () => {
+      resolveFinish()
+      await finishPromise
+    })
+  })
+
+  it('ignores a second click while a finish() is in flight (no double-submit)', async () => {
+    const finishSpy = vi.fn(async () => {
+      useStudyStore.setState({ finishStatus: 'pending' })
+      await new Promise((resolve) => setTimeout(resolve, 50))
+    })
+    useStudyStore.setState({ finish: finishSpy })
+
+    render(<StudyDebrief />)
+    const finishBtn = screen.getByRole('button', { name: /^finish$/i })
+
+    fireEvent.click(finishBtn)
+    // Wait for the pending state to render so the button is disabled.
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /saving/i })).toBeDisabled()
+    })
+    // Click again — the disabled button should swallow it.
+    fireEvent.click(screen.getByRole('button', { name: /saving/i }))
+
+    await waitFor(() => {
+      expect(finishSpy).toHaveBeenCalledTimes(1)
+    })
   })
 })
