@@ -7,6 +7,7 @@ const { authenticate, requireRole } = require('../middleware/auth');
 const { createLimiter } = require('../middleware/rateLimiter');
 const { getStudyConfig } = require('../research-studies');
 const { CONSENT_MIN_SECONDS } = require('../research-studies/study-constants');
+const { recordLimitHit, getLimitHits } = require('../services/studyMetrics');
 
 const router = express.Router();
 
@@ -329,6 +330,22 @@ router.post('/consent', [
   }
 });
 
+// Payload size guard shared by /snapshot and /save. Returns true when the
+// payload would push past the 64KB cap so the route handler can 429 + log +
+// increment the limit-hit counter. Keeping this as a runtime check (rather
+// than an express-validator custom) lets us own the response shape and
+// instrument the hit before the body validator short-circuits the request.
+const MAX_PAYLOAD_BYTES = 64000;
+function payloadTooBig(payload) {
+  try {
+    return Buffer.byteLength(JSON.stringify(payload)) > MAX_PAYLOAD_BYTES;
+  } catch (_e) {
+    // If JSON.stringify throws (circular refs, etc.) treat as oversize so we
+    // don't accept a payload we can't measure.
+    return true;
+  }
+}
+
 // Mid-game snapshot. Fire-and-forget from the iframe; failures shouldn't block the game.
 // The COUNT + INSERT pair runs inside a transaction guarded by a per-assignment
 // advisory lock so two concurrent /snapshot calls can't both observe count < 200
@@ -336,11 +353,6 @@ router.post('/consent', [
 router.post('/snapshot', saveLimiter, [
   body('participant_code').isString().trim().isLength({ min: 6, max: 64 }),
   body('payload').isObject().withMessage('payload must be a JSON object'),
-  body('payload').custom(p => {
-    const size = Buffer.byteLength(JSON.stringify(p));
-    if (size > 64000) throw new Error('payload exceeds 64KB');
-    return true;
-  }),
 ], async (req, res, next) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
@@ -349,7 +361,7 @@ router.post('/snapshot', saveLimiter, [
   const { participant_code, payload } = req.body;
 
   const assignmentLookup = await db.query(
-    `SELECT a.id
+    `SELECT a.id, a.study_id
      FROM study_assignments a
      JOIN study_participants p ON p.id = a.participant_id
      WHERE p.participant_code = $1
@@ -362,8 +374,22 @@ router.post('/snapshot', saveLimiter, [
   }
   const assignment = assignmentLookup.rows[0];
 
+  // Payload-size guard happens BEFORE acquiring a pool client so an oversize
+  // hit doesn't waste a connection. recordLimitHit instruments the admin
+  // dashboard counter (PR #123).
+  if (payloadTooBig(payload)) {
+    recordLimitHit(assignment.study_id, 'payload_too_big');
+    logger.warn(
+      { kind: 'payload_too_big', study_id: assignment.study_id, participant_code, route: '/snapshot' },
+      'Study limit hit'
+    );
+    return res.status(429).json({ error: { message: 'Payload exceeds 64KB limit' } });
+  }
+
   const client = await db.getClient();
   try {
+    // Transaction + per-assignment advisory lock so concurrent /snapshot
+    // calls can't both observe count < 200 and both insert (PR #122).
     await client.query('BEGIN');
     await client.query(
       'SELECT pg_advisory_xact_lock(hashtext($1))',
@@ -375,6 +401,11 @@ router.post('/snapshot', saveLimiter, [
     );
     if (cnt.rows[0].n >= 200) {
       await client.query('ROLLBACK');
+      recordLimitHit(assignment.study_id, 'snapshot_cap');
+      logger.warn(
+        { kind: 'snapshot_cap', study_id: assignment.study_id, participant_code, route: '/snapshot' },
+        'Study limit hit'
+      );
       return res.status(429).json({ error: { message: 'Snapshot limit reached for this session' } });
     }
     await client.query(
@@ -400,11 +431,6 @@ router.post('/snapshot', saveLimiter, [
 router.post('/save', saveLimiter, [
   body('participant_code').isString().trim().isLength({ min: 6, max: 64 }),
   body('payload').isObject().withMessage('payload must be a JSON object'),
-  body('payload').custom(p => {
-    const size = Buffer.byteLength(JSON.stringify(p));
-    if (size > 64000) throw new Error('payload exceeds 64KB');
-    return true;
-  }),
 ], async (req, res, next) => {
   const client = await db.getClient();
   try {
@@ -417,7 +443,7 @@ router.post('/save', saveLimiter, [
     await client.query('BEGIN');
 
     const assignment = await client.query(
-      `SELECT a.id AS assignment_id, p.id AS participant_id
+      `SELECT a.id AS assignment_id, p.id AS participant_id, a.study_id
        FROM study_assignments a
        JOIN study_participants p ON p.id = a.participant_id
        WHERE p.participant_code = $1
@@ -430,7 +456,17 @@ router.post('/save', saveLimiter, [
       return res.status(404).json({ error: { message: 'Assignment not found' } });
     }
 
-    const { assignment_id } = assignment.rows[0];
+    const { assignment_id, study_id: studyId } = assignment.rows[0];
+
+    if (payloadTooBig(payload)) {
+      await client.query('ROLLBACK');
+      recordLimitHit(studyId, 'payload_too_big');
+      logger.warn(
+        { kind: 'payload_too_big', study_id: studyId, participant_code, route: '/save' },
+        'Study limit hit'
+      );
+      return res.status(429).json({ error: { message: 'Payload exceeds 64KB limit' } });
+    }
 
     // Idempotent: a partial unique index on (assignment_id) WHERE is_snapshot = false
     // allows ON CONFLICT to merge retries / double-submits into a single final row
@@ -632,6 +668,90 @@ router.get('/stats', authenticate, requireRole('admin'), async (req, res, next) 
         recruitment_target_per_condition: target,
       },
       stats,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Admin: per-condition funnel from /study/start through completion. The five
+// step counts let us see where participants drop off — landed (started a
+// session), consented (signed the form), responded (saved a final payload),
+// demographics (filled the demographics form), completed (clicked Finish on
+// debrief). Numbers are de-duplicated to one row per assignment.
+router.get('/:slug/funnel', authenticate, requireRole('admin'), [
+  param('slug').isString().trim().isLength({ min: 1, max: 64 }),
+], async (req, res, next) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ error: { message: 'Invalid slug', details: errors.array() } });
+    }
+    const resolved = await resolveStudy(req.params.slug);
+    if (!resolved) {
+      return res.status(404).json({ error: { message: 'Study not found' } });
+    }
+    const { dbRow: study } = resolved;
+
+    const result = await db.query(
+      `SELECT
+         a.condition,
+         a.experiment,
+         COUNT(*) FILTER (WHERE p.id IS NOT NULL)::int AS landed,
+         COUNT(*) FILTER (WHERE p.consent_given_at IS NOT NULL)::int AS consented,
+         COUNT(*) FILTER (WHERE final_resp.id IS NOT NULL)::int AS responded,
+         COUNT(*) FILTER (WHERE p.demographics IS NOT NULL AND p.demographics::text <> '{}')::int AS demographics,
+         COUNT(*) FILTER (WHERE a.completed_at IS NOT NULL)::int AS completed
+       FROM study_assignments a
+       LEFT JOIN study_participants p ON p.id = a.participant_id
+       LEFT JOIN study_responses final_resp
+         ON final_resp.assignment_id = a.id AND final_resp.is_snapshot = false
+       WHERE a.study_id = $1
+       GROUP BY a.experiment, a.condition
+       ORDER BY a.experiment, a.condition`,
+      [study.id]
+    );
+
+    res.json({
+      study: { slug: study.slug, title: study.title },
+      funnel: result.rows,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Admin: in-memory counter of 429 limit hits today, scoped to a single study.
+// Used by the admin Research Studies page to surface "is anything misbehaving"
+// during launch. Counter resets on backend restart.
+router.get('/:slug/limit-hits', authenticate, requireRole('admin'), [
+  param('slug').isString().trim().isLength({ min: 1, max: 64 }),
+], async (req, res, next) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ error: { message: 'Invalid slug', details: errors.array() } });
+    }
+    const resolved = await resolveStudy(req.params.slug);
+    if (!resolved) {
+      return res.status(404).json({ error: { message: 'Study not found' } });
+    }
+    const { dbRow: study } = resolved;
+
+    // Filter the per-day:per-study map down to entries for this study and
+    // collapse them into a single { payload_too_big, snapshot_cap } shape.
+    // We sum across days even though the prune logic should keep the map at
+    // one day's worth — defence in depth in case the prune lags a clock-skew.
+    const totals = { payload_too_big: 0, snapshot_cap: 0 };
+    const suffix = `:${study.id}`;
+    for (const [key, counts] of Object.entries(getLimitHits())) {
+      if (!key.endsWith(suffix)) continue;
+      totals.payload_too_big += counts.payload_too_big || 0;
+      totals.snapshot_cap += counts.snapshot_cap || 0;
+    }
+    res.json({
+      study: { slug: study.slug, title: study.title },
+      limit_hits_today: totals,
     });
   } catch (error) {
     next(error);
