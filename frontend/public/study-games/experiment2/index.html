@@ -59,7 +59,7 @@
         .likert .scale-label {
             flex: 1 1 100px;
             font-size: 13px;
-            color: #95a5a6;
+            color: #cbd2d9;
         }
         .likert .scale-label.right { text-align: right; }
         .likert .options {
@@ -73,7 +73,7 @@
             align-items: center;
             cursor: pointer;
             font-size: 14px;
-            color: #bdc3c7;
+            color: #e1e6eb;
         }
         .likert .options input[type="radio"] {
             margin: 0 0 4px;
@@ -89,7 +89,7 @@
             display: flex;
             justify-content: space-between;
             font-size: 13px;
-            color: #95a5a6;
+            color: #cbd2d9;
         }
         .slider-value {
             text-align: center;
@@ -101,7 +101,7 @@
         input[type="text"], input[type="number"] {
             width: 100%;
             padding: 10px 12px;
-            border: 1px solid #7f8c8d;
+            border: 1px solid #b8c0c8;
             border-radius: 4px;
             background: #ecf0f1;
             color: #2c3e50;
@@ -134,7 +134,7 @@
         }
         button:hover { background: #229954; }
         button:disabled {
-            background: #7f8c8d;
+            background: #b8c0c8;
             cursor: not-allowed;
         }
         .progress {
@@ -162,7 +162,7 @@
         .ranking-list select {
             padding: 6px 10px;
             border-radius: 4px;
-            border: 1px solid #7f8c8d;
+            border: 1px solid #b8c0c8;
             background: #ecf0f1;
             color: #2c3e50;
             font-size: 14px;
@@ -179,12 +179,44 @@
         .countdown {
             text-align: center;
             font-size: 18px;
-            color: #95a5a6;
+            color: #cbd2d9;
         }
         .err {
             color: #e74c3c;
             font-size: 14px;
             margin-top: 8px;
+        }
+        @media (max-width: 768px) {
+            #app {
+                margin: 10px;
+                padding: 16px 18px;
+                max-width: none;
+            }
+            h1 { font-size: 1.5rem; }
+            h2 { font-size: 1.25rem; }
+            .digit-display {
+                font-size: 36px !important;
+                letter-spacing: 8px !important;
+                margin: 30px 0 !important;
+            }
+            .likert .options {
+                flex-direction: column;
+                gap: 8px;
+                width: 100%;
+            }
+            .likert .scale-label {
+                flex: 1 1 auto !important;
+                text-align: left !important;
+            }
+            .likert .scale-label.right { text-align: right !important; }
+            button {
+                font-size: 1rem;
+                padding: 12px 16px;
+            }
+            .scenario-block {
+                padding: 14px 16px;
+                font-size: 13px;
+            }
         }
     </style>
 </head>
@@ -490,7 +522,7 @@ Everything else about the job stays the same.`
                 <li>How much would you value the recognition?</li>
             </ul>
             <p>Take your time. There are no right answers — we want your honest preferences.</p>
-            <p style="color:#95a5a6;">This should take about 12 minutes.</p>
+            <p style="color:#cbd2d9;">This should take about 12 minutes.</p>
             <button id="btn-start">Begin Survey</button>
         `, phases.length, 0);
         document.getElementById('btn-start').addEventListener('click', () => phases[1]());
@@ -611,7 +643,7 @@ Everything else about the job stays the same.`
     function showManipulationChecks() {
         render(`
             <h2>Comprehension Questions</h2>
-            <p style="color:#95a5a6;">Please answer based on what you read.</p>
+            <p style="color:#cbd2d9;">Please answer based on what you read.</p>
             <form id="mc-form">
                 <div class="question">
                     <label class="q-text">How many total spotlights did Company A give per year?</label>
@@ -665,7 +697,7 @@ Everything else about the job stays the same.`
         ];
         render(`
             <h2>Your Thoughts</h2>
-            <p style="color:#95a5a6;">Rate how much you agree or disagree with each statement.</p>
+            <p style="color:#cbd2d9;">Rate how much you agree or disagree with each statement.</p>
             <form id="mech-form">
                 ${items.map(q => `
                     <div class="question">
@@ -691,7 +723,7 @@ Everything else about the job stays the same.`
         render(`
             <h2>Memory Test</h2>
             <p>You'll see 7 digits for 3 seconds. After they disappear, type them back in the same order.</p>
-            <p style="color:#95a5a6;">Get ready...</p>
+            <p style="color:#cbd2d9;">Get ready...</p>
         `, phases.length, phases.indexOf(showWorkingMemory));
         setTimeout(() => {
             render(`
@@ -844,8 +876,8 @@ Everything else about the job stays the same.`
                 <li><em>Capaldi (1967):</em> Patterned recognition creates expectations that persist.</li>
             </ul>
             <p>Your responses help us test which theory better predicts how people evaluate jobs.</p>
-            <p style="color:#95a5a6;">You may close this tab.</p>
-            <div id="save-status" style="color:#95a5a6;">Saving final data...</div>
+            <p style="color:#cbd2d9;">You may close this tab.</p>
+            <div id="save-status" style="color:#cbd2d9;">Saving final data...</div>
         `, phases.length, phases.length);
 
         fetch('/api/save', {
