@@ -101,7 +101,7 @@ describe('Study API', () => {
 
       const consent = await request(app)
         .post('/api/study/consent')
-        .send({ participant_code: code, demographics: { age: 30, gender: 'Female' } });
+        .send({ participant_code: code, consented: true, demographics: { age: 30, gender: 'Female' } });
       expect(consent.status).toBe(200);
       expect(consent.body.ok).toBe(true);
       expect(consent.body.consent_given_at).toBeTruthy();
@@ -158,6 +158,121 @@ describe('Study API', () => {
         .post('/api/study/save')
         .send({ participant_code: code, payload: 'a string is not an object' });
       expect(res.status).toBe(400);
+    });
+  });
+
+  // Closes the bot-driven quota-poisoning chain documented in
+  // .workflow/history/cycle-2-audit.md #1 + #2. The /finish endpoint must
+  // refuse to mark a session complete unless there's real proof of
+  // participation (consent_given_at + at least one non-snapshot response),
+  // and /consent must refuse to back-stamp consent on a demographics-only
+  // call.
+  describe('Quota-poisoning defences (P0)', () => {
+    it('/finish returns 403 "Consent not recorded" when participant has no consent yet', async () => {
+      const start = await request(app)
+        .post('/api/study/start')
+        .set('X-Forwarded-For', '10.99.0.180');
+      const code = start.body.participant_code;
+
+      // Skip /consent entirely. /save would also fail the gate, but a bot
+      // could in principle call /finish directly after /start.
+      const res = await request(app)
+        .post('/api/study/finish')
+        .send({ participant_code: code });
+      expect(res.status).toBe(403);
+      expect(res.body.error.message).toBe('Consent not recorded');
+
+      // Confirm completed_at remained NULL so no quota slot was burned.
+      const row = await db.query(
+        'SELECT completed_at FROM study_participants WHERE participant_code = $1',
+        [code]
+      );
+      expect(row.rows[0].completed_at).toBeNull();
+    });
+
+    it('/finish returns 403 "No study response recorded" when consent exists but no /save happened', async () => {
+      const start = await request(app)
+        .post('/api/study/start')
+        .set('X-Forwarded-For', '10.99.0.181');
+      const code = start.body.participant_code;
+
+      await request(app)
+        .post('/api/study/consent')
+        .send({ participant_code: code, consented: true });
+
+      // No /save call.
+      const res = await request(app)
+        .post('/api/study/finish')
+        .send({ participant_code: code });
+      expect(res.status).toBe(403);
+      expect(res.body.error.message).toBe('No study response recorded');
+
+      const row = await db.query(
+        'SELECT completed_at FROM study_participants WHERE participant_code = $1',
+        [code]
+      );
+      expect(row.rows[0].completed_at).toBeNull();
+    });
+
+    it('/consent stamps consent_given_at only when consented:true is sent', async () => {
+      const start = await request(app)
+        .post('/api/study/start')
+        .set('X-Forwarded-For', '10.99.0.182');
+      const code = start.body.participant_code;
+
+      const res = await request(app)
+        .post('/api/study/consent')
+        .send({ participant_code: code, consented: true });
+      expect(res.status).toBe(200);
+      expect(res.body.consent_given_at).toBeTruthy();
+    });
+
+    it('/consent returns 409 when called with demographics but no prior consent', async () => {
+      const start = await request(app)
+        .post('/api/study/start')
+        .set('X-Forwarded-For', '10.99.0.183');
+      const code = start.body.participant_code;
+
+      // Demographics-only call without ever calling /consent with
+      // consented:true. The bot half of the attack chain.
+      const res = await request(app)
+        .post('/api/study/consent')
+        .send({ participant_code: code, demographics: { age: 30 } });
+      expect(res.status).toBe(409);
+      expect(res.body.error.message).toMatch(/consent must be recorded/i);
+
+      // consent_given_at must still be NULL — the rejected call must not
+      // partially write through.
+      const row = await db.query(
+        'SELECT consent_given_at FROM study_participants WHERE participant_code = $1',
+        [code]
+      );
+      expect(row.rows[0].consent_given_at).toBeNull();
+    });
+
+    it('/consent accepts demographics-only payload after consent is already stamped', async () => {
+      const start = await request(app)
+        .post('/api/study/start')
+        .set('X-Forwarded-For', '10.99.0.184');
+      const code = start.body.participant_code;
+
+      // Step 1: real consent.
+      await request(app)
+        .post('/api/study/consent')
+        .send({ participant_code: code, consented: true });
+
+      // Step 2: post-game demographics — no consented flag, must succeed.
+      const res = await request(app)
+        .post('/api/study/consent')
+        .send({ participant_code: code, demographics: { age: 42, gender: 'Other' } });
+      expect(res.status).toBe(200);
+      expect(res.body.consent_given_at).toBeTruthy();
+
+      const row = await db.query(
+        'SELECT demographics FROM study_participants WHERE participant_code = $1',
+        [code]
+      );
+      expect(row.rows[0].demographics.age).toBe(42);
     });
   });
 
@@ -264,7 +379,7 @@ describe('Study API', () => {
       detailCode = start.body.participant_code;
       await request(app)
         .post('/api/study/consent')
-        .send({ participant_code: detailCode, demographics: { age: 25 } });
+        .send({ participant_code: detailCode, consented: true, demographics: { age: 25 } });
       await request(app)
         .post('/api/study/save')
         .send({ participant_code: detailCode, payload: { total_coins: 7 } });
@@ -465,15 +580,22 @@ describe('Study API', () => {
         .post('/api/study/start')
         .set('X-Forwarded-For', TEST_IP);
       expect(start1.status).toBe(201);
+      // /finish now requires real proof of participation (consent + final
+      // response), so a complete dedup-trigger flow has to record consent and
+      // a /save before /finish — see fix/study-finish-quota-poison.
+      await request(app)
+        .post('/api/study/consent')
+        .send({ participant_code: start1.body.participant_code, consented: true });
       await request(app)
         .post('/api/study/save')
         .send({ participant_code: start1.body.participant_code, payload: { total_coins: 1 } });
       // /save no longer marks the participant complete — completion now
       // happens on /finish (clicked from the Debrief page). Without /finish,
       // dedup wouldn't trigger.
-      await request(app)
+      const finish = await request(app)
         .post('/api/study/finish')
         .send({ participant_code: start1.body.participant_code });
+      expect(finish.status).toBe(200);
 
       // Second start from the same IP should be rejected with 409.
       const start2 = await request(app)

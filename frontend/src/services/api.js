@@ -554,8 +554,14 @@ export const resourcesApi = {
 export const studyApi = {
   // slug is optional; when null the backend uses the most recently created active study.
   start: (slug = null) => api.post('/study/start', null, { params: slug ? { slug } : undefined }),
-  consent: (participant_code, demographics) =>
-    api.post('/study/consent', { participant_code, demographics }),
+  // The /consent endpoint is reused for the initial consent submit AND the
+  // post-game demographics submit. Body shape decides which:
+  //   { consented: true, demographics: null } → stamps consent_given_at
+  //   { demographics: {...} }                  → records demographics only
+  // Callers must pass the body explicitly so the backend's consent gate
+  // (added in fix/study-finish-quota-poison) can tell them apart.
+  consent: (participant_code, body = {}) =>
+    api.post('/study/consent', { participant_code, ...body }),
   save: (participant_code, payload) =>
     api.post('/study/save', { participant_code, payload }),
   snapshot: (participant_code, payload) =>
