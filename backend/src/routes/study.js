@@ -243,8 +243,13 @@ router.get('/list', async (req, res, next) => {
 });
 
 // Record consent + demographics. Idempotent: subsequent calls update.
+// Consent stamping requires an explicit `consented: true` body flag — the
+// same endpoint is reused for the post-game demographics POST, which must NOT
+// be able to back-stamp consent for a participant who never saw the consent
+// screen (closes one half of the quota-poisoning attack chain).
 router.post('/consent', [
   body('participant_code').isString().trim().isLength({ min: 6, max: 64 }),
+  body('consented').optional().isBoolean(),
   body('demographics').optional().isObject()
 ], async (req, res, next) => {
   try {
@@ -253,23 +258,46 @@ router.post('/consent', [
       return res.status(400).json({ error: { message: 'Validation failed', details: errors.array() } });
     }
     const { participant_code, demographics } = req.body;
+    const consented = req.body.consented === true;
 
     // Merge-on-write: a second /consent call (e.g. browser-back from debrief
     // re-submitting the demographics form) must not wipe earlier-submitted
     // fields. Postgres JSONB || concat with RHS winning on key collision keeps
     // the union and the latest values for shared keys.
-    const result = await db.query(
-      `UPDATE study_participants
-       SET consent_given_at = COALESCE(consent_given_at, CURRENT_TIMESTAMP),
-           demographics = COALESCE(demographics, '{}'::jsonb) || $2::jsonb,
-           updated_at = CURRENT_TIMESTAMP
-       WHERE participant_code = $1
-       RETURNING id, consent_given_at`,
-      [participant_code, demographics || {}]
-    );
+    //
+    // Branch on `consented`: only stamp consent_given_at when the caller
+    // explicitly opted in. Demographics-only calls leave consent untouched.
+    const result = consented
+      ? await db.query(
+          `UPDATE study_participants
+           SET consent_given_at = COALESCE(consent_given_at, CURRENT_TIMESTAMP),
+               demographics = COALESCE(demographics, '{}'::jsonb) || $2::jsonb,
+               updated_at = CURRENT_TIMESTAMP
+           WHERE participant_code = $1
+           RETURNING id, consent_given_at`,
+          [participant_code, demographics || {}]
+        )
+      : await db.query(
+          `UPDATE study_participants
+           SET demographics = COALESCE(demographics, '{}'::jsonb) || $2::jsonb,
+               updated_at = CURRENT_TIMESTAMP
+           WHERE participant_code = $1
+           RETURNING id, consent_given_at`,
+          [participant_code, demographics || {}]
+        );
 
     if (result.rows.length === 0) {
       return res.status(404).json({ error: { message: 'Participant not found' } });
+    }
+
+    // Demographics-only call (no `consented: true`) on a participant who has
+    // not yet consented — reject so a scripted client can't skip the consent
+    // screen and still record demographics. The /finish gate will 403 too,
+    // but failing here gives the caller a clearer error.
+    if (!consented && !result.rows[0].consent_given_at) {
+      return res.status(409).json({
+        error: { message: 'Consent must be recorded before demographics' }
+      });
     }
 
     res.json({ ok: true, consent_given_at: result.rows[0].consent_given_at });
@@ -408,21 +436,40 @@ router.post('/finish', saveLimiter, [
 
     await client.query('BEGIN');
 
-    const assignment = await client.query(
-      `SELECT a.id AS assignment_id, p.id AS participant_id
-       FROM study_assignments a
-       JOIN study_participants p ON p.id = a.participant_id
+    // Gate /finish on proof of real participation: the participant must have
+    // an actual consent stamp AND at least one non-snapshot response row. This
+    // closes the quota-poisoning chain where a bot could POST /start → /save
+    // → /finish in milliseconds to burn a recruitment slot without ever
+    // touching the consent screen or generating game data. The existence
+    // check runs first so 404 vs 403 doesn't leak "this participant_code is
+    // real but hasn't consented" to an attacker probing codes.
+    const proof = await client.query(
+      `SELECT p.id AS participant_id, a.id AS assignment_id,
+              p.consent_given_at, sr.id AS response_id
+       FROM study_participants p
+       JOIN study_assignments a ON a.participant_id = p.id
+       LEFT JOIN study_responses sr
+         ON sr.assignment_id = a.id AND sr.is_snapshot = false
        WHERE p.participant_code = $1
-       ORDER BY a.assigned_at DESC LIMIT 1`,
+       ORDER BY a.assigned_at DESC
+       LIMIT 1`,
       [participant_code]
     );
 
-    if (assignment.rows.length === 0) {
+    if (proof.rows.length === 0) {
       await client.query('ROLLBACK');
-      return res.status(404).json({ error: { message: 'Assignment not found' } });
+      return res.status(404).json({ error: { message: 'Participant not found' } });
+    }
+    if (!proof.rows[0].consent_given_at) {
+      await client.query('ROLLBACK');
+      return res.status(403).json({ error: { message: 'Consent not recorded' } });
+    }
+    if (!proof.rows[0].response_id) {
+      await client.query('ROLLBACK');
+      return res.status(403).json({ error: { message: 'No study response recorded' } });
     }
 
-    const { assignment_id, participant_id } = assignment.rows[0];
+    const { assignment_id, participant_id } = proof.rows[0];
 
     await client.query(
       `UPDATE study_assignments SET completed_at = CURRENT_TIMESTAMP WHERE id = $1`,

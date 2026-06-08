@@ -43,6 +43,11 @@ export const useStudyStore = create(
         }
       },
 
+      // Initial consent submit from the Consent screen. The `consented: true`
+      // flag is what tells the backend to stamp consent_given_at — without it
+      // the backend will refuse to stamp consent on a demographics-only call,
+      // which is what closes the bot-can-skip-consent half of the
+      // quota-poisoning chain.
       submitConsent: async () => {
         const { participant_code } = get()
         if (!participant_code) {
@@ -51,7 +56,7 @@ export const useStudyStore = create(
         }
         set({ loading: true, error: null })
         try {
-          await studyApi.consent(participant_code, {})
+          await studyApi.consent(participant_code, { consented: true, demographics: null })
           set({ step: 'game', loading: false })
           return true
         } catch (err) {
@@ -63,6 +68,10 @@ export const useStudyStore = create(
         }
       },
 
+      // Post-game demographics submit. Does NOT include `consented: true` —
+      // the backend will reject this call with 409 if consent_given_at is
+      // still null (which it can't be on the real flow because the participant
+      // already went through submitConsent).
       submitDemographics: async (demographics) => {
         const { participant_code } = get()
         if (!participant_code) {
@@ -71,7 +80,7 @@ export const useStudyStore = create(
         }
         set({ loading: true, error: null })
         try {
-          await studyApi.consent(participant_code, demographics)
+          await studyApi.consent(participant_code, { demographics })
           set({ step: 'debrief', loading: false })
           return true
         } catch (err) {

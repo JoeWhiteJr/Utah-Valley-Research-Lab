@@ -81,21 +81,26 @@ describe('studyStore', () => {
     expect(studyApi.consent).not.toHaveBeenCalled()
   })
 
-  it('submitConsent() POSTs an empty consent and advances to game', async () => {
+  it('submitConsent() POSTs consented:true and advances to game', async () => {
     useStudyStore.setState({ participant_code: 'TH_x', step: 'consent' })
     studyApi.consent.mockResolvedValue({ data: { ok: true } })
     const ok = await useStudyStore.getState().submitConsent()
     expect(ok).toBe(true)
-    expect(studyApi.consent).toHaveBeenCalledWith('TH_x', {})
+    // Must send consented:true so the backend stamps consent_given_at —
+    // without it the /finish gate (fix/study-finish-quota-poison) would 403.
+    expect(studyApi.consent).toHaveBeenCalledWith('TH_x', { consented: true, demographics: null })
     expect(useStudyStore.getState().step).toBe('game')
   })
 
-  it('submitDemographics() POSTs demographics and advances to debrief', async () => {
+  it('submitDemographics() POSTs demographics-only (no consented flag) and advances to debrief', async () => {
     useStudyStore.setState({ participant_code: 'TH_x', step: 'demographics' })
     studyApi.consent.mockResolvedValue({ data: { ok: true } })
     const ok = await useStudyStore.getState().submitDemographics({ age: 25 })
     expect(ok).toBe(true)
-    expect(studyApi.consent).toHaveBeenCalledWith('TH_x', { age: 25 })
+    // Demographics POST must NOT include consented:true so a scripted client
+    // can't retroactively stamp consent on a participant who skipped the
+    // consent screen.
+    expect(studyApi.consent).toHaveBeenCalledWith('TH_x', { demographics: { age: 25 } })
     expect(useStudyStore.getState().step).toBe('debrief')
   })
 
