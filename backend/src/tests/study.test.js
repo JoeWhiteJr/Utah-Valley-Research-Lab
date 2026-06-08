@@ -1162,8 +1162,27 @@ describe('Study API', () => {
       //   p1: lands only (no consent, no save, no finish) — counts toward landed
       //   p2: lands + consent + save — counts toward landed, consented, responded
       //   p3: lands + consent (with demographics) + save + finish — counts toward all five
-      // Then we assert the funnel response contains row(s) whose totals reflect
-      // these additions.
+      // The test snapshots the funnel totals BEFORE and AFTER seeding so it
+      // is robust to other tests in this file that may have left rows behind
+      // (e.g. /save without /consent — which would break a cross-row
+      // monotonicity assertion).
+      const sumTotals = (funnel) => funnel.reduce(
+        (acc, row) => ({
+          landed: acc.landed + row.landed,
+          consented: acc.consented + row.consented,
+          responded: acc.responded + row.responded,
+          demographics: acc.demographics + row.demographics,
+          completed: acc.completed + row.completed,
+        }),
+        { landed: 0, consented: 0, responded: 0, demographics: 0, completed: 0 }
+      );
+
+      const before = await request(app)
+        .get('/api/study/effort-justification/funnel')
+        .set('Authorization', `Bearer ${adminToken}`);
+      expect(before.status).toBe(200);
+      const beforeTotals = sumTotals(before.body.funnel || []);
+
       const ips = ['10.99.0.301', '10.99.0.302', '10.99.0.303'];
 
       const start1 = await request(app)
@@ -1204,30 +1223,31 @@ describe('Study API', () => {
       expect(Array.isArray(res.body.funnel)).toBe(true);
       expect(res.body.funnel.length).toBeGreaterThan(0);
 
-      // Aggregate across all returned rows so the test is robust to whichever
-      // (experiment, condition) the picker happened to land our three participants in.
-      const totals = res.body.funnel.reduce(
-        (acc, row) => ({
-          landed: acc.landed + row.landed,
-          consented: acc.consented + row.consented,
-          responded: acc.responded + row.responded,
-          demographics: acc.demographics + row.demographics,
-          completed: acc.completed + row.completed,
-        }),
-        { landed: 0, consented: 0, responded: 0, demographics: 0, completed: 0 }
-      );
+      const afterTotals = sumTotals(res.body.funnel);
 
-      // landed >= consented >= responded, completed >= demographics-of-finished.
-      // We can't assert exact equality across the table (other tests in this
-      // file have left rows behind) but we can assert the funnel monotonicity
-      // and that all five buckets are positive after our seeded scenario.
-      expect(totals.landed).toBeGreaterThanOrEqual(totals.consented);
-      expect(totals.consented).toBeGreaterThanOrEqual(totals.responded);
-      expect(totals.landed).toBeGreaterThan(0);
-      expect(totals.consented).toBeGreaterThan(0);
-      expect(totals.responded).toBeGreaterThan(0);
-      expect(totals.demographics).toBeGreaterThan(0);
-      expect(totals.completed).toBeGreaterThan(0);
+      // Compute the deltas attributable to our 3 seeded participants — this
+      // sidesteps any pollution from earlier tests.
+      const delta = {
+        landed: afterTotals.landed - beforeTotals.landed,
+        consented: afterTotals.consented - beforeTotals.consented,
+        responded: afterTotals.responded - beforeTotals.responded,
+        demographics: afterTotals.demographics - beforeTotals.demographics,
+        completed: afterTotals.completed - beforeTotals.completed,
+      };
+
+      // Exact deltas: p1+p2+p3 → 3 landed; p2+p3 → 2 consented; p2+p3 → 2 responded;
+      // only p3 sent demographics + finished → 1 demographics, 1 completed.
+      expect(delta.landed).toBe(3);
+      expect(delta.consented).toBe(2);
+      expect(delta.responded).toBe(2);
+      expect(delta.demographics).toBe(1);
+      expect(delta.completed).toBe(1);
+
+      // Monotonicity holds on the deltas regardless of pre-existing rows.
+      expect(delta.landed).toBeGreaterThanOrEqual(delta.consented);
+      expect(delta.consented).toBeGreaterThanOrEqual(delta.responded);
+      expect(delta.responded).toBeGreaterThanOrEqual(delta.demographics);
+      expect(delta.demographics).toBeGreaterThanOrEqual(delta.completed);
 
       // Each row carries condition + experiment labels.
       for (const row of res.body.funnel) {
