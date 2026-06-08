@@ -437,6 +437,42 @@ Date: January 2025
                         }, CONFIG.outcome_display_time);
                     }
                 });
+
+                // Two-stage confirm on the extinction QUIT button. Confused
+                // participants sometimes quit at trial 1, contaminating the
+                // primary DV (extinction_chests_opened). Require a second
+                // click within 4s before actually ending the timeline.
+                if (trial.phase === 'extinction') {
+                    const quitButton = document.querySelector('#jspsych-target .jspsych-btn');
+                    if (quitButton) {
+                        const originalLabel = quitButton.textContent;
+                        const originalBackground = quitButton.style.background;
+                        let quitConfirmPending = false;
+                        let resetTimer = null;
+                        // Capture phase + stopImmediatePropagation so the
+                        // first click is swallowed before the jsPsych plugin's
+                        // own listener can finish the trial.
+                        quitButton.addEventListener('click', function(e) {
+                            if (!quitConfirmPending) {
+                                e.stopImmediatePropagation();
+                                e.preventDefault();
+                                quitButton.textContent = 'Are you sure? Click again to end.';
+                                quitButton.style.background = '#c0392b';
+                                quitConfirmPending = true;
+                                if (resetTimer) clearTimeout(resetTimer);
+                                resetTimer = setTimeout(function() {
+                                    if (quitConfirmPending) {
+                                        quitButton.textContent = originalLabel;
+                                        quitButton.style.background = originalBackground;
+                                        quitConfirmPending = false;
+                                    }
+                                }, 4000);
+                            }
+                            // Second click falls through to the jsPsych handler,
+                            // which records data.response = 0 and triggers on_finish.
+                        }, true);
+                    }
+                }
             },
             on_finish: function(data) {
                 const trial = jsPsych.timelineVariable('trial_data');
@@ -550,7 +586,8 @@ Date: January 2025
                         <h2>PHASE 1 COMPLETE!</h2>
                         <p>You collected <strong>${expData.total_coins}</strong> coins!</p>
                         <p>Now explore a NEW AREA with more chests.</p>
-                        <p style="color: #e74c3c;">You can stop anytime.</p>
+                        <p>Click chests for as long as you like. When you're ready to stop, click "I'm done hunting".</p>
+                        <p style="color: #e74c3c;"><strong>Once you stop, the hunt is over and you can't return.</strong></p>
                     `;
                 },
                 choices: ['Continue Hunting'],
