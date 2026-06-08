@@ -620,6 +620,15 @@ describe('Study API', () => {
         .set('X-Forwarded-For', '10.99.0.77');
       const code = start.body.participant_code;
 
+      // /finish now requires consent + at least one final response as proof
+      // of real participation (PR #118 quota-poison gate).
+      await request(app)
+        .post('/api/study/consent')
+        .send({ participant_code: code, consented: true });
+      await request(app)
+        .post('/api/study/save')
+        .send({ participant_code: code, payload: { total_coins: 1 } });
+
       const first = await request(app)
         .post('/api/study/finish')
         .send({ participant_code: code });
@@ -652,6 +661,14 @@ describe('Study API', () => {
         .post('/api/study/start')
         .set('X-Forwarded-For', '10.99.0.78');
       const code = start.body.participant_code;
+
+      // Same proof preconditions as above (PR #118 gate).
+      await request(app)
+        .post('/api/study/consent')
+        .send({ participant_code: code, consented: true });
+      await request(app)
+        .post('/api/study/save')
+        .send({ participant_code: code, payload: { total_coins: 2 } });
 
       // Fire both requests without awaiting in between — the per-study
       // advisory lock should serialize them so exactly one observes
