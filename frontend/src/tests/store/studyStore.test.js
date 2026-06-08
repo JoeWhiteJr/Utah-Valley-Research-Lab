@@ -23,6 +23,9 @@ describe('studyStore', () => {
       condition: null,
       loading: false,
       error: null,
+      finishStatus: 'idle',
+      finishError: null,
+      completedAt: null,
     })
     vi.clearAllMocks()
     sessionStorage.clear()
@@ -113,7 +116,7 @@ describe('studyStore', () => {
 
   it('markComplete() moves to demographics; finish() posts to /finish and moves to done', async () => {
     useStudyStore.setState({ participant_code: 'TH_x' })
-    studyApi.finish.mockResolvedValue({ data: { ok: true } })
+    studyApi.finish.mockResolvedValue({ data: { ok: true, already_completed: false, completed_at: '2026-06-01T12:00:00Z' } })
     useStudyStore.getState().markComplete()
     expect(useStudyStore.getState().step).toBe('demographics')
     await useStudyStore.getState().finish()
@@ -121,11 +124,49 @@ describe('studyStore', () => {
     expect(useStudyStore.getState().step).toBe('done')
   })
 
-  it('finish() still advances UI when /finish errors (debrief already seen)', async () => {
+  it('finish() transitions pending -> success and records completedAt', async () => {
+    useStudyStore.setState({ participant_code: 'TH_x', step: 'debrief' })
+    let resolveFinish
+    const finishPromise = new Promise((r) => { resolveFinish = r })
+    studyApi.finish.mockReturnValue(finishPromise)
+
+    const inflight = useStudyStore.getState().finish()
+    // While pending, status should reflect the in-flight call.
+    expect(useStudyStore.getState().finishStatus).toBe('pending')
+    expect(useStudyStore.getState().step).toBe('debrief')
+
+    resolveFinish({ data: { ok: true, already_completed: false, completed_at: '2026-06-01T12:00:00Z' } })
+    await inflight
+
+    const s = useStudyStore.getState()
+    expect(s.finishStatus).toBe('success')
+    expect(s.completedAt).toBe('2026-06-01T12:00:00Z')
+    expect(s.step).toBe('done')
+    expect(s.finishError).toBeNull()
+  })
+
+  it('finish() transitions pending -> error and does NOT advance step on api error', async () => {
+    useStudyStore.setState({ participant_code: 'TH_x', step: 'debrief' })
+    studyApi.finish.mockRejectedValue({
+      response: { data: { error: { message: 'server exploded' } } },
+    })
+    await useStudyStore.getState().finish()
+    const s = useStudyStore.getState()
+    expect(s.finishStatus).toBe('error')
+    expect(s.finishError).toBe('server exploded')
+    // Critical: stay on debrief so the user can retry; do NOT slip to 'done'
+    // (the old behaviour silently advanced even on failure).
+    expect(s.step).toBe('debrief')
+  })
+
+  it('finish() falls back to err.message when no response payload', async () => {
     useStudyStore.setState({ participant_code: 'TH_x', step: 'debrief' })
     studyApi.finish.mockRejectedValue(new Error('network'))
     await useStudyStore.getState().finish()
-    expect(useStudyStore.getState().step).toBe('done')
+    const s = useStudyStore.getState()
+    expect(s.finishStatus).toBe('error')
+    expect(s.finishError).toBe('network')
+    expect(s.step).toBe('debrief')
   })
 
   it('reset() clears participant state', () => {

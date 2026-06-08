@@ -613,6 +613,63 @@ describe('Study API', () => {
     });
   });
 
+  describe('Idempotent /finish', () => {
+    it('a second /finish for the same participant returns already_completed: true and does not change completed_at', async () => {
+      const start = await request(app)
+        .post('/api/study/start')
+        .set('X-Forwarded-For', '10.99.0.77');
+      const code = start.body.participant_code;
+
+      const first = await request(app)
+        .post('/api/study/finish')
+        .send({ participant_code: code });
+      expect(first.status).toBe(200);
+      expect(first.body.already_completed).toBe(false);
+      expect(first.body.completed_at).toBeTruthy();
+      const firstTs = first.body.completed_at;
+
+      // Double-click: same participant, same code, milliseconds later.
+      const second = await request(app)
+        .post('/api/study/finish')
+        .send({ participant_code: code });
+      expect(second.status).toBe(200);
+      expect(second.body.already_completed).toBe(true);
+      // Crucially the timestamp returned matches the first call — the UPDATE
+      // gate (`WHERE completed_at IS NULL`) prevented a re-stamp.
+      expect(second.body.completed_at).toBe(firstTs);
+
+      // And the row itself wasn't touched.
+      const row = await db.query(
+        'SELECT p.completed_at AS p_completed, a.completed_at AS a_completed FROM study_participants p JOIN study_assignments a ON a.participant_id = p.id WHERE p.participant_code = $1',
+        [code]
+      );
+      expect(new Date(row.rows[0].p_completed).toISOString()).toBe(new Date(firstTs).toISOString());
+      expect(new Date(row.rows[0].a_completed).toISOString()).toBe(new Date(firstTs).toISOString());
+    });
+
+    it('two concurrent /finish calls do not both report first-completion', async () => {
+      const start = await request(app)
+        .post('/api/study/start')
+        .set('X-Forwarded-For', '10.99.0.78');
+      const code = start.body.participant_code;
+
+      // Fire both requests without awaiting in between — the per-study
+      // advisory lock should serialize them so exactly one observes
+      // already_completed: false.
+      const [resA, resB] = await Promise.all([
+        request(app).post('/api/study/finish').send({ participant_code: code }),
+        request(app).post('/api/study/finish').send({ participant_code: code }),
+      ]);
+      expect(resA.status).toBe(200);
+      expect(resB.status).toBe(200);
+
+      const firstCount = [resA, resB].filter(r => r.body.already_completed === false).length;
+      const repeatCount = [resA, resB].filter(r => r.body.already_completed === true).length;
+      expect(firstCount).toBe(1);
+      expect(repeatCount).toBe(1);
+    });
+  });
+
   describe('Recruitment-target enforcement (picker)', () => {
     const { pickBalancedConditionTx, pickBalancedExperimentTx } = studyRouter._test;
 

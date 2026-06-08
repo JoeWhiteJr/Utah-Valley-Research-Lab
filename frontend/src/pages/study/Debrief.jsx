@@ -41,9 +41,11 @@ function describeCondition(experiment, condition) {
 }
 
 export default function StudyDebrief() {
-  const { experiment, condition, finish } = useStudyStore()
+  const { experiment, condition, finish, finishStatus, finishError } = useStudyStore()
   const conditionParagraph = describeCondition(experiment, condition)
   const experimentLabel = EXPERIMENT_LABELS[experiment] || 'this study'
+  const isPending = finishStatus === 'pending'
+  const isError = finishStatus === 'error'
 
   return (
     <div className="flex items-center justify-center min-h-screen p-4">
@@ -103,8 +105,33 @@ export default function StudyDebrief() {
 
         <FollowUpOptIn />
 
-        <Button onClick={finish} className="w-full" size="lg">
-          Finish
+        {isError && (
+          <div
+            role="alert"
+            aria-live="polite"
+            className="mb-4 p-3 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-700 rounded-lg text-red-700 dark:text-red-400 text-sm"
+          >
+            <p className="font-semibold mb-1">We couldn&apos;t save your completion.</p>
+            <p className="mb-3">{finishError || 'Please try again.'}</p>
+            <Button
+              onClick={finish}
+              size="sm"
+              variant="secondary"
+              disabled={isPending}
+            >
+              Try again
+            </Button>
+          </div>
+        )}
+
+        <Button
+          onClick={finish}
+          className="w-full"
+          size="lg"
+          loading={isPending}
+          disabled={isPending}
+        >
+          {isPending ? 'Saving...' : 'Finish'}
         </Button>
 
         {import.meta.env.DEV && (
