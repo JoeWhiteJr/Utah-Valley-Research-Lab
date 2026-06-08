@@ -150,6 +150,10 @@ export default function StudyDebrief() {
 // anonymity guarantee. Wording reflects that.
 function FollowUpOptIn() {
   const study_slug = useStudyStore((s) => s.study_slug)
+  // participant_code is required by the backend as proof-of-participation
+  // (bot gate). The backend validates it but never stores it next to the
+  // email, so the consent form's anonymity promise is preserved.
+  const participant_code = useStudyStore((s) => s.participant_code)
   const [email, setEmail] = useState('')
   const [status, setStatus] = useState('idle') // idle | sending | sent | error
   const [error, setError] = useState(null)
@@ -161,7 +165,20 @@ function FollowUpOptIn() {
     setStatus('sending')
     setError(null)
     try {
-      await studyApi.followUp(trimmed, study_slug)
+      // Mark completion FIRST so the backend's proof-of-participation check
+      // on /follow-up sees a completed assignment. /finish is idempotent —
+      // the explicit Finish button at the bottom of the page can still call
+      // it again without side effects. We swallow finish errors because the
+      // dominant failure mode the user cares about is the email signup;
+      // /follow-up will return 403 if the completion really didn't land.
+      if (participant_code) {
+        try {
+          await studyApi.finish(participant_code)
+        } catch {
+          // fall through — let /follow-up's 403 surface the real problem.
+        }
+      }
+      await studyApi.followUp(trimmed, study_slug, participant_code)
       setStatus('sent')
     } catch (err) {
       setStatus('error')

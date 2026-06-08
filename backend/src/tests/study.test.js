@@ -496,6 +496,66 @@ describe('Study API', () => {
     });
   });
 
+  describe('POST /api/study/snapshot (race-free 200-row cap)', () => {
+    it('rejects with 429 once an assignment has 200 snapshot rows, and concurrent calls cannot push it past', async () => {
+      // Seed a participant with a distinct IP to avoid the dedup window.
+      const start = await request(app)
+        .post('/api/study/start')
+        .set('X-Forwarded-For', '10.99.2.50');
+      expect(start.status).toBe(201);
+      const code = start.body.participant_code;
+      const assignmentId = start.body.assignment_id;
+
+      // Pre-seed 199 snapshot rows directly so the race window is a single
+      // INSERT (the 200th) — much faster than firing 199 HTTP calls.
+      await db.query(
+        `INSERT INTO study_responses (assignment_id, payload, is_snapshot)
+         SELECT $1, '{}'::jsonb, true FROM generate_series(1, 199)`,
+        [assignmentId]
+      );
+
+      // Fire many concurrent snapshot POSTs. With the advisory-lock-guarded
+      // transaction, exactly one should land row #200 and the rest should
+      // bounce with 429.
+      const CONCURRENCY = 8;
+      const results = await Promise.all(
+        Array.from({ length: CONCURRENCY }, () =>
+          request(app)
+            .post('/api/study/snapshot')
+            .send({ participant_code: code, payload: { t: Date.now() } })
+        )
+      );
+
+      const okCount = results.filter(r => r.status === 200).length;
+      const tooManyCount = results.filter(r => r.status === 429).length;
+      // Exactly one snapshot insert may succeed; all others must be rejected.
+      expect(okCount).toBe(1);
+      expect(okCount + tooManyCount).toBe(CONCURRENCY);
+
+      // And the table reflects the cap — never more than 200 rows for this
+      // assignment, no matter how many concurrent callers raced.
+      const after = await db.query(
+        'SELECT COUNT(*)::int AS n FROM study_responses WHERE assignment_id = $1 AND is_snapshot = true',
+        [assignmentId]
+      );
+      expect(after.rows[0].n).toBe(200);
+
+      // A follow-up call after the cap must also 429 cleanly.
+      const tail = await request(app)
+        .post('/api/study/snapshot')
+        .send({ participant_code: code, payload: { t: Date.now() } });
+      expect(tail.status).toBe(429);
+      expect(tail.body.error.message).toMatch(/Snapshot limit/i);
+    });
+
+    it('returns 404 when the participant_code does not exist', async () => {
+      const res = await request(app)
+        .post('/api/study/snapshot')
+        .send({ participant_code: 'TH_does_not_exist_xxxxxx', payload: { t: 1 } });
+      expect(res.status).toBe(404);
+    });
+  });
+
   describe('Recruitment targets in /stats', () => {
     it('decorates conditions with target + progress when the study has a target', async () => {
       const res = await request(app)
@@ -515,14 +575,37 @@ describe('Study API', () => {
   });
 
   describe('POST /api/study/follow-up', () => {
+    // Seeds a participant + assignment, optionally calling /finish so the
+    // assignment is marked completed_at. Returns the participant_code.
+    // Each call uses a distinct X-Forwarded-For so the same-IP dedup window
+    // doesn't reject the start.
+    async function seedParticipant({ ip, completed }) {
+      const start = await request(app)
+        .post('/api/study/start')
+        .set('X-Forwarded-For', ip);
+      expect(start.status).toBe(201);
+      const code = start.body.participant_code;
+      if (completed) {
+        await request(app)
+          .post('/api/study/save')
+          .send({ participant_code: code, payload: { total_coins: 1 } });
+        const fin = await request(app)
+          .post('/api/study/finish')
+          .send({ participant_code: code });
+        expect(fin.status).toBe(200);
+      }
+      return code;
+    }
+
     afterAll(async () => {
       await db.query("DELETE FROM study_follow_up_signups WHERE email LIKE '%followup-test%'");
     });
 
-    it('accepts an email + records it under the most recent active study', async () => {
+    it('accepts an email + records it under the most recent active study (completed participant)', async () => {
+      const code = await seedParticipant({ ip: '10.99.1.10', completed: true });
       const res = await request(app)
         .post('/api/study/follow-up')
-        .send({ email: 'followup-test-1@example.com' });
+        .send({ email: 'followup-test-1@example.com', participant_code: code });
       expect(res.status).toBe(200);
       expect(res.body.ok).toBe(true);
       const rows = await db.query(
@@ -533,12 +616,13 @@ describe('Study API', () => {
     });
 
     it('is idempotent on a repeat submission', async () => {
+      const code = await seedParticipant({ ip: '10.99.1.11', completed: true });
       await request(app)
         .post('/api/study/follow-up')
-        .send({ email: 'followup-test-2@example.com' });
+        .send({ email: 'followup-test-2@example.com', participant_code: code });
       await request(app)
         .post('/api/study/follow-up')
-        .send({ email: 'followup-test-2@example.com' });
+        .send({ email: 'followup-test-2@example.com', participant_code: code });
       const rows = await db.query(
         "SELECT email FROM study_follow_up_signups WHERE email = $1",
         ['followup-test-2@example.com']
@@ -547,17 +631,68 @@ describe('Study API', () => {
     });
 
     it('rejects invalid emails', async () => {
+      const code = await seedParticipant({ ip: '10.99.1.12', completed: true });
       const res = await request(app)
         .post('/api/study/follow-up')
-        .send({ email: 'not-an-email' });
+        .send({ email: 'not-an-email', participant_code: code });
       expect(res.status).toBe(400);
     });
 
     it('rejects unknown study_slug', async () => {
+      const code = await seedParticipant({ ip: '10.99.1.13', completed: true });
       const res = await request(app)
         .post('/api/study/follow-up')
-        .send({ email: 'followup-test-3@example.com', study_slug: 'does-not-exist' });
+        .send({ email: 'followup-test-3@example.com', study_slug: 'does-not-exist', participant_code: code });
       expect(res.status).toBe(404);
+    });
+
+    it('returns 400 when participant_code is missing entirely', async () => {
+      const res = await request(app)
+        .post('/api/study/follow-up')
+        .send({ email: 'followup-test-nocode@example.com' });
+      // Missing required field — caught by validationResult as 400.
+      expect(res.status).toBe(400);
+    });
+
+    it('returns 403 when participant_code does not match any participant', async () => {
+      const res = await request(app)
+        .post('/api/study/follow-up')
+        .send({ email: 'followup-test-bogus@example.com', participant_code: 'TH_does_not_exist_xxxxxx' });
+      expect(res.status).toBe(403);
+      expect(res.body.error.message).toMatch(/completed participation/i);
+    });
+
+    it('returns 403 when the participant exists but has not completed', async () => {
+      const code = await seedParticipant({ ip: '10.99.1.14', completed: false });
+      const res = await request(app)
+        .post('/api/study/follow-up')
+        .send({ email: 'followup-test-incomplete@example.com', participant_code: code });
+      expect(res.status).toBe(403);
+      expect(res.body.error.message).toMatch(/completed participation/i);
+      // And nothing was inserted.
+      const rows = await db.query(
+        "SELECT email FROM study_follow_up_signups WHERE email = $1",
+        ['followup-test-incomplete@example.com']
+      );
+      expect(rows.rows).toHaveLength(0);
+    });
+
+    it('does NOT persist participant_code on the signup row', async () => {
+      const code = await seedParticipant({ ip: '10.99.1.15', completed: true });
+      const email = 'followup-test-anon@example.com';
+      const res = await request(app)
+        .post('/api/study/follow-up')
+        .send({ email, participant_code: code });
+      expect(res.status).toBe(200);
+      // The row exists.
+      const rows = await db.query(
+        "SELECT * FROM study_follow_up_signups WHERE email = $1",
+        [email]
+      );
+      expect(rows.rows).toHaveLength(1);
+      // No column on the row leaks the participant_code (substring match).
+      const serialized = JSON.stringify(rows.rows[0]);
+      expect(serialized).not.toContain(code);
     });
 
     it('stores no reference to participant_code', async () => {

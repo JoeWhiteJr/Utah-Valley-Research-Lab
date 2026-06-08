@@ -307,6 +307,9 @@ router.post('/consent', [
 });
 
 // Mid-game snapshot. Fire-and-forget from the iframe; failures shouldn't block the game.
+// The COUNT + INSERT pair runs inside a transaction guarded by a per-assignment
+// advisory lock so two concurrent /snapshot calls can't both observe count < 200
+// and both insert past the cap. `xact_lock` auto-releases on COMMIT/ROLLBACK.
 router.post('/snapshot', saveLimiter, [
   body('participant_code').isString().trim().isLength({ min: 6, max: 64 }),
   body('payload').isObject().withMessage('payload must be a JSON object'),
@@ -316,45 +319,53 @@ router.post('/snapshot', saveLimiter, [
     return true;
   }),
 ], async (req, res, next) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ error: { message: 'Validation failed', details: errors.array() } });
+  }
+  const { participant_code, payload } = req.body;
+
+  const assignmentLookup = await db.query(
+    `SELECT a.id
+     FROM study_assignments a
+     JOIN study_participants p ON p.id = a.participant_id
+     WHERE p.participant_code = $1
+     ORDER BY a.assigned_at DESC LIMIT 1`,
+    [participant_code]
+  );
+
+  if (assignmentLookup.rows.length === 0) {
+    return res.status(404).json({ error: { message: 'Assignment not found' } });
+  }
+  const assignment = assignmentLookup.rows[0];
+
+  const client = await db.getClient();
   try {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({ error: { message: 'Validation failed', details: errors.array() } });
-    }
-    const { participant_code, payload } = req.body;
-
-    const assignment = await db.query(
-      `SELECT a.id
-       FROM study_assignments a
-       JOIN study_participants p ON p.id = a.participant_id
-       WHERE p.participant_code = $1
-       ORDER BY a.assigned_at DESC LIMIT 1`,
-      [participant_code]
+    await client.query('BEGIN');
+    await client.query(
+      'SELECT pg_advisory_xact_lock(hashtext($1))',
+      ['snapshot_cap:' + assignment.id]
     );
-
-    if (assignment.rows.length === 0) {
-      return res.status(404).json({ error: { message: 'Assignment not found' } });
-    }
-
-    // Cap snapshot rows per assignment so a runaway iframe can't fill the
-    // table. Single COUNT before insert keeps the check cheap.
-    const cnt = await db.query(
+    const cnt = await client.query(
       'SELECT COUNT(*)::int AS n FROM study_responses WHERE assignment_id = $1 AND is_snapshot = true',
-      [assignment.rows[0].id]
+      [assignment.id]
     );
     if (cnt.rows[0].n >= 200) {
+      await client.query('ROLLBACK');
       return res.status(429).json({ error: { message: 'Snapshot limit reached for this session' } });
     }
-
-    await db.query(
-      `INSERT INTO study_responses (assignment_id, payload, is_snapshot)
-       VALUES ($1, $2, true)`,
-      [assignment.rows[0].id, payload]
+    await client.query(
+      `INSERT INTO study_responses (assignment_id, payload, is_snapshot, submitted_at)
+       VALUES ($1, $2, true, CURRENT_TIMESTAMP)`,
+      [assignment.id, payload]
     );
-
-    res.json({ ok: true });
-  } catch (error) {
-    next(error);
+    await client.query('COMMIT');
+    return res.json({ ok: true });
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    return next(err);
+  } finally {
+    client.release();
   }
 });
 
@@ -608,16 +619,22 @@ router.get('/stats', authenticate, requireRole('admin'), async (req, res, next) 
 // participant data — no foreign key, no participant_code, no way to relink to
 // a specific response. Keeps the consent form's anonymity promise intact.
 // Idempotent: same email + same study collapses on the unique constraint.
+//
+// participant_code is required as proof-of-participation (bot gate): we verify
+// it maps to a participant who has actually completed the study, but we do
+// NOT persist it next to the email — the storage row remains (study_id, email)
+// only, preserving the consent form's anonymity guarantee.
 router.post('/follow-up', saveLimiter, [
   body('email').isEmail().normalizeEmail().withMessage('Valid email required'),
   body('study_slug').optional().isString().trim().isLength({ min: 1, max: 64 }),
+  body('participant_code').isString().isLength({ min: 6, max: 64 }),
 ], async (req, res, next) => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       return res.status(400).json({ error: { message: 'Validation failed', details: errors.array() } });
     }
-    const { email } = req.body;
+    const { email, participant_code } = req.body;
     const requestedSlug = (req.body.study_slug || '').trim() || null;
     const resolved = await resolveStudy(requestedSlug);
     if (!resolved) {
@@ -625,6 +642,24 @@ router.post('/follow-up', saveLimiter, [
     }
     const { dbRow: study } = resolved;
 
+    // Proof-of-participation check: the participant_code must map to a
+    // participant whose assignment is marked complete. This blocks drive-by
+    // bots dumping addresses into the mailing list under any active study.
+    // (Schema note: study_assignments.participant_id → study_participants.id;
+    // we go through the assignments row because completed_at lives there.)
+    const proof = await db.query(
+      `SELECT p.id FROM study_participants p
+       JOIN study_assignments a ON a.participant_id = p.id
+       WHERE p.participant_code = $1 AND a.completed_at IS NOT NULL`,
+      [participant_code]
+    );
+    if (!proof.rows[0]) {
+      return res.status(403).json({ error: { message: 'Follow-up requires a completed participation' } });
+    }
+
+    // CRITICAL: do NOT include participant_code in the INSERT. The whole point
+    // of the SEPARATE signups table is that email cannot be relinked to a
+    // specific response. participant_code is consumed above as a gate only.
     await db.query(
       `INSERT INTO study_follow_up_signups (study_id, email)
        VALUES ($1, $2)
