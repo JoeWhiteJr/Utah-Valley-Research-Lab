@@ -568,8 +568,14 @@ export const studyApi = {
     api.post('/study/finish', { participant_code }),
   // Public listing of active studies for the homepage card + /participate page.
   listActiveStudies: () => api.get('/study/list', { _silent: true }),
-  followUp: (email, study_slug = null) =>
-    api.post('/study/follow-up', { email, ...(study_slug ? { study_slug } : {}) }),
+  // participant_code is required as proof-of-participation; the backend
+  // validates it but does NOT store it alongside the email — anonymity intact.
+  followUp: (email, study_slug = null, participant_code = null) =>
+    api.post('/study/follow-up', {
+      email,
+      ...(study_slug ? { study_slug } : {}),
+      ...(participant_code ? { participant_code } : {}),
+    }),
   stats: (slug = null) => api.get('/study/stats', { params: slug ? { slug } : undefined }),
   exportUrl: (experiment, slug = null) =>
     `${API_URL}/study/export/${experiment}${slug ? `?slug=${encodeURIComponent(slug)}` : ''}`,
