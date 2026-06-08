@@ -1,24 +1,18 @@
 const express = require('express');
-const rateLimit = require('express-rate-limit');
 const { body, validationResult } = require('express-validator');
 const logger = require('../config/logger');
+const { createLimiter } = require('../middleware/rateLimiter');
 const { sendContactNotification } = require('../services/email');
 
 const router = express.Router();
 
-const isTestEnv = process.env.NODE_ENV === 'test';
-
 // Strict rate limit on the public contact form: each call sends an email, so
 // abuse hurts SMTP relay quota and deliverability reputation.
-const contactLimiter = isTestEnv
-  ? (req, res, next) => next()
-  : rateLimit({
-      windowMs: 60 * 60 * 1000, // 1 hour
-      max: 5,
-      standardHeaders: true,
-      legacyHeaders: false,
-      message: { error: { message: 'Too many contact form submissions. Please try again in an hour.' } }
-    });
+const contactLimiter = createLimiter({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 5,
+  message: 'Too many contact form submissions. Please try again in an hour.'
+});
 
 router.post('/', contactLimiter, [
   body('name').trim().notEmpty().withMessage('Name is required'),

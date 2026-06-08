@@ -1,18 +1,18 @@
 const express = require('express');
-const rateLimit = require('express-rate-limit');
 const { body, param, query, validationResult } = require('express-validator');
 const db = require('../config/database');
 const { authenticate, optionalAuthenticate, requireRole } = require('../middleware/auth');
 const { sanitizeBody } = require('../middleware/sanitize');
+const { createLimiter } = require('../middleware/rateLimiter');
 const logger = require('../config/logger');
 
 const router = express.Router();
 
 // Rate limiter for public submissions
-const submitLimiter = rateLimit({
+const submitLimiter = createLimiter({
   windowMs: 15 * 60 * 1000,
   max: 5,
-  message: { error: { message: 'Too many submissions. Please try again later.' } }
+  message: 'Too many submissions. Please try again later.'
 });
 
 // POST / — submit a recommendation (public, optionally authenticated)

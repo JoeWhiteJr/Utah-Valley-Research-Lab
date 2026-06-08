@@ -1,43 +1,34 @@
 const express = require('express');
-const { rateLimit, ipKeyGenerator } = require('express-rate-limit');
+const { ipKeyGenerator } = require('express-rate-limit');
 const db = require('../config/database');
 const logger = require('../config/logger');
 const { authenticate, requireRole } = require('../middleware/auth');
+const { createLimiter } = require('../middleware/rateLimiter');
 const ragQueryService = require('../services/ragQueryService');
 const { indexFile } = require('../services/ragIndexingService');
 
 const router = express.Router();
 
-const isTestEnv = process.env.NODE_ENV === 'test';
-
 // Per-user rate limit on Claude messages — every send is a billable Anthropic
 // call, so a logged-in user (or a leaked token) can rack up cost quickly.
-const claudeMessageLimiter = isTestEnv
-  ? (req, res, next) => next()
-  : rateLimit({
-      windowMs: 5 * 60 * 1000, // 5 minutes
-      max: 30,
-      standardHeaders: true,
-      legacyHeaders: false,
-      message: { error: { message: 'Too many AI assistant messages. Please slow down and try again in a few minutes.' } },
-      keyGenerator: (req) => req.user?.id || ipKeyGenerator(req.ip)
-    });
+const claudeMessageLimiter = createLimiter({
+  windowMs: 5 * 60 * 1000, // 5 minutes
+  max: 30,
+  message: 'Too many AI assistant messages. Please slow down and try again in a few minutes.',
+  keyGenerator: (req) => req.user?.id || ipKeyGenerator(req.ip)
+});
 
 // 24h cap stacked on top of the 5-min limiter above. The 5-min window prevents
 // burst spikes, but a determined user could still grind 30 calls every 5 min
 // (~8,640/day). The daily cap puts a real ceiling on insider grinding and
 // leaked-token abuse. Wired BEFORE claudeMessageLimiter so it short-circuits
 // cheaply once the daily budget is exhausted.
-const dailyClaudeLimiter = isTestEnv
-  ? (req, res, next) => next()
-  : rateLimit({
-      windowMs: 24 * 60 * 60 * 1000, // 24 hours (rolling)
-      max: 200,
-      standardHeaders: true,
-      legacyHeaders: false,
-      message: { error: { message: 'Daily Claude usage limit reached. Try again tomorrow.' } },
-      keyGenerator: (req) => req.user?.id || ipKeyGenerator(req.ip)
-    });
+const dailyClaudeLimiter = createLimiter({
+  windowMs: 24 * 60 * 60 * 1000, // 24 hours (rolling)
+  max: 200,
+  message: 'Daily Claude usage limit reached. Try again tomorrow.',
+  keyGenerator: (req) => req.user?.id || ipKeyGenerator(req.ip)
+});
 
 // All routes require authentication
 router.use(authenticate);
