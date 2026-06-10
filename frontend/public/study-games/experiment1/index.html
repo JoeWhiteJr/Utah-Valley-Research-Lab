@@ -119,6 +119,29 @@ Date: January 2025
             outline-offset: 4px;
             border-radius: 8px;
         }
+
+        /* Mobile fallback. The GameFrame mobile gate normally diverts phones
+           before they reach this iframe, but a participant who taps "Continue
+           anyway" on a landscape phone needs the chest + QUIT button to stay
+           on-screen. Mirrors the @media rule added to experiments 2 and 3. */
+        @media (max-width: 768px) {
+            .jspsych-content {
+                max-width: 100%;
+                font-size: 16px;
+            }
+            .chest {
+                font-size: 70px !important;
+                margin: 16px 0 !important;
+            }
+            #click-count {
+                font-size: 14px;
+            }
+            .jspsych-btn {
+                padding: 10px 18px;
+                font-size: 16px;
+                margin: 6px 4px;
+            }
+        }
     </style>
 </head>
 <body>

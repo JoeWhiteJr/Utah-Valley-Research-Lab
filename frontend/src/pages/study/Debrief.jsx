@@ -130,6 +130,7 @@ export default function StudyDebrief() {
           size="lg"
           loading={isPending}
           disabled={isPending}
+          aria-busy={isPending}
         >
           {isPending ? 'Saving...' : 'Finish'}
         </Button>

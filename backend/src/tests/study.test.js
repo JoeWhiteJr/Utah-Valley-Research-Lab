@@ -586,6 +586,11 @@ describe('Study API', () => {
       expect(start.status).toBe(201);
       const code = start.body.participant_code;
       if (completed) {
+        // /finish gates on consent + a non-snapshot response (PR #118).
+        // Seed both so the helper produces a truly completed participant.
+        await request(app)
+          .post('/api/study/consent')
+          .send({ participant_code: code, consented: true });
         await request(app)
           .post('/api/study/save')
           .send({ participant_code: code, payload: { total_coins: 1 } });
