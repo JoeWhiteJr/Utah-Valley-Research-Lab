@@ -11,6 +11,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useStudyStore } from '../../store/studyStore'
 import Button from '../../components/Button'
+import { MIN_CONSENT_TIME_MS } from './constants'
 
 const HONEYPOT_OOPS = 'Something went wrong. Please refresh this page and try again.'
 
@@ -48,8 +49,6 @@ const CONSENT_SECTIONS = [
     body: 'You must be at least 18 years old to participate.',
   },
 ]
-
-const MIN_CONSENT_TIME_MS = 3000
 
 export default function StudyConsent() {
   const { submitConsent, loading, error } = useStudyStore()
