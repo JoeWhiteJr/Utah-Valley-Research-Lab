@@ -696,7 +696,13 @@ describe('Study API', () => {
       const code = start.body.participant_code;
       if (completed) {
         // /finish gates on consent + a non-snapshot response (PR #118).
-        // Seed both so the helper produces a truly completed participant.
+        // Backdate created_at so the CONSENT_MIN_SECONDS gate (PR-5) doesn't
+        // 403 the immediate /consent call. Seed consent + save so the helper
+        // produces a truly completed participant.
+        await db.query(
+          "UPDATE study_participants SET created_at = NOW() - INTERVAL '10 seconds' WHERE participant_code = $1",
+          [code]
+        );
         await request(app)
           .post('/api/study/consent')
           .send({ participant_code: code, consented: true });
@@ -832,6 +838,12 @@ describe('Study API', () => {
       // /finish now requires real proof of participation (consent + final
       // response), so a complete dedup-trigger flow has to record consent and
       // a /save before /finish — see fix/study-finish-quota-poison.
+      // Backdate created_at so the CONSENT_MIN_SECONDS gate (PR-5) doesn't
+      // 403 the immediate consent call.
+      await db.query(
+        "UPDATE study_participants SET created_at = NOW() - INTERVAL '10 seconds' WHERE participant_code = $1",
+        [start1.body.participant_code]
+      );
       await request(app)
         .post('/api/study/consent')
         .send({ participant_code: start1.body.participant_code, consented: true });
@@ -870,7 +882,12 @@ describe('Study API', () => {
       const code = start.body.participant_code;
 
       // /finish now requires consent + at least one final response as proof
-      // of real participation (PR #118 quota-poison gate).
+      // of real participation (PR #118 quota-poison gate). Backdate created_at
+      // so the CONSENT_MIN_SECONDS gate (PR-5) doesn't 403 the consent call.
+      await db.query(
+        "UPDATE study_participants SET created_at = NOW() - INTERVAL '10 seconds' WHERE participant_code = $1",
+        [code]
+      );
       await request(app)
         .post('/api/study/consent')
         .send({ participant_code: code, consented: true });
@@ -911,7 +928,12 @@ describe('Study API', () => {
         .set('X-Forwarded-For', '10.99.0.78');
       const code = start.body.participant_code;
 
-      // Same proof preconditions as above (PR #118 gate).
+      // Same proof preconditions as above (PR #118 gate). Backdate for
+      // PR-5's CONSENT_MIN_SECONDS gate.
+      await db.query(
+        "UPDATE study_participants SET created_at = NOW() - INTERVAL '10 seconds' WHERE participant_code = $1",
+        [code]
+      );
       await request(app)
         .post('/api/study/consent')
         .send({ participant_code: code, consented: true });
