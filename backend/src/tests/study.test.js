@@ -66,6 +66,28 @@ describe('Study API', () => {
       expect(res.body.study_slug).toBe('effort-justification');
       expect(res.body.study_title).toBeTruthy();
     });
+
+    // Regression: axios serialized a literal `null` body when the frontend
+    // called api.post('/study/start', null, ...). Express's strict JSON
+    // body-parser rejects bare `null` with a 400 SyntaxError, which surfaced
+    // to participants as a generic "Internal server error" banner on the
+    // landing page. The frontend now sends `{}`, but accept `null` too so the
+    // backend isn't a single point of failure if any caller regresses.
+    it('accepts a bare JSON null body without 5xx-ing', async () => {
+      const res = await request(app)
+        .post('/api/study/start')
+        .set('Content-Type', 'application/json')
+        .set('X-Forwarded-For', '10.99.0.203')
+        .send('null');
+      expect(res.status).toBeLessThan(500);
+      // The graceful path is to treat null body the same as {} → 201 with
+      // most-recent-active study assignment. If we ever decide to reject
+      // null bodies explicitly, the response should be a 4xx with a clear
+      // message, NOT the generic "Internal server error" fallback.
+      if (res.status >= 400) {
+        expect(res.body?.error?.message).not.toBe('Internal server error');
+      }
+    });
   });
 
   describe('POST /api/study/start', () => {

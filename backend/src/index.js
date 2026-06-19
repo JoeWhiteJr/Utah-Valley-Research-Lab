@@ -185,6 +185,18 @@ app.get('/api/health', async (req, res) => {
 // Error handling middleware
 app.use((err, req, res, _next) => {
   logger.error({ err }, 'Unhandled error');
+
+  // body-parser strict-mode rejects bare JSON `null`/numbers/strings with a
+  // SyntaxError + status 400. Without this branch the generic fallback below
+  // surfaced as "Internal server error" on the study landing page when a
+  // frontend caller posted a `null` body. Return a clear 400 instead so the
+  // failure is diagnosable from the client.
+  if (err.type === 'entity.parse.failed' || (err instanceof SyntaxError && err.status === 400)) {
+    return res.status(400).json({
+      error: { message: 'Invalid JSON body' }
+    });
+  }
+
   res.status(err.status || 500).json({
     error: {
       message: process.env.NODE_ENV === 'development' ? err.message : 'Internal server error',
