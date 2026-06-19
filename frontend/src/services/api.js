@@ -553,7 +553,9 @@ export const resourcesApi = {
 // Research study (effort-justification games at /study)
 export const studyApi = {
   // slug is optional; when null the backend uses the most recently created active study.
-  start: (slug = null) => api.post('/study/start', null, { params: slug ? { slug } : undefined }),
+  // Body MUST be {} (not null) — express body-parser runs in strict mode and rejects
+  // bare JSON `null` with a 400, surfacing as a generic "Internal server error" to participants.
+  start: (slug = null) => api.post('/study/start', {}, { params: slug ? { slug } : undefined }),
   // The /consent endpoint is reused for the initial consent submit AND the
   // post-game demographics submit. Body shape decides which:
   //   { consented: true, demographics: null } → stamps consent_given_at
