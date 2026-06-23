@@ -11,7 +11,7 @@ export default function StudyLanding() {
 
   return (
     <div className="flex items-center justify-center min-h-screen p-4">
-      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8 max-w-2xl w-full">
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-5 sm:p-8 max-w-2xl w-full">
         <h1 className="font-display font-bold text-3xl text-text-primary dark:text-gray-100 mb-3">
           Research Study
         </h1>
@@ -19,7 +19,7 @@ export default function StudyLanding() {
           Thank you for your interest in participating. This is a research study on decision-making and behavior.
         </p>
         <div className="bg-gray-50 dark:bg-gray-700/40 rounded-organic p-4 mb-6 space-y-2 text-sm text-text-secondary dark:text-gray-300">
-          <p><strong>Estimated time:</strong> 10–15 minutes</p>
+          <p><strong>Estimated time:</strong> 10–20 minutes</p>
           <p><strong>Participation:</strong> Anonymous &mdash; no name or email required.</p>
           <p><strong>Device:</strong> A laptop or desktop is recommended for the best experience.</p>
           <p><strong>Audio:</strong> Not required.</p>

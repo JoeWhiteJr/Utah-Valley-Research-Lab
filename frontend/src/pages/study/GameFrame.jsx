@@ -84,7 +84,7 @@ export default function StudyGameFrame() {
   if (!participant_code || !experiment) {
     return (
       <div className="flex items-center justify-center min-h-screen p-4">
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8 max-w-md text-center">
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-5 sm:p-8 max-w-md text-center">
           <p className="text-text-secondary dark:text-gray-400">
             No active study session. Please start over.
           </p>
@@ -97,7 +97,7 @@ export default function StudyGameFrame() {
   if (!path) {
     return (
       <div className="flex items-center justify-center min-h-screen p-4">
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8 max-w-md text-center">
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-5 sm:p-8 max-w-md text-center">
           <p className="text-red-600 dark:text-red-400">Unknown experiment: {experiment}</p>
         </div>
       </div>
@@ -113,7 +113,7 @@ export default function StudyGameFrame() {
   ) {
     return (
       <div className="flex items-center justify-center min-h-screen p-4">
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8 max-w-md w-full text-center space-y-4">
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-5 sm:p-8 max-w-md w-full text-center space-y-4">
           <h2 className="font-display font-bold text-xl text-text-primary dark:text-gray-100">
             This task works best on a larger screen
           </h2>
@@ -144,7 +144,7 @@ export default function StudyGameFrame() {
       <div className="flex-1 flex flex-col">
         {iframeError ? (
           <div className="flex items-center justify-center flex-1 p-4">
-            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8 max-w-md text-center space-y-4">
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-5 sm:p-8 max-w-md text-center space-y-4">
               <p className="text-text-secondary dark:text-gray-400">
                 The task didn&apos;t load. You can open it directly in a new tab:
               </p>
