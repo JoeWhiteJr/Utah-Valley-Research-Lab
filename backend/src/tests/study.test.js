@@ -1194,9 +1194,15 @@ describe('Study API', () => {
         .post('/api/study/start')
         .set('X-Forwarded-For', ips[1]);
       expect(start2.status).toBe(201);
+      // Backdate created_at past PR-5's CONSENT_MIN_SECONDS gate, and send
+      // consented:true to satisfy PR-1's explicit-consent requirement.
+      await db.query(
+        "UPDATE study_participants SET created_at = NOW() - INTERVAL '10 seconds' WHERE participant_code = $1",
+        [start2.body.participant_code]
+      );
       await request(app)
         .post('/api/study/consent')
-        .send({ participant_code: start2.body.participant_code });
+        .send({ participant_code: start2.body.participant_code, consented: true });
       await request(app)
         .post('/api/study/save')
         .send({ participant_code: start2.body.participant_code, payload: { total_coins: 5 } });
@@ -1205,9 +1211,17 @@ describe('Study API', () => {
         .post('/api/study/start')
         .set('X-Forwarded-For', ips[2]);
       expect(start3.status).toBe(201);
+      await db.query(
+        "UPDATE study_participants SET created_at = NOW() - INTERVAL '10 seconds' WHERE participant_code = $1",
+        [start3.body.participant_code]
+      );
       await request(app)
         .post('/api/study/consent')
-        .send({ participant_code: start3.body.participant_code, demographics: { age: 22, gender: 'Male' } });
+        .send({
+          participant_code: start3.body.participant_code,
+          consented: true,
+          demographics: { age: 22, gender: 'Male' },
+        });
       await request(app)
         .post('/api/study/save')
         .send({ participant_code: start3.body.participant_code, payload: { total_coins: 10 } });
