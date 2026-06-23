@@ -590,6 +590,8 @@ export const studyApi = {
   listParticipants: (params = {}) =>
     api.get('/study/participants', { params }),
   getParticipant: (code) => api.get(`/study/participants/${code}`),
+  funnel: (slug) => api.get(`/study/${encodeURIComponent(slug)}/funnel`),
+  limitHits: (slug) => api.get(`/study/${encodeURIComponent(slug)}/limit-hits`),
 }
 
 export default api

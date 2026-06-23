@@ -13,6 +13,7 @@ const EXPERIMENT_LABELS = {
 
 export default function ResearchStudies() {
   const [stats, setStats] = useState(null)
+  const [activeSlug, setActiveSlug] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
 
@@ -22,6 +23,7 @@ export default function ResearchStudies() {
     try {
       const { data } = await studyApi.stats()
       setStats(data.stats)
+      setActiveSlug(data.study?.slug || null)
     } catch (err) {
       setError(err.response?.data?.error?.message || 'Failed to load stats')
     } finally {
@@ -92,8 +94,179 @@ export default function ResearchStudies() {
         </div>
       )}
 
+      {activeSlug && (
+        <>
+          <LimitHitsCard slug={activeSlug} />
+          <FunnelCard slug={activeSlug} />
+        </>
+      )}
       <VerifyCompletionCode />
       <RecentParticipants />
+    </div>
+  )
+}
+
+// Per-condition funnel. Renders as a plain table because over-engineering a
+// stacked bar chart for five integers is more code than insight. Dropoff
+// percent columns make the "where do they leak?" question read at a glance.
+function FunnelCard({ slug }) {
+  const [funnel, setFunnel] = useState(null)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState(null)
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      const { data } = await studyApi.funnel(slug)
+      setFunnel(data.funnel)
+    } catch (err) {
+      setError(err.response?.data?.error?.message || 'Failed to load funnel')
+    } finally {
+      setLoading(false)
+    }
+  }, [slug])
+
+  useEffect(() => {
+    load()
+  }, [load])
+
+  const pct = (num, den) => {
+    if (!den) return '—'
+    return `${Math.round((num / den) * 100)}%`
+  }
+
+  return (
+    <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-5 shadow-sm mt-6">
+      <div className="flex items-center justify-between mb-4">
+        <div>
+          <h2 className="font-display font-semibold text-lg text-text-primary dark:text-gray-100">
+            Funnel
+          </h2>
+          <p className="text-xs text-text-secondary dark:text-gray-500 mt-0.5">
+            Landed → consented → responded → demographics → completed, per condition.
+          </p>
+        </div>
+        <Button variant="outline" size="sm" onClick={load} loading={loading}>
+          <RefreshCw size={14} />
+        </Button>
+      </div>
+
+      {error && (
+        <div className="mb-3 p-2 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-700 rounded text-red-700 dark:text-red-400 text-sm">
+          {error}
+        </div>
+      )}
+
+      {funnel && funnel.length === 0 && !loading ? (
+        <p className="text-sm text-text-secondary dark:text-gray-500">No assignments yet.</p>
+      ) : funnel && funnel.length > 0 ? (
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left text-text-secondary dark:text-gray-400 border-b border-gray-200 dark:border-gray-700">
+                <th className="pb-2 font-medium">Experiment</th>
+                <th className="pb-2 font-medium">Condition</th>
+                <th className="pb-2 font-medium text-right">Landed</th>
+                <th className="pb-2 font-medium text-right">Consented</th>
+                <th className="pb-2 font-medium text-right">Responded</th>
+                <th className="pb-2 font-medium text-right">Demographics</th>
+                <th className="pb-2 font-medium text-right">Completed</th>
+                <th className="pb-2 font-medium text-right">Completion %</th>
+              </tr>
+            </thead>
+            <tbody>
+              {funnel.map((row) => (
+                <tr
+                  key={`${row.experiment}-${row.condition}`}
+                  className="border-b border-gray-100 dark:border-gray-700/50 last:border-0"
+                >
+                  <td className="py-2 font-mono text-xs text-text-primary dark:text-gray-200">{row.experiment}</td>
+                  <td className="py-2 font-mono text-xs text-text-primary dark:text-gray-200">{row.condition}</td>
+                  <td className="py-2 text-right tabular-nums text-text-primary dark:text-gray-200">{row.landed}</td>
+                  <td className="py-2 text-right tabular-nums text-text-primary dark:text-gray-200">
+                    {row.consented}
+                    <span className="text-text-secondary dark:text-gray-500 text-xs ml-1">({pct(row.consented, row.landed)})</span>
+                  </td>
+                  <td className="py-2 text-right tabular-nums text-text-primary dark:text-gray-200">
+                    {row.responded}
+                    <span className="text-text-secondary dark:text-gray-500 text-xs ml-1">({pct(row.responded, row.landed)})</span>
+                  </td>
+                  <td className="py-2 text-right tabular-nums text-text-primary dark:text-gray-200">
+                    {row.demographics}
+                    <span className="text-text-secondary dark:text-gray-500 text-xs ml-1">({pct(row.demographics, row.landed)})</span>
+                  </td>
+                  <td className="py-2 text-right tabular-nums text-text-primary dark:text-gray-200">
+                    {row.completed}
+                    <span className="text-text-secondary dark:text-gray-500 text-xs ml-1">({pct(row.completed, row.landed)})</span>
+                  </td>
+                  <td className="py-2 text-right tabular-nums text-text-primary dark:text-gray-200">
+                    {pct(row.completed, row.landed)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
+// Two-counter card showing today's 429s. Resets on backend restart — that's
+// fine because this is a launch-day "is anything misbehaving" surface, not a
+// long-term log.
+function LimitHitsCard({ slug }) {
+  const [hits, setHits] = useState(null)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState(null)
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      const { data } = await studyApi.limitHits(slug)
+      setHits(data.limit_hits_today)
+    } catch (err) {
+      setError(err.response?.data?.error?.message || 'Failed to load limit hits')
+    } finally {
+      setLoading(false)
+    }
+  }, [slug])
+
+  useEffect(() => {
+    load()
+  }, [load])
+
+  const total = hits ? (hits.payload_too_big + hits.snapshot_cap) : 0
+
+  return (
+    <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-5 shadow-sm mt-6">
+      <div className="flex items-center justify-between mb-4">
+        <div>
+          <h2 className="font-display font-semibold text-lg text-text-primary dark:text-gray-100">
+            Limit hits today
+          </h2>
+          <p className="text-xs text-text-secondary dark:text-gray-500 mt-0.5">
+            Counters reset on backend restart. Non-zero values are worth a look.
+          </p>
+        </div>
+        <Button variant="outline" size="sm" onClick={load} loading={loading}>
+          <RefreshCw size={14} />
+        </Button>
+      </div>
+
+      {error && (
+        <div className="mb-3 p-2 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-700 rounded text-red-700 dark:text-red-400 text-sm">
+          {error}
+        </div>
+      )}
+
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+        <Stat label="Payload too big (64KB)" value={hits?.payload_too_big ?? '—'} />
+        <Stat label="Snapshot cap (200)" value={hits?.snapshot_cap ?? '—'} />
+        <Stat label="Total" value={hits ? total : '—'} />
+      </div>
     </div>
   )
 }

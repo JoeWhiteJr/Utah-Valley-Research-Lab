@@ -1134,4 +1134,236 @@ describe('Study API', () => {
       expect(suffix).toMatch(/^[0-9a-f]+$/);
     });
   });
+
+  describe('GET /api/study/:slug/funnel', () => {
+    it('rejects unauthenticated requests', async () => {
+      const res = await request(app).get('/api/study/effort-justification/funnel');
+      expect(res.status).toBe(401);
+    });
+
+    it('rejects non-admin users', async () => {
+      const res = await request(app)
+        .get('/api/study/effort-justification/funnel')
+        .set('Authorization', `Bearer ${researcherToken}`);
+      expect(res.status).toBe(403);
+    });
+
+    it('returns 404 for an unknown slug', async () => {
+      const res = await request(app)
+        .get('/api/study/does-not-exist/funnel')
+        .set('Authorization', `Bearer ${adminToken}`);
+      expect(res.status).toBe(404);
+    });
+
+    it('returns per-condition step counts for a seeded scenario', async () => {
+      // Run an end-to-end mini-scenario through the public endpoints so we
+      // exercise the same writes the funnel SQL has to read. We track three
+      // participants:
+      //   p1: lands only (no consent, no save, no finish) — counts toward landed
+      //   p2: lands + consent + save — counts toward landed, consented, responded
+      //   p3: lands + consent (with demographics) + save + finish — counts toward all five
+      // The test snapshots the funnel totals BEFORE and AFTER seeding so it
+      // is robust to other tests in this file that may have left rows behind
+      // (e.g. /save without /consent — which would break a cross-row
+      // monotonicity assertion).
+      const sumTotals = (funnel) => funnel.reduce(
+        (acc, row) => ({
+          landed: acc.landed + row.landed,
+          consented: acc.consented + row.consented,
+          responded: acc.responded + row.responded,
+          demographics: acc.demographics + row.demographics,
+          completed: acc.completed + row.completed,
+        }),
+        { landed: 0, consented: 0, responded: 0, demographics: 0, completed: 0 }
+      );
+
+      const before = await request(app)
+        .get('/api/study/effort-justification/funnel')
+        .set('Authorization', `Bearer ${adminToken}`);
+      expect(before.status).toBe(200);
+      const beforeTotals = sumTotals(before.body.funnel || []);
+
+      const ips = ['10.99.0.301', '10.99.0.302', '10.99.0.303'];
+
+      const start1 = await request(app)
+        .post('/api/study/start')
+        .set('X-Forwarded-For', ips[0]);
+      expect(start1.status).toBe(201);
+
+      const start2 = await request(app)
+        .post('/api/study/start')
+        .set('X-Forwarded-For', ips[1]);
+      expect(start2.status).toBe(201);
+      // Backdate created_at past PR-5's CONSENT_MIN_SECONDS gate, and send
+      // consented:true to satisfy PR-1's explicit-consent requirement.
+      await db.query(
+        "UPDATE study_participants SET created_at = NOW() - INTERVAL '10 seconds' WHERE participant_code = $1",
+        [start2.body.participant_code]
+      );
+      await request(app)
+        .post('/api/study/consent')
+        .send({ participant_code: start2.body.participant_code, consented: true });
+      await request(app)
+        .post('/api/study/save')
+        .send({ participant_code: start2.body.participant_code, payload: { total_coins: 5 } });
+
+      const start3 = await request(app)
+        .post('/api/study/start')
+        .set('X-Forwarded-For', ips[2]);
+      expect(start3.status).toBe(201);
+      await db.query(
+        "UPDATE study_participants SET created_at = NOW() - INTERVAL '10 seconds' WHERE participant_code = $1",
+        [start3.body.participant_code]
+      );
+      await request(app)
+        .post('/api/study/consent')
+        .send({
+          participant_code: start3.body.participant_code,
+          consented: true,
+          demographics: { age: 22, gender: 'Male' },
+        });
+      await request(app)
+        .post('/api/study/save')
+        .send({ participant_code: start3.body.participant_code, payload: { total_coins: 10 } });
+      await request(app)
+        .post('/api/study/finish')
+        .send({ participant_code: start3.body.participant_code });
+
+      const res = await request(app)
+        .get('/api/study/effort-justification/funnel')
+        .set('Authorization', `Bearer ${adminToken}`);
+      expect(res.status).toBe(200);
+      expect(res.body.study.slug).toBe('effort-justification');
+      expect(Array.isArray(res.body.funnel)).toBe(true);
+      expect(res.body.funnel.length).toBeGreaterThan(0);
+
+      const afterTotals = sumTotals(res.body.funnel);
+
+      // Compute the deltas attributable to our 3 seeded participants — this
+      // sidesteps any pollution from earlier tests.
+      const delta = {
+        landed: afterTotals.landed - beforeTotals.landed,
+        consented: afterTotals.consented - beforeTotals.consented,
+        responded: afterTotals.responded - beforeTotals.responded,
+        demographics: afterTotals.demographics - beforeTotals.demographics,
+        completed: afterTotals.completed - beforeTotals.completed,
+      };
+
+      // Exact deltas: p1+p2+p3 → 3 landed; p2+p3 → 2 consented; p2+p3 → 2 responded;
+      // only p3 sent demographics + finished → 1 demographics, 1 completed.
+      expect(delta.landed).toBe(3);
+      expect(delta.consented).toBe(2);
+      expect(delta.responded).toBe(2);
+      expect(delta.demographics).toBe(1);
+      expect(delta.completed).toBe(1);
+
+      // Monotonicity holds on the deltas regardless of pre-existing rows.
+      expect(delta.landed).toBeGreaterThanOrEqual(delta.consented);
+      expect(delta.consented).toBeGreaterThanOrEqual(delta.responded);
+      expect(delta.responded).toBeGreaterThanOrEqual(delta.demographics);
+      expect(delta.demographics).toBeGreaterThanOrEqual(delta.completed);
+
+      // Each row carries condition + experiment labels.
+      for (const row of res.body.funnel) {
+        expect(typeof row.condition).toBe('string');
+        expect(typeof row.experiment).toBe('string');
+      }
+    });
+  });
+
+  describe('GET /api/study/:slug/limit-hits', () => {
+    const { recordLimitHit, _resetForTests } = require('../services/studyMetrics');
+
+    beforeEach(() => {
+      _resetForTests();
+    });
+
+    it('rejects unauthenticated requests', async () => {
+      const res = await request(app).get('/api/study/effort-justification/limit-hits');
+      expect(res.status).toBe(401);
+    });
+
+    it('rejects non-admin users', async () => {
+      const res = await request(app)
+        .get('/api/study/effort-justification/limit-hits')
+        .set('Authorization', `Bearer ${researcherToken}`);
+      expect(res.status).toBe(403);
+    });
+
+    it('returns 404 for an unknown slug', async () => {
+      const res = await request(app)
+        .get('/api/study/does-not-exist/limit-hits')
+        .set('Authorization', `Bearer ${adminToken}`);
+      expect(res.status).toBe(404);
+    });
+
+    it('returns counters scoped to the requested study', async () => {
+      const studyRow = await db.query("SELECT id FROM studies WHERE slug = 'effort-justification'");
+      const studyId = studyRow.rows[0].id;
+
+      recordLimitHit(studyId, 'payload_too_big');
+      recordLimitHit(studyId, 'payload_too_big');
+      recordLimitHit(studyId, 'snapshot_cap');
+      recordLimitHit('a-different-study-id', 'snapshot_cap');
+
+      const res = await request(app)
+        .get('/api/study/effort-justification/limit-hits')
+        .set('Authorization', `Bearer ${adminToken}`);
+      expect(res.status).toBe(200);
+      expect(res.body.limit_hits_today).toEqual({
+        payload_too_big: 2,
+        snapshot_cap: 1,
+      });
+    });
+
+    it('serves 429 + records a payload_too_big hit when /save payload exceeds 64KB', async () => {
+      const start = await request(app)
+        .post('/api/study/start')
+        .set('X-Forwarded-For', '10.99.0.501');
+      expect(start.status).toBe(201);
+      const code = start.body.participant_code;
+      // Sit between our route's 64000-byte cap and Express's 64kb (65536-byte)
+      // body-parser limit so we exercise the recordLimitHit path rather than
+      // the body-parser PayloadTooLargeError.
+      const big = { junk: 'x'.repeat(64200) };
+      const res = await request(app)
+        .post('/api/study/save')
+        .send({ participant_code: code, payload: big });
+      expect(res.status).toBe(429);
+
+      const hits = await request(app)
+        .get('/api/study/effort-justification/limit-hits')
+        .set('Authorization', `Bearer ${adminToken}`);
+      expect(hits.body.limit_hits_today.payload_too_big).toBeGreaterThanOrEqual(1);
+    });
+  });
+
+  describe('studyMetrics.recordLimitHit prune logic', () => {
+    const { recordLimitHit, getLimitHits, _resetForTests } = require('../services/studyMetrics');
+
+    beforeEach(() => {
+      _resetForTests();
+    });
+
+    it('drops counters from prior days when a new write lands', () => {
+      // Stub Date.prototype.toISOString so studyMetrics' `new Date().toISOString()`
+      // returns the day we control. Restoring in finally keeps the rest of the
+      // test suite safe even if an assertion throws.
+      const originalToISOString = Date.prototype.toISOString;
+      try {
+        Date.prototype.toISOString = function () { return '2020-01-01T00:00:00.000Z'; };
+        recordLimitHit('study-A', 'payload_too_big');
+        expect(Object.keys(getLimitHits())).toContain('2020-01-01:study-A');
+
+        Date.prototype.toISOString = function () { return '2020-01-02T00:00:00.000Z'; };
+        recordLimitHit('study-A', 'snapshot_cap');
+        const after = getLimitHits();
+        expect(Object.keys(after)).not.toContain('2020-01-01:study-A');
+        expect(Object.keys(after)).toContain('2020-01-02:study-A');
+        expect(after['2020-01-02:study-A']).toEqual({ payload_too_big: 0, snapshot_cap: 1 });
+      } finally {
+        Date.prototype.toISOString = originalToISOString;
+      }
+    });
+  });
 });
