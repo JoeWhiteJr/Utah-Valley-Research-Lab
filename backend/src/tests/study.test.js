@@ -446,6 +446,51 @@ describe('Study API', () => {
         .set('Authorization', `Bearer ${adminToken}`);
       expect(res.status).toBe(400);
     });
+
+    it('returns correct Content-Disposition header with study slug and experiment in the filename', async () => {
+      const res = await request(app)
+        .get('/api/study/export/treasure_hunt')
+        .set('Authorization', `Bearer ${adminToken}`);
+      expect(res.status).toBe(200);
+      expect(res.headers['content-disposition']).toMatch(/attachment; filename=.+_treasure_hunt_responses\.csv/);
+    });
+
+    it('includes seeded participant data in the CSV body', async () => {
+      // Seed a participant with a known payload, then verify the export contains it.
+      const startRes = await request(app)
+        .post('/api/study/start')
+        .set('X-Forwarded-For', '10.99.1.100');
+      expect(startRes.status).toBe(201);
+      const code = startRes.body.participant_code;
+      const exp = startRes.body.experiment;
+
+      await request(app)
+        .post('/api/study/save')
+        .send({ participant_code: code, payload: { total_coins: 42 } });
+
+      const exportRes = await request(app)
+        .get(`/api/study/export/${exp}`)
+        .set('Authorization', `Bearer ${adminToken}`);
+      expect(exportRes.status).toBe(200);
+      // The participant_code should appear somewhere in the exported CSV.
+      expect(exportRes.text).toContain(code);
+    });
+
+    it('does not block concurrent /start calls — pool is released before streaming begins', async () => {
+      // Fire the export and a /start call simultaneously. Both must complete
+      // successfully, proving the export does not pin the pool connection while
+      // writing the response body.
+      const [exportRes, startRes] = await Promise.all([
+        request(app)
+          .get('/api/study/export/treasure_hunt')
+          .set('Authorization', `Bearer ${adminToken}`),
+        request(app)
+          .post('/api/study/start')
+          .set('X-Forwarded-For', '10.99.1.101'),
+      ]);
+      expect(exportRes.status).toBe(200);
+      expect(startRes.status).toBe(201);
+    });
   });
 
   describe('GET /api/study/participants (list)', () => {

@@ -834,12 +834,18 @@ function csvRow(values) {
   return values.map(csvField).join(',') + '\n';
 }
 
-// Streaming CSV export for one experiment within one study. ?slug= optional;
-// defaults to the most recently created active study. Export columns come from
-// the per-study config so each study can ship its own DV layout.
+// CSV export for one experiment within one study. ?slug= optional; defaults to
+// the most recently created active study. Export columns come from the per-study
+// config so each study can ship its own DV layout.
+//
+// We read all rows into memory in a single pool query rather than streaming with
+// a dedicated client + REPEATABLE READ transaction. Academic studies have at most
+// thousands of participants, so the result set is small. The old approach held a
+// pool connection for the entire multi-minute download, starving /start and /save
+// during peak traffic. A mild trade-off is that a row inserted between the query
+// and the res.write loop may appear or not appear — acceptable for a data export.
 router.get('/export/:experiment', authenticate, requireRole('admin'), async (req, res, next) => {
-  const PAGE_SIZE = 200;
-  let client;
+  const EXPORT_WARN_THRESHOLD = 50_000;
   try {
     const requestedSlug = (req.query.slug || '').trim() || null;
     const resolved = await resolveStudy(requestedSlug);
@@ -857,47 +863,35 @@ router.get('/export/:experiment', authenticate, requireRole('admin'), async (req
       return res.status(500).json({ error: { message: 'Export columns not defined for this experiment' } });
     }
 
-    res.writeHead(200, {
-      'Content-Type': 'text/csv',
-      'Content-Disposition': `attachment; filename=${study.slug}_${experiment}_responses.csv`,
-    });
-    res.write(csvRow(columns.map(c => c[0])));
+    // Single pooled query — connection is returned to the pool as soon as the
+    // query completes, before any bytes are written to the response.
+    const result = await db.query(
+      `SELECT p.participant_code, a.condition, a.assigned_at, a.completed_at, r.payload
+       FROM study_responses r
+       JOIN study_assignments a ON a.id = r.assignment_id
+       JOIN study_participants p ON p.id = a.participant_id
+       WHERE r.is_snapshot = false
+         AND a.study_id = $1
+         AND a.experiment = $2
+       ORDER BY a.completed_at ASC NULLS LAST, p.participant_code ASC`,
+      [study.id, experiment]
+    );
 
-    client = await db.getClient();
-    // REPEATABLE READ snapshot pins the result set so all paged queries see the
-    // same data — without it, /save calls landing mid-export can shift the
-    // ORDER BY position of in-progress assignments and skip or duplicate rows.
-    await client.query('BEGIN');
-    await client.query('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ');
-    let offset = 0;
-    let more = true;
-    while (more) {
-      const result = await client.query(
-        `SELECT p.participant_code, a.condition, a.assigned_at, a.completed_at, r.payload
-         FROM study_responses r
-         JOIN study_assignments a ON a.id = r.assignment_id
-         JOIN study_participants p ON p.id = a.participant_id
-         WHERE r.is_snapshot = false
-           AND a.study_id = $1
-           AND a.experiment = $2
-         ORDER BY a.completed_at ASC NULLS LAST, p.participant_code ASC
-         LIMIT $3 OFFSET $4`,
-        [study.id, experiment, PAGE_SIZE, offset]
-      );
-      for (const row of result.rows) {
-        res.write(csvRow(columns.map(c => c[1](row))));
-      }
-      more = result.rows.length === PAGE_SIZE;
-      offset += PAGE_SIZE;
+    if (result.rows.length >= EXPORT_WARN_THRESHOLD) {
+      logger.warn({ rows: result.rows.length, study_id: study.id, experiment }, 'study export over 50k rows');
     }
-    await client.query('COMMIT');
+
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', `attachment; filename=${study.slug}_${experiment}_responses.csv`);
+    res.write(csvRow(columns.map(c => c[0])));
+    for (const row of result.rows) {
+      res.write(csvRow(columns.map(c => c[1](row))));
+    }
     res.end();
   } catch (error) {
     logger.error({ err: error }, 'Failed to export study responses');
     if (!res.headersSent) return next(error);
     res.end();
-  } finally {
-    if (client) client.release();
   }
 });
 
