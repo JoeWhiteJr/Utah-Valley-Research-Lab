@@ -52,7 +52,7 @@ export default function StudyDone() {
 
   return (
     <div className="flex items-center justify-center min-h-screen p-4 print:bg-white print:p-0">
-      <div className="bg-white dark:bg-gray-800 print:bg-white rounded-xl shadow-lg print:shadow-none p-8 max-w-lg w-full">
+      <div className="bg-white dark:bg-gray-800 print:bg-white rounded-xl shadow-lg print:shadow-none p-5 sm:p-8 max-w-lg w-full">
         <div className="flex justify-center mb-4 print:mb-2">
           <div className="rounded-full bg-green-100 dark:bg-green-900/40 print:bg-green-100 p-3">
             <CheckCircle2 className="w-10 h-10 text-green-600 dark:text-green-400 print:text-green-700" />

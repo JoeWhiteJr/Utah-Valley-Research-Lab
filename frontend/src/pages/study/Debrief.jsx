@@ -43,7 +43,7 @@ export default function StudyDebrief() {
 
   return (
     <div className="flex items-center justify-center min-h-screen p-4">
-      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8 max-w-2xl w-full">
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-5 sm:p-8 max-w-2xl w-full">
         <h1 className="font-display font-bold text-2xl text-text-primary dark:text-gray-100 mb-2">
           Thank you for participating
         </h1>

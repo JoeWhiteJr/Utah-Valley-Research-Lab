@@ -45,7 +45,7 @@ export default function ParticipatePage() {
             Help advance our research
           </h1>
           <p className="text-lg text-gray-600 dark:text-gray-400 max-w-2xl">
-            Anyone can participate in our active studies. Most take 10–15 minutes,
+            Anyone can participate in our active studies. Most take 10–20 minutes,
             require no account or email, and store your responses anonymously.
           </p>
         </div>

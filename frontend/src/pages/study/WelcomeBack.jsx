@@ -15,7 +15,7 @@ export default function StudyWelcomeBack({ onDismiss }) {
 
   return (
     <div className="flex items-center justify-center min-h-screen p-4">
-      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8 max-w-md w-full">
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-5 sm:p-8 max-w-md w-full">
         <h1 className="font-display font-bold text-2xl text-text-primary dark:text-gray-100 mb-2">
           Welcome back
         </h1>
