@@ -292,9 +292,8 @@ function FunnelCard({ slug }) {
   )
 }
 
-// Two-counter card showing today's 429s. Resets on backend restart — that's
-// fine because this is a launch-day "is anything misbehaving" surface, not a
-// long-term log.
+// Two-counter card showing today's 429s. Persisted in Postgres so process
+// restarts don't wipe the numbers. Non-zero values are worth a look.
 function LimitHitsCard({ slug }) {
   const [hits, setHits] = useState(null)
   const [loading, setLoading] = useState(false)
@@ -327,7 +326,7 @@ function LimitHitsCard({ slug }) {
             Limit hits today
           </h2>
           <p className="text-xs text-text-secondary dark:text-gray-500 mt-0.5">
-            Counters reset on backend restart. Non-zero values are worth a look.
+            Counters persist across restarts. Non-zero values are worth a look.
           </p>
         </div>
         <Button variant="outline" size="sm" onClick={load} loading={loading}>

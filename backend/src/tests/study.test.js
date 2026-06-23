@@ -1445,10 +1445,20 @@ describe('Study API', () => {
   });
 
   describe('GET /api/study/:slug/limit-hits', () => {
-    const { recordLimitHit, _resetForTests } = require('../services/studyMetrics');
+    const { recordLimitHit, getLimitHits } = require('../services/studyMetrics');
+    let studyId;
 
-    beforeEach(() => {
-      _resetForTests();
+    beforeAll(async () => {
+      const studyRow = await db.query("SELECT id FROM studies WHERE slug = 'effort-justification'");
+      studyId = studyRow.rows[0].id;
+    });
+
+    beforeEach(async () => {
+      // Reset today's counters for the test study so tests don't bleed into each other.
+      await db.query(
+        "DELETE FROM study_limit_hits WHERE study_id = $1 AND day = CURRENT_DATE",
+        [studyId]
+      );
     });
 
     it('rejects unauthenticated requests', async () => {
@@ -1471,13 +1481,9 @@ describe('Study API', () => {
     });
 
     it('returns counters scoped to the requested study', async () => {
-      const studyRow = await db.query("SELECT id FROM studies WHERE slug = 'effort-justification'");
-      const studyId = studyRow.rows[0].id;
-
-      recordLimitHit(studyId, 'payload_too_big');
-      recordLimitHit(studyId, 'payload_too_big');
-      recordLimitHit(studyId, 'snapshot_cap');
-      recordLimitHit('a-different-study-id', 'snapshot_cap');
+      await recordLimitHit(studyId, 'payload_too_big');
+      await recordLimitHit(studyId, 'payload_too_big');
+      await recordLimitHit(studyId, 'snapshot_cap');
 
       const res = await request(app)
         .get('/api/study/effort-justification/limit-hits')
@@ -1487,6 +1493,19 @@ describe('Study API', () => {
         payload_too_big: 2,
         snapshot_cap: 1,
       });
+      // 7-day history array is also present
+      expect(Array.isArray(res.body.limit_hits_7d)).toBe(true);
+    });
+
+    it('DB-backed counter increments correctly across two calls', async () => {
+      await recordLimitHit(studyId, 'payload_too_big');
+      await recordLimitHit(studyId, 'payload_too_big');
+
+      const rows = await getLimitHits(studyId);
+      const today = new Date().toISOString().slice(0, 10);
+      const todayRow = rows.find(r => r.day === today);
+      expect(todayRow).toBeDefined();
+      expect(todayRow.payload_too_big).toBe(2);
     });
 
     it('serves 429 + records a payload_too_big hit when /save payload exceeds 64KB', async () => {
@@ -1504,39 +1523,24 @@ describe('Study API', () => {
         .send({ participant_code: code, payload: big });
       expect(res.status).toBe(429);
 
+      // Give the fire-and-forget write a moment to land before reading back.
+      await new Promise(r => setTimeout(r, 50));
+
       const hits = await request(app)
         .get('/api/study/effort-justification/limit-hits')
         .set('Authorization', `Bearer ${adminToken}`);
       expect(hits.body.limit_hits_today.payload_too_big).toBeGreaterThanOrEqual(1);
     });
-  });
 
-  describe('studyMetrics.recordLimitHit prune logic', () => {
-    const { recordLimitHit, getLimitHits, _resetForTests } = require('../services/studyMetrics');
-
-    beforeEach(() => {
-      _resetForTests();
-    });
-
-    it('drops counters from prior days when a new write lands', () => {
-      // Stub Date.prototype.toISOString so studyMetrics' `new Date().toISOString()`
-      // returns the day we control. Restoring in finally keeps the rest of the
-      // test suite safe even if an assertion throws.
-      const originalToISOString = Date.prototype.toISOString;
-      try {
-        Date.prototype.toISOString = function () { return '2020-01-01T00:00:00.000Z'; };
-        recordLimitHit('study-A', 'payload_too_big');
-        expect(Object.keys(getLimitHits())).toContain('2020-01-01:study-A');
-
-        Date.prototype.toISOString = function () { return '2020-01-02T00:00:00.000Z'; };
-        recordLimitHit('study-A', 'snapshot_cap');
-        const after = getLimitHits();
-        expect(Object.keys(after)).not.toContain('2020-01-01:study-A');
-        expect(Object.keys(after)).toContain('2020-01-02:study-A');
-        expect(after['2020-01-02:study-A']).toEqual({ payload_too_big: 0, snapshot_cap: 1 });
-      } finally {
-        Date.prototype.toISOString = originalToISOString;
-      }
+    it('/snapshot 429s before lookup when participant_code is bogus but payload is oversized', async () => {
+      // A 100MB POST with a bogus participant_code should 429 (payload guard
+      // fires before the DB lookup) rather than 404 (assignment not found).
+      const big = { junk: 'x'.repeat(64200) };
+      const res = await request(app)
+        .post('/api/study/snapshot')
+        .send({ participant_code: 'TH_bogus_code_that_does_not_exist', payload: big });
+      expect(res.status).toBe(429);
+      expect(res.body.error.message).toMatch(/64KB/i);
     });
   });
 });

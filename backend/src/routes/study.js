@@ -388,6 +388,19 @@ router.post('/snapshot', saveLimiter, [
   }
   const { participant_code, payload } = req.body;
 
+  // Payload-size guard runs BEFORE the DB lookup so a 100MB POST doesn't burn
+  // a DB roundtrip before the 64KB cap rejects it. study_id is unknown at this
+  // point so recordLimitHit is called with null — it silently skips the write
+  // rather than recording against the wrong study.
+  if (payloadTooBig(payload)) {
+    recordLimitHit(null, 'payload_too_big').catch(() => {});
+    logger.warn(
+      { kind: 'payload_too_big', participant_code, route: '/snapshot' },
+      'Study limit hit'
+    );
+    return res.status(429).json({ error: { message: 'Payload exceeds 64KB limit' } });
+  }
+
   const assignmentLookup = await db.query(
     `SELECT a.id, a.study_id
      FROM study_assignments a
@@ -401,18 +414,6 @@ router.post('/snapshot', saveLimiter, [
     return res.status(404).json({ error: { message: 'Assignment not found' } });
   }
   const assignment = assignmentLookup.rows[0];
-
-  // Payload-size guard happens BEFORE acquiring a pool client so an oversize
-  // hit doesn't waste a connection. recordLimitHit instruments the admin
-  // dashboard counter (PR #123).
-  if (payloadTooBig(payload)) {
-    recordLimitHit(assignment.study_id, 'payload_too_big');
-    logger.warn(
-      { kind: 'payload_too_big', study_id: assignment.study_id, participant_code, route: '/snapshot' },
-      'Study limit hit'
-    );
-    return res.status(429).json({ error: { message: 'Payload exceeds 64KB limit' } });
-  }
 
   const client = await db.getClient();
   try {
@@ -429,7 +430,9 @@ router.post('/snapshot', saveLimiter, [
     );
     if (cnt.rows[0].n >= 200) {
       await client.query('ROLLBACK');
-      recordLimitHit(assignment.study_id, 'snapshot_cap');
+      recordLimitHit(assignment.study_id, 'snapshot_cap').catch(err =>
+        logger.warn({ err }, 'studyMetrics record failed')
+      );
       logger.warn(
         { kind: 'snapshot_cap', study_id: assignment.study_id, participant_code, route: '/snapshot' },
         'Study limit hit'
@@ -488,7 +491,9 @@ router.post('/save', saveLimiter, [
 
     if (payloadTooBig(payload)) {
       await client.query('ROLLBACK');
-      recordLimitHit(studyId, 'payload_too_big');
+      recordLimitHit(studyId, 'payload_too_big').catch(err =>
+        logger.warn({ err }, 'studyMetrics record failed')
+      );
       logger.warn(
         { kind: 'payload_too_big', study_id: studyId, participant_code, route: '/save' },
         'Study limit hit'
@@ -749,9 +754,9 @@ router.get('/:slug/funnel', authenticate, requireRole('admin'), [
   }
 });
 
-// Admin: in-memory counter of 429 limit hits today, scoped to a single study.
-// Used by the admin Research Studies page to surface "is anything misbehaving"
-// during launch. Counter resets on backend restart.
+// Admin: DB-backed counter of 429 limit hits for the past 7 days, scoped to a
+// single study. Used by the admin Research Studies page to surface "is anything
+// misbehaving" during launch. Persisted across restarts via study_limit_hits.
 router.get('/:slug/limit-hits', authenticate, requireRole('admin'), [
   param('slug').isString().trim().isLength({ min: 1, max: 64 }),
 ], async (req, res, next) => {
@@ -766,20 +771,21 @@ router.get('/:slug/limit-hits', authenticate, requireRole('admin'), [
     }
     const { dbRow: study } = resolved;
 
-    // Filter the per-day:per-study map down to entries for this study and
-    // collapse them into a single { payload_too_big, snapshot_cap } shape.
-    // We sum across days even though the prune logic should keep the map at
-    // one day's worth — defence in depth in case the prune lags a clock-skew.
-    const totals = { payload_too_big: 0, snapshot_cap: 0 };
-    const suffix = `:${study.id}`;
-    for (const [key, counts] of Object.entries(getLimitHits())) {
-      if (!key.endsWith(suffix)) continue;
-      totals.payload_too_big += counts.payload_too_big || 0;
-      totals.snapshot_cap += counts.snapshot_cap || 0;
-    }
+    // Returns [{day, payload_too_big, snapshot_cap}, ...] newest-first, 7 days.
+    const rows = await getLimitHits(study.id);
+    // Surface today's counters as limit_hits_today for backwards compat with
+    // the existing LimitHitsCard shape, and include the full history for
+    // trending. If there's no row for today the counters default to 0.
+    const today = new Date().toISOString().slice(0, 10);
+    const todayRow = rows.find(r => r.day === today);
+    const limit_hits_today = {
+      payload_too_big: todayRow?.payload_too_big ?? 0,
+      snapshot_cap: todayRow?.snapshot_cap ?? 0,
+    };
     res.json({
       study: { slug: study.slug, title: study.title },
-      limit_hits_today: totals,
+      limit_hits_today,
+      limit_hits_7d: rows,
     });
   } catch (error) {
     next(error);
