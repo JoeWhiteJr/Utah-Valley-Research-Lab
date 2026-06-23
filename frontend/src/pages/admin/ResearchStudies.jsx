@@ -11,6 +11,39 @@ const EXPERIMENT_LABELS = {
   pattern_memory: 'Pattern Memory',
 }
 
+export const CONDITION_LABELS = {
+  BASELINE: 'Baseline',
+  HIGH_EFFORT: 'High effort',
+  NR_PATTERN: 'N→R pattern',
+  RN_PATTERN: 'R→N pattern',
+  RANDOM: 'Random',
+  WITHIN_SUBJECTS: 'Within-subjects',
+}
+
+export const displayCondition = (cond) => CONDITION_LABELS[cond] || cond
+
+const DROP_THRESHOLD = 0.4
+
+// Returns { dropPct, stepName } for the largest single-step drop, or null if
+// no drop exceeds DROP_THRESHOLD.
+export function largestDrop(row) {
+  const steps = [
+    { label: 'landed→consented', from: row.landed, to: row.consented },
+    { label: 'consented→responded', from: row.consented, to: row.responded },
+    { label: 'responded→demographics', from: row.responded, to: row.demographics },
+    { label: 'demographics→completed', from: row.demographics, to: row.completed },
+  ]
+  let worst = null
+  for (const step of steps) {
+    if (!step.from) continue
+    const drop = (step.from - step.to) / step.from
+    if (drop > DROP_THRESHOLD && (!worst || drop > worst.dropPct)) {
+      worst = { dropPct: drop, stepName: step.label }
+    }
+  }
+  return worst
+}
+
 export default function ResearchStudies() {
   const [stats, setStats] = useState(null)
   const [activeSlug, setActiveSlug] = useState(null)
@@ -158,55 +191,101 @@ function FunnelCard({ slug }) {
         </div>
       )}
 
+      {funnel && funnel.length > 0 && (() => {
+        const totalLanded = funnel.reduce((s, r) => s + (r.landed || 0), 0)
+        const totalCompleted = funnel.reduce((s, r) => s + (r.completed || 0), 0)
+        const flaggedCount = funnel.filter((r) => largestDrop(r) !== null).length
+        const completionPct = totalLanded ? Math.round((totalCompleted / totalLanded) * 100) : 0
+        return (
+          <div className="mb-4 p-3 bg-gray-50 dark:bg-gray-700/40 rounded-lg flex flex-wrap items-center gap-3">
+            <span className="text-xl font-display font-bold text-text-primary dark:text-gray-100">
+              {completionPct}%
+            </span>
+            <span className="text-sm text-text-secondary dark:text-gray-400">
+              ({totalCompleted}/{totalLanded}) completed overall
+            </span>
+            {flaggedCount > 0 && (
+              <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300">
+                {flaggedCount} drop{flaggedCount !== 1 ? 's' : ''} flagged
+              </span>
+            )}
+          </div>
+        )
+      })()}
+
       {funnel && funnel.length === 0 && !loading ? (
         <p className="text-sm text-text-secondary dark:text-gray-500">No assignments yet.</p>
       ) : funnel && funnel.length > 0 ? (
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-left text-text-secondary dark:text-gray-400 border-b border-gray-200 dark:border-gray-700">
-                <th className="pb-2 font-medium">Experiment</th>
-                <th className="pb-2 font-medium">Condition</th>
-                <th className="pb-2 font-medium text-right">Landed</th>
-                <th className="pb-2 font-medium text-right">Consented</th>
-                <th className="pb-2 font-medium text-right">Responded</th>
-                <th className="pb-2 font-medium text-right">Demographics</th>
-                <th className="pb-2 font-medium text-right">Completed</th>
-                <th className="pb-2 font-medium text-right">Completion %</th>
-              </tr>
-            </thead>
-            <tbody>
-              {funnel.map((row) => (
-                <tr
-                  key={`${row.experiment}-${row.condition}`}
-                  className="border-b border-gray-100 dark:border-gray-700/50 last:border-0"
-                >
-                  <td className="py-2 font-mono text-xs text-text-primary dark:text-gray-200">{row.experiment}</td>
-                  <td className="py-2 font-mono text-xs text-text-primary dark:text-gray-200">{row.condition}</td>
-                  <td className="py-2 text-right tabular-nums text-text-primary dark:text-gray-200">{row.landed}</td>
-                  <td className="py-2 text-right tabular-nums text-text-primary dark:text-gray-200">
+        <div className="space-y-2">
+          {/* Column headers — hidden on mobile, visible sm+ */}
+          <div className="hidden sm:flex text-xs font-medium text-text-secondary dark:text-gray-400 border-b border-gray-200 dark:border-gray-700 pb-2">
+            <div className="flex-1 min-w-0">Experiment / Condition</div>
+            <div className="w-16 text-right">Landed</div>
+            <div className="w-20 text-right">Consented</div>
+            <div className="w-20 text-right">Responded</div>
+            <div className="w-24 text-right">Demographics</div>
+            <div className="w-20 text-right">Completed</div>
+            <div className="w-20 text-right">Rate</div>
+          </div>
+          {funnel.map((row) => {
+            const drop = largestDrop(row)
+            const dropPctDisplay = drop ? Math.round(drop.dropPct * 100) : null
+            return (
+              <div
+                key={`${row.experiment}-${row.condition}`}
+                className={`rounded-lg border px-3 py-2 ${drop ? 'bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800' : 'border-gray-100 dark:border-gray-700/50'}`}
+              >
+                {/* Label row — always visible */}
+                <div className="flex flex-wrap items-center gap-2 mb-1 sm:mb-0">
+                  <span className="text-sm font-medium text-text-primary dark:text-gray-100">
+                    {EXPERIMENT_LABELS[row.experiment] || row.experiment}
+                  </span>
+                  <span className="text-xs text-text-secondary dark:text-gray-400">
+                    / {displayCondition(row.condition)}
+                  </span>
+                  {drop && (
+                    <span className="text-xs font-medium px-1.5 py-0.5 rounded bg-amber-200 dark:bg-amber-800 text-amber-900 dark:text-amber-200">
+                      ↓ {dropPctDisplay}% drop at {drop.stepName}
+                    </span>
+                  )}
+                </div>
+
+                {/* Stage counts: stacked on mobile, inline on sm+ */}
+                <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-0 mt-1 sm:mt-0">
+                  <div className="flex sm:hidden flex-col gap-0.5 text-xs text-text-secondary dark:text-gray-400">
+                    <span>Landed: <span className="tabular-nums font-medium text-text-primary dark:text-gray-200">{row.landed}</span></span>
+                    <span>Consented: <span className="tabular-nums font-medium text-text-primary dark:text-gray-200">{row.consented} ({pct(row.consented, row.landed)})</span></span>
+                    <span>Responded: <span className="tabular-nums font-medium text-text-primary dark:text-gray-200">{row.responded} ({pct(row.responded, row.landed)})</span></span>
+                    <span>Demographics: <span className="tabular-nums font-medium text-text-primary dark:text-gray-200">{row.demographics} ({pct(row.demographics, row.landed)})</span></span>
+                    <span>Completed: <span className="tabular-nums font-medium text-text-primary dark:text-gray-200">{row.completed} ({pct(row.completed, row.landed)})</span></span>
+                  </div>
+                  <div className="hidden sm:flex sm:flex-1 sm:items-center">
+                    {/* spacer to align with header label column */}
+                  </div>
+                  <div className="hidden sm:block w-16 text-right tabular-nums text-sm text-text-primary dark:text-gray-200">{row.landed}</div>
+                  <div className="hidden sm:block w-20 text-right tabular-nums text-sm text-text-primary dark:text-gray-200">
                     {row.consented}
                     <span className="text-text-secondary dark:text-gray-500 text-xs ml-1">({pct(row.consented, row.landed)})</span>
-                  </td>
-                  <td className="py-2 text-right tabular-nums text-text-primary dark:text-gray-200">
+                  </div>
+                  <div className="hidden sm:block w-20 text-right tabular-nums text-sm text-text-primary dark:text-gray-200">
                     {row.responded}
                     <span className="text-text-secondary dark:text-gray-500 text-xs ml-1">({pct(row.responded, row.landed)})</span>
-                  </td>
-                  <td className="py-2 text-right tabular-nums text-text-primary dark:text-gray-200">
+                  </div>
+                  <div className="hidden sm:block w-24 text-right tabular-nums text-sm text-text-primary dark:text-gray-200">
                     {row.demographics}
                     <span className="text-text-secondary dark:text-gray-500 text-xs ml-1">({pct(row.demographics, row.landed)})</span>
-                  </td>
-                  <td className="py-2 text-right tabular-nums text-text-primary dark:text-gray-200">
+                  </div>
+                  <div className="hidden sm:block w-20 text-right tabular-nums text-sm text-text-primary dark:text-gray-200">
                     {row.completed}
                     <span className="text-text-secondary dark:text-gray-500 text-xs ml-1">({pct(row.completed, row.landed)})</span>
-                  </td>
-                  <td className="py-2 text-right tabular-nums text-text-primary dark:text-gray-200">
+                  </div>
+                  <div className="hidden sm:block w-20 text-right tabular-nums text-sm font-medium text-text-primary dark:text-gray-200">
                     {pct(row.completed, row.landed)}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                  </div>
+                </div>
+              </div>
+            )
+          })}
         </div>
       ) : null}
     </div>
