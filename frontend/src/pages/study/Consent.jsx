@@ -5,6 +5,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useStudyStore } from '../../store/studyStore'
 import Button from '../../components/Button'
+import ConfirmDialog from '../../components/ConfirmDialog'
 import { MIN_CONSENT_TIME_MS } from './constants'
 
 const HONEYPOT_OOPS = 'Something went wrong. Please refresh this page and try again.'
@@ -49,6 +50,7 @@ export default function StudyConsent() {
   const [agreed, setAgreed] = useState(false)
   const [honeypot, setHoneypot] = useState('')
   const [localError, setLocalError] = useState(null)
+  const [declineDialogOpen, setDeclineDialogOpen] = useState(false)
   const arrivedAt = useRef(Date.now())
 
   useEffect(() => {
@@ -153,11 +155,7 @@ export default function StudyConsent() {
         <div className="flex gap-3">
           <Button
             variant="outline"
-            onClick={() => {
-              if (window.confirm('Are you sure you want to leave the study?')) {
-                window.location.href = '/'
-              }
-            }}
+            onClick={() => setDeclineDialogOpen(true)}
           >
             Decline
           </Button>
@@ -170,6 +168,16 @@ export default function StudyConsent() {
             I agree &mdash; start the task
           </Button>
         </div>
+        <ConfirmDialog
+          isOpen={declineDialogOpen}
+          onClose={() => setDeclineDialogOpen(false)}
+          onConfirm={() => { window.location.href = '/' }}
+          title="Decline to participate?"
+          message="If you decline, your session ends and no data is saved."
+          confirmLabel="Decline"
+          cancelLabel="Go back"
+          variant="danger"
+        />
       </div>
     </div>
   )
