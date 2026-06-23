@@ -249,11 +249,16 @@ router.get('/list', async (req, res, next) => {
 // same endpoint is reused for the post-game demographics POST, which must NOT
 // be able to back-stamp consent for a participant who never saw the consent
 // screen (closes one half of the quota-poisoning attack chain).
+//
+// Runs inside a transaction with a per-participant advisory lock so that two
+// concurrent /consent calls for the same participant_code are serialized — the
+// same xact-lock pattern used by /finish and /snapshot.
 router.post('/consent', [
   body('participant_code').isString().trim().isLength({ min: 6, max: 64 }),
   body('consented').optional().isBoolean(),
   body('demographics').optional().isObject()
 ], async (req, res, next) => {
+  const client = await db.getClient();
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -262,12 +267,22 @@ router.post('/consent', [
     const { participant_code, demographics } = req.body;
     const consented = req.body.consented === true;
 
+    await client.query('BEGIN');
+    // Per-participant advisory lock serializes concurrent /consent calls for
+    // the same code. Scoped to 'consent:' so it doesn't collide with other
+    // lock namespaces (study_balance, study_finish, snapshot_cap).
+    // `xact_lock` auto-releases on COMMIT/ROLLBACK.
+    await client.query(
+      `SELECT pg_advisory_xact_lock(hashtext($1))`,
+      ['consent:' + participant_code]
+    );
+
     // Server-side mirror of the client-side consent read-time gate in
     // Consent.jsx. A bot/script that POSTs /consent directly bypasses the
     // client timer, so enforce CONSENT_MIN_SECONDS server-side too. Only
     // applied on the first /consent call (before consent_given_at is set) so
     // a returning participant submitting demographics isn't rejected.
-    const existing = await db.query(
+    const existing = await client.query(
       `SELECT consent_given_at,
               EXTRACT(EPOCH FROM (NOW() - created_at))::float AS sec
        FROM study_participants
@@ -276,12 +291,26 @@ router.post('/consent', [
     );
 
     if (existing.rows.length === 0) {
+      await client.query('ROLLBACK');
       return res.status(404).json({ error: { message: 'Participant not found' } });
     }
 
     if (existing.rows[0].consent_given_at === null
         && existing.rows[0].sec < CONSENT_MIN_SECONDS) {
+      await client.query('ROLLBACK');
       return res.status(403).json({ error: { message: 'Consent submitted too quickly' } });
+    }
+
+    // Gate BEFORE any write: a demographics-only call (no `consented: true`)
+    // on a participant who has not yet consented must be rejected WITHOUT
+    // touching the row. The prior code ran the UPDATE first and 409'd after,
+    // meaning demographics were already written to the DB when the 409 fired.
+    // We have consent_given_at from the SELECT above — use it to bail early.
+    if (!consented && !existing.rows[0].consent_given_at) {
+      await client.query('ROLLBACK');
+      return res.status(409).json({
+        error: { message: 'Consent must be recorded before demographics' }
+      });
     }
 
     // Merge-on-write: a second /consent call (e.g. browser-back from debrief
@@ -292,7 +321,7 @@ router.post('/consent', [
     // Branch on `consented`: only stamp consent_given_at when the caller
     // explicitly opted in. Demographics-only calls leave consent untouched.
     const result = consented
-      ? await db.query(
+      ? await client.query(
           `UPDATE study_participants
            SET consent_given_at = COALESCE(consent_given_at, CURRENT_TIMESTAMP),
                demographics = COALESCE(demographics, '{}'::jsonb) || $2::jsonb,
@@ -301,7 +330,7 @@ router.post('/consent', [
            RETURNING id, consent_given_at`,
           [participant_code, demographics || {}]
         )
-      : await db.query(
+      : await client.query(
           `UPDATE study_participants
            SET demographics = COALESCE(demographics, '{}'::jsonb) || $2::jsonb,
                updated_at = CURRENT_TIMESTAMP
@@ -311,22 +340,17 @@ router.post('/consent', [
         );
 
     if (result.rows.length === 0) {
+      await client.query('ROLLBACK');
       return res.status(404).json({ error: { message: 'Participant not found' } });
     }
 
-    // Demographics-only call (no `consented: true`) on a participant who has
-    // not yet consented — reject so a scripted client can't skip the consent
-    // screen and still record demographics. The /finish gate will 403 too,
-    // but failing here gives the caller a clearer error.
-    if (!consented && !result.rows[0].consent_given_at) {
-      return res.status(409).json({
-        error: { message: 'Consent must be recorded before demographics' }
-      });
-    }
-
+    await client.query('COMMIT');
     res.json({ ok: true, consent_given_at: result.rows[0].consent_given_at });
   } catch (error) {
+    await client.query('ROLLBACK').catch(() => {});
     next(error);
+  } finally {
+    client.release();
   }
 });
 
@@ -786,15 +810,18 @@ router.post('/follow-up', saveLimiter, [
     const { dbRow: study } = resolved;
 
     // Proof-of-participation check: the participant_code must map to a
-    // participant whose assignment is marked complete. This blocks drive-by
-    // bots dumping addresses into the mailing list under any active study.
-    // (Schema note: study_assignments.participant_id → study_participants.id;
+    // participant whose assignment is marked complete AND belongs to the
+    // resolved study. Without the study_id filter a completion code from any
+    // study could be used to seed any other study's mailing list (cross-study
+    // IDOR). (Schema note: study_assignments.participant_id → study_participants.id;
     // we go through the assignments row because completed_at lives there.)
     const proof = await db.query(
       `SELECT p.id FROM study_participants p
        JOIN study_assignments a ON a.participant_id = p.id
-       WHERE p.participant_code = $1 AND a.completed_at IS NOT NULL`,
-      [participant_code]
+       WHERE p.participant_code = $1
+         AND a.completed_at IS NOT NULL
+         AND a.study_id = $2`,
+      [participant_code, study.id]
     );
     if (!proof.rows[0]) {
       return res.status(403).json({ error: { message: 'Follow-up requires a completed participation' } });
