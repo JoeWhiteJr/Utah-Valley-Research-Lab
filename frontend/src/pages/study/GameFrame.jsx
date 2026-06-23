@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, forwardRef } from 'react'
 import { useStudyStore } from '../../store/studyStore'
 import Button from '../../components/Button'
+import ConfirmDialog from '../../components/ConfirmDialog'
 import { LOAD_TIMEOUT_MS } from './constants'
 
 const EXPERIMENT_PATH = {
@@ -28,6 +29,7 @@ export default function StudyGameFrame() {
   const [isTouchPrimary, setIsTouchPrimary] = useState(detectTouchPrimary())
   const [saveStatus, setSaveStatus] = useState('idle') // idle | saving | saved | error
   const saveStatusTimerRef = useRef(null)
+  const [leaveDialogOpen, setLeaveDialogOpen] = useState(false)
 
   // Warn before unloading mid-game so accidental tab closes don't silently end
   // the session. Modern browsers ignore the message string and show their own
@@ -174,14 +176,20 @@ export default function StudyGameFrame() {
         <Button
           variant="ghost"
           size="sm"
-          onClick={() => {
-            if (window.confirm('Leave the task? Your progress will be saved if you have completed at least one phase.')) {
-              window.location.href = '/'
-            }
-          }}
+          onClick={() => setLeaveDialogOpen(true)}
         >
           Leave study
         </Button>
+        <ConfirmDialog
+          isOpen={leaveDialogOpen}
+          onClose={() => setLeaveDialogOpen(false)}
+          onConfirm={() => { window.location.href = '/' }}
+          title="Leave this study?"
+          message="Your progress so far has been autosaved. You can return later from the same browser to finish."
+          confirmLabel="Leave"
+          cancelLabel="Stay"
+          variant="danger"
+        />
       </div>
     </div>
   )
