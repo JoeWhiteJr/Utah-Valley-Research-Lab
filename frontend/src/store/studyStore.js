@@ -155,6 +155,14 @@ export const useStudyStore = create(
         study_title: state.study_title,
         experiment: state.experiment,
         condition: state.condition,
+        // Persist finish lifecycle so a participant who closes the tab while
+        // the error banner is visible still sees the retry affordance on
+        // reopen. 'pending' is coerced to 'idle' — there is no in-flight
+        // request after a tab close, so persisting 'pending' would leave a
+        // stuck spinner with no way to recover.
+        finishStatus: state.finishStatus === 'pending' ? 'idle' : state.finishStatus,
+        finishError: state.finishError,
+        completedAt: state.completedAt,
       }),
     }
   )

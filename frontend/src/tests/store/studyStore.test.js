@@ -183,3 +183,68 @@ describe('studyStore', () => {
     expect(s.step).toBe('landing')
   })
 })
+
+describe('studyStore partialize — finish state localStorage persistence', () => {
+  // Read the partialize function directly from the persist config to test the
+  // coercion logic without needing a real localStorage write/read cycle.
+  // Zustand's persist middleware attaches the config to the store via
+  // useStudyStore.persist.getOptions(). We fall back to extracting partialize
+  // from the store's _customPartialize helper if the API isn't available.
+  function getPartialize() {
+    // Access the persist options Zustand exposes on the store object.
+    return useStudyStore.persist?.getOptions?.()?.partialize
+  }
+
+  it('partialize emits finishStatus=error so a reopened tab shows the retry banner', () => {
+    const partialize = getPartialize()
+    const state = {
+      step: 'debrief',
+      participant_code: 'TH_x',
+      study_slug: 'ej',
+      study_title: 'EJ',
+      experiment: 'treasure_hunt',
+      condition: 'BASELINE',
+      finishStatus: 'error',
+      finishError: 'server exploded',
+      completedAt: null,
+    }
+    const persisted = partialize(state)
+    expect(persisted.finishStatus).toBe('error')
+    expect(persisted.finishError).toBe('server exploded')
+  })
+
+  it('partialize coerces finishStatus=pending to idle so a reopened tab never shows a stuck spinner', () => {
+    const partialize = getPartialize()
+    const state = {
+      step: 'debrief',
+      participant_code: 'TH_x',
+      study_slug: 'ej',
+      study_title: 'EJ',
+      experiment: 'treasure_hunt',
+      condition: 'BASELINE',
+      finishStatus: 'pending',
+      finishError: null,
+      completedAt: null,
+    }
+    const persisted = partialize(state)
+    expect(persisted.finishStatus).toBe('idle')
+  })
+
+  it('partialize preserves finishStatus=success so a reopened tab does not show the Try-again banner', () => {
+    const partialize = getPartialize()
+    const state = {
+      step: 'done',
+      participant_code: 'TH_x',
+      study_slug: 'ej',
+      study_title: 'EJ',
+      experiment: 'treasure_hunt',
+      condition: 'BASELINE',
+      finishStatus: 'success',
+      finishError: null,
+      completedAt: '2026-06-01T12:00:00Z',
+    }
+    const persisted = partialize(state)
+    expect(persisted.finishStatus).toBe('success')
+    expect(persisted.completedAt).toBe('2026-06-01T12:00:00Z')
+  })
+})
