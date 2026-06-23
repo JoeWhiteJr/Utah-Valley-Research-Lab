@@ -2,12 +2,6 @@
 // before launch. Sections follow common-rule template (Purpose, Procedures,
 // Risks, Benefits, Confidentiality, Voluntary Participation, Contact, Age).
 
-// =============================================================================
-// PLACEHOLDER CONTACT EMAILS — REPLACE BEFORE LAUNCH
-// Ticket: docs/tickets/open/UVRL-T001-infra-prep-for-ej-launch.md
-// Replace: TODO_LAB_EMAIL@uvu.edu, TODO_IRB_EMAIL@uvu.edu
-// =============================================================================
-
 import { useEffect, useRef, useState } from 'react'
 import { useStudyStore } from '../../store/studyStore'
 import Button from '../../components/Button'
@@ -98,17 +92,16 @@ export default function StudyConsent() {
               <p>{section.body}</p>
               {section.heading === 'Contact' && (
                 <>
-                  {/* TODO: REPLACE PLACEHOLDER EMAILS BEFORE LAUNCH (UVRL-T001) */}
-                  <section className="mt-4 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-md text-sm">
-                    <p className="font-semibold text-amber-900 dark:text-amber-200">Questions or concerns?</p>
-                    <ul className="mt-2 space-y-1 text-amber-800 dark:text-amber-200">
+                  <section className="mt-4 p-3 bg-gray-50 dark:bg-gray-700/40 border border-gray-200 dark:border-gray-700 rounded-md text-sm">
+                    <p className="font-semibold text-text-primary dark:text-gray-100">Questions or concerns?</p>
+                    <ul className="mt-2 space-y-1 text-text-secondary dark:text-gray-300">
                       <li>
                         <span className="font-medium">Research team:</span>{' '}
-                        <a href="mailto:TODO_LAB_EMAIL@uvu.edu" className="underline">TODO_LAB_EMAIL@uvu.edu</a>
+                        <a href="mailto:david.benson@uvu.edu" className="underline">david.benson@uvu.edu</a>
                       </li>
                       <li>
                         <span className="font-medium">UVU Institutional Review Board (IRB):</span>{' '}
-                        <a href="mailto:TODO_IRB_EMAIL@uvu.edu" className="underline">TODO_IRB_EMAIL@uvu.edu</a>
+                        <a href="mailto:irb@uvu.edu" className="underline">irb@uvu.edu</a>
                       </li>
                     </ul>
                   </section>
