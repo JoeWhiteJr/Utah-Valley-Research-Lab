@@ -44,3 +44,6 @@ backups/
 
 # Misc
 *.tgz
+
+# Dev-cycle workflow artifacts
+.workflow/
