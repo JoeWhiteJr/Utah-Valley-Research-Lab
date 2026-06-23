@@ -1,44 +1,44 @@
-// In-memory per-day counter of /api/study 429s. Surfaced on the admin
-// Research Studies page so we notice if a runaway client is bumping into the
-// payload-too-big guard or the snapshot cap during launch week.
+// Persistent counter of /api/study 429 events, stored in Postgres so
+// process restarts (PM2 reboot, container redeploy) don't wipe the numbers.
+// Surfaced on the admin Research Studies page during launch week.
 //
-// Counts are NOT durable — a restart clears them. That's intentional for
-// launch: the dashboard is meant for "what's happening right now" and any
-// long-term capacity work will move to structured logs anyway.
+// recordLimitHit is fire-and-forget from callers on the hot path — errors
+// are logged but never propagate to the response so observability failures
+// cannot break participant-facing routes.
 //
-// The Map is keyed by `${YYYY-MM-DD}:${study_id}` so we can prune anything not
-// from today on every write. That keeps the Map bounded to "active studies"
-// regardless of how long the process runs.
+// getLimitHits returns the last 7 days of rows for a given study_id so the
+// admin UI can show a short trend rather than a single today-only counter.
 
-const limitHitsToday = new Map();
+const db = require('../config/database');
+const logger = require('../config/logger');
 
-function todayKey() {
-  return new Date().toISOString().slice(0, 10);
-}
-
-function recordLimitHit(studyId, kind) {
-  if (!studyId || !kind) return;
-  const day = todayKey();
-  const key = `${day}:${studyId}`;
-  const bucket = limitHitsToday.get(key) || { payload_too_big: 0, snapshot_cap: 0 };
-  bucket[kind] = (bucket[kind] || 0) + 1;
-  limitHitsToday.set(key, bucket);
-  // Prune anything not from today so the Map stays bounded across a long-
-  // running process.
-  for (const k of limitHitsToday.keys()) {
-    if (!k.startsWith(day + ':')) limitHitsToday.delete(k);
+async function recordLimitHit(studyId, kind) {
+  if (!studyId) return; // tolerate pre-lookup 429s where study_id is unknown
+  if (kind !== 'payload_too_big' && kind !== 'snapshot_cap') return;
+  // `kind` is narrowed to the two safe column names above — no injection risk.
+  const col = kind;
+  try {
+    await db.query(
+      `INSERT INTO study_limit_hits (study_id, day, ${col})
+       VALUES ($1, CURRENT_DATE, 1)
+       ON CONFLICT (study_id, day)
+       DO UPDATE SET ${col} = study_limit_hits.${col} + 1`,
+      [studyId]
+    );
+  } catch (err) {
+    logger.warn({ err, studyId, kind }, 'studyMetrics: failed to record limit hit');
   }
 }
 
-// Returns the raw Map contents as a plain object keyed by `${day}:${studyId}`.
-// Callers can filter by day / study as needed.
-function getLimitHits() {
-  return Object.fromEntries(limitHitsToday);
+async function getLimitHits(studyId) {
+  const res = await db.query(
+    `SELECT day::text AS day, payload_too_big, snapshot_cap
+     FROM study_limit_hits
+     WHERE study_id = $1 AND day >= CURRENT_DATE - INTERVAL '7 days'
+     ORDER BY day DESC`,
+    [studyId]
+  );
+  return res.rows;
 }
 
-// Test-only reset. Not exported on the module surface used by routes.
-function _resetForTests() {
-  limitHitsToday.clear();
-}
-
-module.exports = { recordLimitHit, getLimitHits, _resetForTests };
+module.exports = { recordLimitHit, getLimitHits };
