@@ -117,6 +117,30 @@ describe('Study API', () => {
   });
 
   describe('POST /api/study/consent + /api/study/save + /api/study/finish', () => {
+    // Regression: the frontend's submitConsent() posts
+    // `{ participant_code, consented: true, demographics: null }`.
+    // express-validator's default .optional() treats null as PRESENT and then
+    // .isObject() fails on null, returning a 400 "Validation failed" that
+    // showed as a red banner on the consent screen blocking every participant
+    // from starting the task. .optional({ nullable: true }) is the fix.
+    it('accepts consented:true with demographics:null (initial consent submit shape)', async () => {
+      const start = await request(app)
+        .post('/api/study/start')
+        .set('X-Forwarded-For', '10.99.0.150');
+      const code = start.body.participant_code;
+      await db.query(
+        "UPDATE study_participants SET created_at = NOW() - INTERVAL '10 seconds' WHERE participant_code = $1",
+        [code]
+      );
+
+      const res = await request(app)
+        .post('/api/study/consent')
+        .send({ participant_code: code, consented: true, demographics: null });
+      expect(res.status).toBe(200);
+      expect(res.body.ok).toBe(true);
+      expect(res.body.consent_given_at).toBeTruthy();
+    });
+
     it('records consent and a final save without marking complete; /finish sets completed_at', async () => {
       const start = await request(app).post('/api/study/start');
       const code = start.body.participant_code;

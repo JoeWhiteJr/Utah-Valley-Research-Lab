@@ -251,8 +251,12 @@ router.get('/list', async (req, res, next) => {
 // screen (closes one half of the quota-poisoning attack chain).
 router.post('/consent', [
   body('participant_code').isString().trim().isLength({ min: 6, max: 64 }),
-  body('consented').optional().isBoolean(),
-  body('demographics').optional().isObject()
+  // { nullable: true } so the frontend's `demographics: null` on the initial
+  // consent submit (before the post-game demographics form) doesn't trip
+  // .isObject() — express-validator's default .optional() only treats
+  // undefined as missing and lets null fall through to the type check.
+  body('consented').optional({ nullable: true }).isBoolean(),
+  body('demographics').optional({ nullable: true }).isObject()
 ], async (req, res, next) => {
   try {
     const errors = validationResult(req);
