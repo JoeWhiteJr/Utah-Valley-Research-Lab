@@ -162,14 +162,25 @@ function FollowUpOptIn() {
       // Mark completion FIRST so the backend's proof-of-participation check
       // on /follow-up sees a completed assignment. /finish is idempotent —
       // the explicit Finish button at the bottom of the page can still call
-      // it again without side effects. We swallow finish errors because the
-      // dominant failure mode the user cares about is the email signup;
-      // /follow-up will return 403 if the completion really didn't land.
+      // it again without side effects.
+      //
+      // Unlike the previous silent swallow, we now surface /finish failures
+      // to the store so the error banner + "Try again" button appear above
+      // the Finish button. The participant knows their participation wasn't
+      // recorded and can retry before the /follow-up 403 confuses them.
       if (participant_code) {
         try {
           await studyApi.finish(participant_code)
-        } catch {
-          // fall through — let /follow-up's 403 surface the real problem.
+        } catch (finishErr) {
+          useStudyStore.setState({
+            finishStatus: 'error',
+            finishError:
+              finishErr?.response?.data?.error?.message ||
+              finishErr?.message ||
+              'Could not save your completion. Please use the Finish button below.',
+          })
+          // Continue to attempt /follow-up — the 403 will surface if /finish
+          // truly did not land, giving the participant a second signal.
         }
       }
       await studyApi.followUp(trimmed, study_slug, participant_code)
