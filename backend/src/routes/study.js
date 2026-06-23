@@ -255,8 +255,12 @@ router.get('/list', async (req, res, next) => {
 // same xact-lock pattern used by /finish and /snapshot.
 router.post('/consent', [
   body('participant_code').isString().trim().isLength({ min: 6, max: 64 }),
-  body('consented').optional().isBoolean(),
-  body('demographics').optional().isObject()
+  // { nullable: true } so the frontend's `demographics: null` on the initial
+  // consent submit (before the post-game demographics form) doesn't trip
+  // .isObject() — express-validator's default .optional() only treats
+  // undefined as missing and lets null fall through to the type check.
+  body('consented').optional({ nullable: true }).isBoolean(),
+  body('demographics').optional({ nullable: true }).isObject()
 ], async (req, res, next) => {
   const client = await db.getClient();
   try {
